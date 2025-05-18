@@ -1,0 +1,51 @@
+import os
+import sys
+import configparser
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QApplication
+
+def get_root():
+    if getattr(sys, 'frozen', False):
+        root = os.path.dirname(sys.executable)
+    else:
+        root = os.path.dirname(os.path.dirname(__file__))
+    return root
+
+root = get_root()
+config = configparser.ConfigParser()
+config_path = os.path.join(root, 'config', 'config.ini')
+
+def read_config():
+    config.clear()  # Python3.2+；老版本可以：config._sections.clear()
+    config.read(config_path, encoding='utf-8')
+
+def save_config():
+    """保存当前配置到文件"""
+    try:
+        # 确保目录存在
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        
+        # 使用临时文件写入，避免写入过程中出错导致原文件损坏
+        temp_path = config_path + '.tmp'
+        with open(temp_path, 'w', encoding='utf-8') as f:
+            config.write(f)
+        
+        # 原子性替换原文件
+        if os.path.exists(config_path):
+            os.replace(temp_path, config_path)
+        else:
+            os.rename(temp_path, config_path)
+            
+    except Exception as e:
+        print(f"保存配置文件失败: {e}")
+        # 删除可能残留的临时文件
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+read_config()
+
+def set_application_font():
+    font = QFont()
+    font.setFamily("Verdana")  # 首选 Verdana
+    font.setStyleHint(QFont.SansSerif)  # 如果 Verdana 不可用，使用无衬线字体
+    QApplication.setFont(font)
