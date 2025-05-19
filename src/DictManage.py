@@ -87,7 +87,7 @@ class DictManage():
     def load_tagbase(self):
         floder_path = config.get('DictManage', 'tagbase_path', fallback='default_folder')
         if floder_path == 'default_folder':
-            floder_path = os.path.join(root, 'data', 'tag')
+            floder_path = os.path.join(root, 'data', 'tagbase')
         os.makedirs(floder_path, exist_ok=True)
         tagbase_name = config.get('DictManage', 'tagbase_name', fallback='tagbase')
         self.tag_dict_path = os.path.join(floder_path, tagbase_name)
