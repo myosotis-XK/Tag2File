@@ -1,8 +1,19 @@
+# 代码初始化相关
 __pycache__/
+*.code-workspace
+
+# 数据文件夹
 log/
 data/
-*.code-workspace
+
+# 自定义其他文件
 爬虫/
 自动打标/
 测试.py
 temp.py
+
+# 打包相关
+build/
+dist/
+*.spec
+*.exe

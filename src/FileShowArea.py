@@ -80,22 +80,22 @@ class FileShowArea(QScrollArea):
             os.makedirs(self.cache_dir)
         # 读取配置文件
         # 图标大小
-        self.SMALL_SIZE = config.getint('FileShowArea', 'SMALL_SIZE')
-        self.MEDIUM_SIZE = config.getint('FileShowArea', 'MEDIUM_SIZE')
-        self.LARGE_SIZE = config.getint('FileShowArea', 'LARGE_SIZE')
+        self.SMALL_SIZE = config.getint('FileShowArea', 'SMALL_SIZE', fallback=50)
+        self.MEDIUM_SIZE = config.getint('FileShowArea', 'MEDIUM_SIZE', fallback=100)
+        self.LARGE_SIZE = config.getint('FileShowArea', 'LARGE_SIZE', fallback=250)
         # 布局间隔比例
-        self.SPACING_RATE = config.getfloat('FileShowArea', 'SPACING_RATE')  # 间隔比率
+        self.SPACING_RATE = config.getfloat('FileShowArea', 'SPACING_RATE', fallback=0.05)  # 间隔比率
         # 默认设置
-        self.current_image_size = config.get('FileShowArea', 'current_image_size')  # 默认图标大小
-        self.current_sort_key = config.get('FileShowArea', 'current_sort_key')  # 默认排序方式
-        self.current_sort_order = config.get('FileShowArea', 'current_sort_order')  # 默认排序顺序
+        self.current_image_size = config.get('FileShowArea', 'current_image_size', fallback='medium')  # 默认图标大小
+        self.current_sort_key = config.get('FileShowArea', 'current_sort_key', fallback='date')  # 默认排序方式
+        self.current_sort_order = config.get('FileShowArea', 'current_sort_order', fallback='desc')  # 默认排序顺序
         # 界面参数
-        self.WINDOW_FRAMES = config.getint('FileShowArea', 'WINDOW_FRAMES')  # 界面帧数
-        self.SCROLL_DISTANCE_PER_SECOND = config.getint('FileShowArea', 'SCROLL_DISTANCE_PER_SECOND')  # 每秒滚动像素长度
+        self.WINDOW_FRAMES = config.getint('FileShowArea', 'WINDOW_FRAMES', fallback=60)  # 界面帧数
+        self.SCROLL_DISTANCE_PER_SECOND = config.getint('FileShowArea', 'SCROLL_DISTANCE_PER_SECOND', fallback=500)  # 每秒滚动像素长度
         self.SCROLL_DISTANCE_PER_FRAME = self.SCROLL_DISTANCE_PER_SECOND / self.WINDOW_FRAMES  # 每秒滚动像素长度
         # 布局标签相关
-        self.LABEL_SPACING = config.getint('FileShowArea', 'LABEL_SPACING')  # 标签间距
-        self.label_name_size = config.getint('FileShowArea', 'label_name_size')  # 文件名高度
+        self.LABEL_SPACING = config.getint('FileShowArea', 'LABEL_SPACING', fallback=5)  # 标签间距
+        self.label_name_size = config.getint('FileShowArea', 'label_name_size', fallback=20)  # 文件名高度
 
         self.labels = {}
         self.label_cache = {}

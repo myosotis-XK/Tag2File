@@ -15,9 +15,8 @@ def start_task_processing():
     cache_manager.start()  
     print(f"缓存管理进程已启动 (PID: {cache_manager.pid})")
 
-
-
-if __name__ == '__main__':  
+if __name__ == '__main__':
+    multiprocessing.freeze_support()  # 支持 Windows 下的多进程启动
     app = QApplication(sys.argv)
     if hasattr(QApplication, 'setAttribute'):
         QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
