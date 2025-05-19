@@ -231,6 +231,8 @@ class DictManage():
     def add_tag(self, tag:str, file_paths:list):
         # 检查tag是否存在
         if tag not in self.relation_graph['tag']:
+            if '未分类' not in self.relation_graph['category']:
+                self.relation_graph['category']['未分类'] = {"tagColor":QColor(200, 200, 200).name(), "tags": set(), "tagOrder": []}
             self.add_relation('tag', tag, 'category', '未分类')
             self.relation_graph['category']['未分类']['tagOrder'].append(tag)
         # 检查文件是否存在

@@ -66,7 +66,7 @@ def backup_tagbase():
 def manage_cache_process(max_age_days=30):
     """完整的缓存管理进程，包括检查条件和清理"""
     cache_config = configparser.ConfigParser()
-    config_path = os.path.join(root, 'data', 'cache_config.ini')
+    config_path = os.path.join(root, 'config', 'cache_config.ini')
     if not os.path.exists(config_path):
         with open(config_path, 'w', encoding='utf-8') as configfile:
             cache_config.write(configfile)
