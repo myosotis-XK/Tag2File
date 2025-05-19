@@ -86,7 +86,7 @@ class FileShowArea(QScrollArea):
         # 布局间隔比例
         self.SPACING_RATE = config.getfloat('FileShowArea', 'SPACING_RATE', fallback=0.05)  # 间隔比率
         # 默认设置
-        self.current_image_size = config.get('FileShowArea', 'current_image_size', fallback='medium')  # 默认图标大小
+        self.current_image_size = config.get('FileShowArea', 'current_image_size', fallback='mid')  # 默认图标大小
         self.current_sort_key = config.get('FileShowArea', 'current_sort_key', fallback='date')  # 默认排序方式
         self.current_sort_order = config.get('FileShowArea', 'current_sort_order', fallback='desc')  # 默认排序顺序
         # 界面参数
