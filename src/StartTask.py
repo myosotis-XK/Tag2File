@@ -46,9 +46,10 @@ def backup_tagbase():
     # 1. 二级备份升级为三级备份（仅当二级备份创建时间超过24小时）
     previous_backup_dir = f"{previous_backup}.dir"  # 选择 .dir 文件作为时间参考
     if os.path.exists(previous_backup_dir):
-        prev_create_time = os.path.getctime(previous_backup_dir)  # 获取创建时间（Windows为文件创建时间，Unix为元数据修改时间）
+        # 获取访问时间
+        prev_change_time = os.path.getatime(previous_backup_dir)
         current_time = time.time()
-        if current_time - prev_create_time >= 86400:  # 24小时 = 86400秒
+        if current_time - prev_change_time >= 86400:  # 24小时 = 86400秒
             process_files(previous_backup, one_day_ago_backup, "rename")
             print("二级备份已超过24小时，升级为三级备份")
         else:

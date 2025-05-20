@@ -10,6 +10,7 @@ from mutagen.mp4 import MP4, MP4Cover
 import cv2
 import hashlib
 import mimetypes
+import time
 
 
 class StarImageLoader(QRunnable):
@@ -21,14 +22,16 @@ class StarImageLoader(QRunnable):
             file_paths = []
         self.file_paths = file_paths
         self.use_cache = use_cache
+        self.runing = True
 
     def run(self):
         for file_path in self.file_paths:
+            if not self.runing:
+                break
             if (self.use_cache or not os.path.exists(file_path)) and self.check_cache(file_path):
                 continue
-            loader = ImageLoader(self.father, file_path)  
+            loader = ImageLoader(self.father, file_path)
             self.threadpool.start(loader)
-    
     def check_cache(self, file_path):
         # 检查缓存中是否存在该尺寸的缩略图
         if file_path in self.father.image_cache[self.father.image_size]:
@@ -68,6 +71,7 @@ class StarImageLoader(QRunnable):
         if not os.path.exists(file_path):
             pixmap = self.draw_text_on_pixmap(pixmap, "文件不存在")
         icon_label.setPixmap(pixmap)
+        time.sleep(0.01)
 
     def draw_text_on_pixmap(self, pixmap, text):
         pixmap = pixmap.copy()
