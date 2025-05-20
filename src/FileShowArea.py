@@ -15,10 +15,21 @@ from functools import partial
 from datetime import datetime
 import concurrent.futures
 
-if 'FileShowArea' not in config:
-    config.add_section('FileShowArea')
-if 'TagFileShowArea' not in config:
-    config.add_section('TagFileShowArea')
+default_value = {
+    'SMALL_SIZE': '50',  # 小图标大小
+    'MEDIUM_SIZE': '100',  # 中等图标大小
+    'LARGE_SIZE': '250',  # 大图标大小
+    'SPACING_RATE': '0.05',  # 图标间距比例
+    'current_image_size':'mid',  # 默认图标大小
+    'current_sort_key': 'date',  # 默认排序方式
+    'current_sort_order': 'desc',  # 默认排序顺序
+}
+init_config_section('FileShowArea', default_value)
+
+default_value = {
+    'acceptFloder': 'False',  # 是否接受文件夹
+}
+init_config_section('TagFileShowArea', default_value)
 save_config()
 
 def updateStyle(label, new_style_property):
@@ -76,7 +87,7 @@ class FileShowArea(QScrollArea):
 
         self.child_widget = []
         self.image_viewers = []
-        self.cache_dir = os.path.join(root, 'data', 'cache', 'image')
+        self.cache_dir = os.path.join(root, 'data', 'cache', 'image').replace('\\', '/')
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir)
         # 读取配置文件
@@ -299,7 +310,7 @@ class FileShowArea(QScrollArea):
     def get_cache_path(self, file_path):
         # 使用文件路径的哈希作为缓存文件名，以避免文件名冲突
         file_hash = hashlib.md5(file_path.encode()).hexdigest()
-        return os.path.join(self.cache_dir, f"{file_hash}_{self.image_size}.png")
+        return os.path.join(self.cache_dir, f"{file_hash}_{self.image_size}.png").replace('\\', '/')
     
     # 鼠标进入标签时改变背景颜色
     def setBackgroundColorOnEnter(self, event, label):

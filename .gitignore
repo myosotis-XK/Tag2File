@@ -5,6 +5,7 @@ __pycache__/
 # 数据文件夹
 log/
 data/
+config/
 
 # 自定义其他文件
 爬虫/

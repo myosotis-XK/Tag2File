@@ -5,8 +5,10 @@ from PyQt5.QtWidgets import QSplitter, QHBoxLayout, QLineEdit, QMessageBox, QInp
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor
 
-if 'TagView' not in config:
-    config.add_section('TagView')
+default_value = {
+    'quickly_model': False
+}
+init_config_section('TagView', default_value)
 save_config()
 
 class TagView(QMainWindow, Observer):

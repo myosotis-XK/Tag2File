@@ -1,9 +1,10 @@
 from .utils import *
+from .DictManage import *
 from .FileShowArea import *
 from .TagView import *
 from .TagClass import *
 from .CategoryManager import *
-from .DictManage import *
+from .TagbaseManager import *
 from .TagInput import TagInputWidget
 import sys  
 import os  
@@ -16,11 +17,13 @@ class Tag2File(QMainWindow, Observer):
         self.DictManage = DictManage()
         self.DictManage.add_observer(self)
         self.relation_graph = self.DictManage.relation_graph
+        self.special_categories = self.DictManage.special_categories
         self.special_tags_status = self.DictManage.special_tags_status
 
         self.child_widget = [] # 文件属性窗口
         self.tag_view = None
         self.categoryManager = None
+        self.tagbaseManager = None
         self.image_paths = []
         self.tag_expression = ''
 
@@ -35,7 +38,7 @@ class Tag2File(QMainWindow, Observer):
 
         # 创建设置菜单
         file_menu = menubar.addMenu("开始")
-        file_menu.addAction("标签库", self.change_tag_base)
+        file_menu.addAction("标签库", self.showTagbaseManager)
 
         # 创建界面
         self.file_view = QWidget()
@@ -106,9 +109,8 @@ class Tag2File(QMainWindow, Observer):
 
     def create_tag_widget(self):
         tree = CategoryTreeWidget(self)
-        
-        special_categories = ["文件类型", "年龄分级", "质量"]
 
+        # 创建固定文件类型项
         category_item = QTreeWidgetItem(tree)
         category_item.setText(0, "文件类型")
         category_font = QApplication.font() 
@@ -138,7 +140,7 @@ class Tag2File(QMainWindow, Observer):
             tags = value['tagOrder']
             color = QColor(value['tagColor'])
             for tag in tags:
-                if category in special_categories:
+                if category in self.special_categories:
                     label = SpecialTagLabel(tag, color, self)
                     label.checkStateChanged.connect(self.onSpecialLabelCheckChanged)
                     if tag in self.special_tags_status:
@@ -152,7 +154,7 @@ class Tag2File(QMainWindow, Observer):
                 tree.setItemWidget(label_item, 0, label)
 
             # 设置展开状态
-            if category in special_categories:
+            if category in self.special_categories:
                 category_item.setExpanded(False)
             else:
                 category_item.setExpanded(True)
@@ -196,6 +198,8 @@ class Tag2File(QMainWindow, Observer):
         self.MainFileShowArea.closeEvent(event)
         if self.categoryManager != None:
             self.categoryManager.close()
+        if self.tagbaseManager!= None:
+            self.tagbaseManager.close()
         if self.tag_view != None:
             self.tag_view.close()
 
@@ -259,23 +263,6 @@ class Tag2File(QMainWindow, Observer):
 
     #————————————————————菜单栏功能——————————————————————
 
-    def change_tag_base(self):
-        # 获取当前的tagbase_name
-        current_tagbase_name = config.get('DictManage', 'tagbase_name')
-
-        # 弹出对话框让用户输入新的tagbase_name
-        new_tagbase_name, ok = QInputDialog.getText(self, '修改标签库名称', '请输入新的标签库名称:', text=current_tagbase_name)
-
-        if ok and new_tagbase_name:
-            # 更新配置文件中的tagbase_name
-            config.set('DictManage', 'tagbase_name', new_tagbase_name)
-            save_config()
-
-            # 更新界面或其他相关操作
-            self.MainFileShowArea.changeFile([])
-            self.DictManage.load_tagbase()
-            self.update_tag_widget()
-
     def showTagView(self, event, file_paths=None):
         if file_paths is None:
             file_paths = []
@@ -296,6 +283,16 @@ class Tag2File(QMainWindow, Observer):
             self.categoryManager.show()
             self.categoryManager.activateWindow()
             self.categoryManager.setWindowState(Qt.WindowActive)
+
+    def showTagbaseManager(self):
+        # 创建标签库管理对话框
+        if self.tagbaseManager == None:
+            self.tagbaseManager = TagbaseManager(self)
+            self.tagbaseManager.show()
+        else:
+            self.tagbaseManager.show()
+            self.tagbaseManager.activateWindow()
+            self.tagbaseManager.setWindowState(Qt.WindowActive)
 
     # 改变显示文件
     def changeFile(self, tag_expression = None):

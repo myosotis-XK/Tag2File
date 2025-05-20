@@ -6,6 +6,14 @@ import copy
 from PyQt5.QtCore import QObject, QThread, Qt, QMetaObject
 from PyQt5.QtGui import QColor
 
+default_value = {
+    'tagbase_folder': 'default_folder',
+    'tagbase_name': 'tagbase',
+    'default_folder': 'default_folder',
+    'tagbase_list': '',
+}
+init_config_section('DictManage', default_value)
+save_config()
 
 class Observer(QObject):
     def __init__(self):
@@ -65,7 +73,11 @@ class DictManage():
     def __init__(self):
         if not self._initialized:
             self._initialized = True
+            self.default_folder = config.get('DictManage', 'default_folder', fallback='default_folder')
+            if self.default_folder == 'default_folder':
+                self.default_folder = os.path.join(root, 'data', 'tagbase').replace('\\', '/')
             self.relation_graph = {}
+            self.special_categories = []
             self.special_tags_status = {}
             self._lock = threading.Lock()
             self.load_tagbase()
@@ -85,32 +97,31 @@ class DictManage():
             observer.thread_safe_update()
 
     def load_tagbase(self):
-        floder_path = config.get('DictManage', 'tagbase_path', fallback='default_folder')
+        floder_path = config.get('DictManage', 'tagbase_folder', fallback='default_folder')
         if floder_path == 'default_folder':
-            floder_path = os.path.join(root, 'data', 'tagbase')
+            floder_path = self.default_folder
         os.makedirs(floder_path, exist_ok=True)
         tagbase_name = config.get('DictManage', 'tagbase_name', fallback='tagbase')
-        self.tag_dict_path = os.path.join(floder_path, tagbase_name)
+        self.tag_dict_path = os.path.join(floder_path, tagbase_name).replace('\\', '/')
 
         if not os.path.exists(self.tag_dict_path+".dir"):
-            with shelve.open(self.tag_dict_path) as shelf:
-                shelf['category_dict'] = {"未分类":{"tagColor":QColor(200, 200, 200).name(), "tags": set(), "tagOrder": []}}
-                shelf['tag_dict'] = {}
-                shelf['file_dict'] = {}
-                shelf['special_tags_status'] = {}
+            self.create_tagbase(self.tag_dict_path)
         with shelve.open(self.tag_dict_path) as shelf:
-            if shelf.get('category_dict') is None:
-                shelf['category_dict'] = {"未分类":{"tagColor":QColor(200, 200, 200).name(), "tags": set(), "tagOrder": []}}
-            if shelf.get('tag_dict') is None:
-                shelf['tag_dict'] = {}
-            if shelf.get('file_dict') is None:
-                shelf['file_dict'] = {}
-            if shelf.get('special_tags_status') is None:
-                shelf['special_tags_status'] = {}
-            self.relation_graph['category'] = shelf['category_dict']
-            self.relation_graph['tag'] = shelf['tag_dict']
-            self.relation_graph['file'] = shelf['file_dict']
-            self.special_tags_status.update(shelf['special_tags_status'])
+            self.relation_graph['category'] = shelf.get('category_dict', {"未分类":{"tagColor":QColor(200, 200, 200).name(), "tags": set(), "tagOrder": []}})
+            self.relation_graph['tag'] = shelf.get('tag_dict', {})
+            self.relation_graph['file'] = shelf.get('file_dict', {})
+            self.special_categories.clear()
+            self.special_categories.extend(shelf.get('special_categories', []))
+            self.special_tags_status.clear()
+            self.special_tags_status.update(shelf.get('special_tags_status', {}))
+
+    def create_tagbase(self, tag_dict_path):
+        with shelve.open(tag_dict_path) as shelf:
+            shelf['category_dict'] = {"未分类":{"tagColor":QColor(200, 200, 200).name(), "tags": set(), "tagOrder": []}}
+            shelf['tag_dict'] = {}
+            shelf['file_dict'] = {}
+            shelf['special_categories'] = []
+            shelf['special_tags_status'] = {}
 
     # ——————————————————————————————————————————————————字典基础操作————————————————————————————————————————————————————
 

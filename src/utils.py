@@ -42,6 +42,14 @@ def save_config():
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
+def init_config_section(section, defaults):
+    """优雅地初始化配置节和默认值"""
+    if section not in config:
+        config.add_section(section)
+    for key, value in defaults.items():
+        if key not in config[section]:
+            config.set(section, key, str(value))
+
 read_config()
 
 def set_application_font():
