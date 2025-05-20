@@ -17,10 +17,11 @@ def start_task_processing():
 
 if __name__ == '__main__':
     multiprocessing.freeze_support()  # 支持 Windows 下的多进程启动
-    app = QApplication(sys.argv)
+
     if hasattr(QApplication, 'setAttribute'):
         QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
         QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    app = QApplication(sys.argv)
     set_application_font()
     viewer = MainWindow.Tag2File()
     start_task_processing()

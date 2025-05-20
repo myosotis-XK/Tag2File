@@ -339,11 +339,36 @@ class FileShowArea(QScrollArea):
         return name_height + self.LABEL_INNER_SPACING
 
     def _createFileLabel(self, file_path):
+        start_time = time.time()
         # 创建标签
-        import time
-        sum_time = 0
         label = QLabel()
         label.setObjectName("file_label")
+
+        # 创建显示图标的 QLabel
+        icon_label = QLabel(label)
+        icon_label.setObjectName("icon_label")
+
+        # 创建显示文件名的 QLabel
+        file_name_label = QLabel(label)
+        file_name_label.setObjectName("file_name_label")
+
+        label.icon = False
+        label.file_path = file_path
+        #绑定标签操作
+        label.mouseDoubleClickEvent = partial(self.openFile, file_path=file_path) # 双击
+        label.mousePressEvent = partial(self.onLabelLeftClick, label=label) # 左击
+        # 右击菜单
+        label.setContextMenuPolicy(Qt.CustomContextMenu) 
+        label.customContextMenuRequested.connect(partial(self.showLabelMenu, label=label))
+        # 绑定鼠标进入和离开的事件
+        label.enterEvent = partial(self.setBackgroundColorOnEnter, label=label)
+        label.leaveEvent = partial(self.resetBackgroundColorOnLeave, label=label)
+        label.setParent(self.content_widget)
+        label.hide()
+        return label, time.time() - start_time
+
+    def _add_file_attributes(self, label):
+        file_path = label.file_path # 获取文件名
 
         # 获取文件图标
         file_extension = os.path.splitext(file_path)[1]
@@ -358,24 +383,20 @@ class FileShowArea(QScrollArea):
             # 将图标添加到缓存
             self.image_cache[file_extension] = pixmap
 
-        # 创建显示图标的 QLabel
-
-        icon_label = QLabel(label)
+        icon_label = label.findChild(QLabel, "icon_label")
         icon_label.setStyleSheet("background-color: transparent;")
-        icon_label.setObjectName("icon_label")
+        icon_label.setPixmap(pixmap)
         icon_label.file_path = file_path
         icon_label.setFixedSize(self.image_size, self.image_size)
-        icon_label.setPixmap(pixmap)
         icon_label.setAlignment(Qt.AlignHCenter | Qt.AlignBottom)
         icon_label.move(self.LABEL_INNER_SPACING, self.LABEL_INNER_SPACING)
 
-        
         # 创建显示文件名的 QLabel
-        file_name_label = QLabel(label)
+        file_name_label = label.findChild(QLabel, "file_name_label")
         file_name_label.setStyleSheet("background-color: transparent;")
-        file_name_label.setObjectName("file_name_label")
         file_name_label.setWordWrap(True)
         file_name_label.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        file_name_label.file_path = file_path
         file_name = os.path.basename(file_path)  # 获取文件名
         file_name_label.setText('\u200B'.join(file_name))
         # 计算文件名标签的高度，但不超过最大允许高度
@@ -383,31 +404,7 @@ class FileShowArea(QScrollArea):
         # 设置文件名标签的大小和位置
         file_name_label.setFixedSize(self.label_size - 4, name_height)
         file_name_label.move(2, self.label_size)
-        file_name_label.file_path = file_path
 
-        # 设置标签固定大小
-        label.setFixedSize(self.label_size, self.label_size + name_height)
-
-        # 添加文件属性
-        label.file_path = file_path
-        label.file_name = file_name
-
-        #绑定标签操作
-        label.mouseDoubleClickEvent = partial(self.openFile, file_path=file_path) # 双击
-        label.mousePressEvent = partial(self.onLabelLeftClick, label=label) # 左击
-        # 右击菜单
-        label.setContextMenuPolicy(Qt.CustomContextMenu) 
-        label.customContextMenuRequested.connect(partial(self.showLabelMenu, label=label))
-        # 绑定鼠标进入和离开的事件
-        label.enterEvent = partial(self.setBackgroundColorOnEnter, label=label)
-        label.leaveEvent = partial(self.resetBackgroundColorOnLeave, label=label)
-        label.setParent(self.content_widget)
-        label.hide()
-        return label, sum_time
-
-    def _add_file_attributes(self, label):
-        label.icon = False
-        file_path = label.file_path # 获取文件名
         if os.path.exists(file_path):
             file_size_bytes = os.path.getsize(file_path)
             label.file_size_bytes = file_size_bytes
@@ -419,6 +416,14 @@ class FileShowArea(QScrollArea):
             label.file_size_bytes = 0
             label.file_size = "文件不存在"
             label.file_date = "文件不存在"
+
+        # 设置标签固定大小
+        label.setFixedSize(self.label_size, self.label_size + name_height)
+
+        # 添加文件属性
+        label.file_path = file_path
+        label.file_name = file_name
+        label.icon = False
 
     # 创建文件标签
     def createFileLabels(self, file_paths=None, use_cache=True):
