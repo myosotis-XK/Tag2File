@@ -320,13 +320,6 @@ class DictManage():
             self.relation_graph['category']['未分类']['tagOrder'].append(tag)
         self.delete_entity('category', category)
         self.save_notify()
-        
-
-    def save_notify(self):
-        # 保存更新后的字典
-        self.save_dict()
-        # 通知观察者更新
-        self.notify_observers()
 
     def reorder_categories(self, new_order):
         """重新排序类别，根据拖放后的新顺序"""
@@ -341,6 +334,12 @@ class DictManage():
         if category in self.relation_graph['category']:
             self.relation_graph['category'][category]['tagOrder'] = new_order
             self.save_notify()
+
+    def save_notify(self):
+        # 保存更新后的字典
+        self.save_dict()
+        # 通知观察者更新
+        self.notify_observers()
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication

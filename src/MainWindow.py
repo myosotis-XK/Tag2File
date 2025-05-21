@@ -276,23 +276,12 @@ class Tag2File(QMainWindow, Observer):
             self.tag_view.setWindowState(Qt.WindowActive)
 
     def showCategoryManager(self):
-        if self.categoryManager == None:
-            self.categoryManager = CategoryManager()
-            self.categoryManager.show()
-        else:
-            self.categoryManager.show()
-            self.categoryManager.activateWindow()
-            self.categoryManager.setWindowState(Qt.WindowActive)
+        self.categoryManager = CategoryManager()
+        self.categoryManager.show()
 
     def showTagbaseManager(self):
-        # 创建标签库管理对话框
-        if self.tagbaseManager == None:
-            self.tagbaseManager = TagbaseManager(self)
-            self.tagbaseManager.show()
-        else:
-            self.tagbaseManager.show()
-            self.tagbaseManager.activateWindow()
-            self.tagbaseManager.setWindowState(Qt.WindowActive)
+        self.tagbaseManager = TagbaseManager(self)
+        self.tagbaseManager.show()
 
     # 改变显示文件
     def changeFile(self, tag_expression = None):

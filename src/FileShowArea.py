@@ -536,7 +536,7 @@ class FileShowArea(QScrollArea):
         for visible_label_key in self.visible_labels_keys:
             label = self.labels[visible_label_key]
             label.hide()
-        for hide_label_path in self.select_labels_keys:
+        for hide_label_path in list(self.select_labels_keys):
             if hide_label_path in hide_label_paths:
                 label = self.labels[hide_label_path]
                 updateStyle(label, "border: none;")

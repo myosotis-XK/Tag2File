@@ -1,18 +1,16 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,   
-                             QPushButton, QInputDialog, QMessageBox,   
-                             QColorDialog, QSplitter, QWidget, QLabel, QDesktopWidget,
-                             QMenu)  
-from PyQt5.QtGui import QColor  
+                             QPushButton, QInputDialog, QMessageBox, QColorDialog, 
+                             QSplitter, QWidget, QLabel, QDesktopWidget, QMenu) 
 from PyQt5.QtCore import Qt  
 from .DictManage import *  
 
 class CategoryManager(QDialog, Observer):  
-    def __init__(self):  
+    def __init__(self):
+        Observer.__init__(self)
         QDialog.__init__(self)  
-        Observer.__init__(self)  
         self.DictManage = DictManage()  
-        self.DictManage.add_observer(self)  
-        self.relation_graph = self.DictManage.relation_graph  
+        self.DictManage.add_observer(self)
+        self.relation_graph = self.DictManage.relation_graph
         self.special_tags_status = self.DictManage.special_tags_status  
         
         # 记住当前选择的类别和标签  
@@ -139,22 +137,7 @@ class CategoryManager(QDialog, Observer):
     def onCategoryOrderChanged(self):
         # 当用户拖动完成后更新数据模型
         categories = [self.categoryList.item(i).text() for i in range(self.categoryList.count())]
-        self.reorderCategories(categories)
-    
-    def reorderCategories(self, new_order):
-        # 重新排序类别
-        new_categories = {}
-        for category in new_order:
-            if category in self.relation_graph['category']:
-                new_categories[category] = self.relation_graph['category'][category]
-        
-        # 处理可能未包含在new_order中的类别
-        for category in self.relation_graph['category']:
-            if category not in new_categories:
-                new_categories[category] = self.relation_graph['category'][category]
-        
-        self.relation_graph['category'] = new_categories
-        self.saveCategories()
+        self.DictManage.reorder_tags(categories)
     
     def onTagOrderChanged(self):
         if not self.current_category:
@@ -188,7 +171,7 @@ class CategoryManager(QDialog, Observer):
 
     def loadCategories(self):  
         self.categoryList.clear()
-        self.categoryList.addItems(self.relation_graph['category'].keys())
+        self.categoryList.addItems(list(self.relation_graph['category'].keys()))
 
     def onCategoryChanged(self, current):  
         self.tagList.clear()
@@ -343,7 +326,7 @@ class CategoryManager(QDialog, Observer):
             if current_index > 0:
                 categories = [self.categoryList.item(i).text() for i in range(self.categoryList.count())]
                 categories[current_index], categories[current_index-1] = categories[current_index-1], categories[current_index]
-                self.reorderCategories(categories)
+                self.DictManage.reorder_categories(categories)
                 # 保持选中状态
                 self.categoryList.setCurrentRow(current_index-1)
     
@@ -354,7 +337,7 @@ class CategoryManager(QDialog, Observer):
             if current_index < self.categoryList.count() - 1:
                 categories = [self.categoryList.item(i).text() for i in range(self.categoryList.count())]
                 categories[current_index], categories[current_index+1] = categories[current_index+1], categories[current_index]
-                self.reorderCategories(categories)
+                self.DictManage.reorder_categories(categories)
                 # 保持选中状态
                 self.categoryList.setCurrentRow(current_index+1)
 

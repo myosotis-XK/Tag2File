@@ -17,7 +17,6 @@ class TagView(QMainWindow, Observer):
 
         self.DictManage = DictManage()
         self.DictManage.add_observer(self)
-        self.relation_graph = self.DictManage.relation_graph
         self.special_tags_status = self.DictManage.special_tags_status
         self.file_paths = file_paths
 
@@ -119,7 +118,7 @@ class TagView(QMainWindow, Observer):
     def create_tag_widget(self):
         # 创建标签区域
         tag_layout = QFlowLayout()
-        for value in self.relation_graph['category'].values():
+        for value in self.DictManage.relation_graph['category'].values():
             tags = value['tagOrder']
             color = QColor(value['tagColor'])
             bg_color = color.name()
@@ -173,7 +172,7 @@ class TagView(QMainWindow, Observer):
             if self.quickly_model:
                 self.SingleFileTagView.show_next()
                 QApplication.processEvents()
-            if tag not in self.relation_graph['file'].get(file_path, {}).get('tag', set()):
+            if tag not in self.DictManage.relation_graph['file'].get(file_path, {}).get('tag', set()):
                 self.DictManage.add_tag(tag, [file_path])
 
     # 右键菜单
@@ -221,7 +220,7 @@ class TagView(QMainWindow, Observer):
         if ok and new_name:
             if not self.cherk_tag(new_name):
                 return
-            if new_name in self.relation_graph['tag']:
+            if new_name in self.DictManage.relation_graph['tag']:
                 reply = QMessageBox.question(self, "继续", f"'{new_name}' 标签已存在，继续将合并标签，是否继续？",
                                              QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 if reply == QMessageBox.Yes:
@@ -232,10 +231,10 @@ class TagView(QMainWindow, Observer):
     def change_tag_category_action(self, label):
         tag = label.text()
         # 弹出一个对话框，让用户选择新的类别
-        existing_category = self.relation_graph['category'].keys()
+        existing_category = self.DictManage.relation_graph['category'].keys()
         category, ok = QInputDialog.getItem(self, "修改类别", "选择或输入类别名称:", existing_category, 0, True)
         if ok and category:
-            if category not in self.relation_graph['category']:
+            if category not in self.DictManage.relation_graph['category']:
                 # 提示类别不存在的消息框
                 message_box = QMessageBox(self)
                 message_box.setIcon(QMessageBox.Information)
@@ -265,6 +264,9 @@ class TagView(QMainWindow, Observer):
             message_box.exec_()
         else:
             self.SingleFileTagView.add_tag_current_file(tag)
+
+        # 清空输入框
+        self.tag_input.clear()
 
     def deleteTag(self):
         tag = self.tag_input.text()
@@ -296,10 +298,10 @@ class TagView(QMainWindow, Observer):
             self.TagFileShowArea.hide()
             self.splitter.replaceWidget(0, self.SingleFileTagView)
             self.SingleFileTagView.show()
-            if self.TagFileShowArea.now_select_label is None:
+            if self.TagFileShowArea.now_select_label_key is None:
                 file_path = None
             else:
-                file_path = self.TagFileShowArea.now_select_label.file_path
+                file_path = self.TagFileShowArea.now_select_label_key
             self.SingleFileTagView.update_index(file_path)
             self.switch_view_button.setText("单文件视图")
         else:
@@ -307,14 +309,16 @@ class TagView(QMainWindow, Observer):
             self.SingleFileTagView.hide()
             self.splitter.replaceWidget(0, self.TagFileShowArea)
             self.TagFileShowArea.show()
-            label = self.TagFileShowArea.now_select_label
-            updateStyle(label, "border: none;")
-            label = self.TagFileShowArea.labels[self.SingleFileTagView.current_file_path]
-            self.TagFileShowArea.now_select_label = label
-            updateStyle(label, "border: 1px solid #99d1ff;")
-            # 滚动条滚动到当前标签
-            label_global_rect = label.pos
-            self.TagFileShowArea.verticalScrollBar().setValue(label_global_rect.y())
+            if not self.TagFileShowArea.now_select_label_key is None:
+                label = self.TagFileShowArea.labels[self.TagFileShowArea.now_select_label_key]
+                updateStyle(label, "border: none;")
+            if not self.SingleFileTagView.current_file_path is None:
+                label = self.TagFileShowArea.labels[self.SingleFileTagView.current_file_path]
+                self.TagFileShowArea.now_select_label_key = label.file_path
+                updateStyle(label, "border: 1px solid #99d1ff;")
+                # 滚动条滚动到当前标签
+                label_global_rect = label.pos
+                self.TagFileShowArea.verticalScrollBar().setValue(label_global_rect.y())
             self.switch_view_button.setText("多文件视图")
 
         self.splitter.setSizes(current_sizes)
