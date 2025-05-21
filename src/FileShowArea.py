@@ -354,7 +354,6 @@ class FileShowArea(QScrollArea):
         return name_height + self.LABEL_INNER_SPACING
 
     def _createFileLabel(self, file_path):
-        start_time = time.time()
         # 创建标签
         label = QLabel()
         label.setObjectName("file_label")
@@ -380,7 +379,7 @@ class FileShowArea(QScrollArea):
         label.leaveEvent = partial(self.resetBackgroundColorOnLeave, label=label)
         label.setParent(self.content_widget)
         label.hide()
-        return label, time.time() - start_time
+        return label
 
     def _add_file_attributes(self, label):
         file_path = label.file_path # 获取文件名
@@ -444,16 +443,13 @@ class FileShowArea(QScrollArea):
     def createFileLabels(self, file_paths=None, use_cache=True):
         if file_paths is None:
             file_paths = self.file_paths
-        sum_time = 0
-        star_time = time.time()
         for file_path in file_paths[:]:
             if use_cache and file_path in self.label_cache:
                 label = self.label_cache[file_path]
                 self.labels[file_path] = label
                 continue
             # 创建标签
-            label, speed_time = self._createFileLabel(file_path)
-            sum_time += speed_time
+            label = self._createFileLabel(file_path)
             #添加标签
             if file_path in self.labels:
                 # 如果标签已存在，先清除控件
@@ -463,8 +459,6 @@ class FileShowArea(QScrollArea):
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = [executor.submit(self._add_file_attributes, label) for label in self.labels.values()]
             concurrent.futures.wait(futures)
-        print(f"创建文件标签耗时：{sum_time}")
-        print(f"创建文件标签总耗时：{time.time()-star_time}")
         self.label_cache.update(self.labels)
 
     # 开始加载文件缩略图
