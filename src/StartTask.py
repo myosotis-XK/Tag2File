@@ -16,7 +16,7 @@ def backup_tagbase():
     default_folder = config.get('DictManage', 'default_folder', fallback='default_folder')
     if default_folder == 'default_folder':
         default_folder = os.path.join(root, 'data', 'tagbase')
-    floder_path = config.get('DictManage', 'tagbase_path', fallback='default_folder')
+    floder_path = config.get('DictManage', 'tagbase_folder', fallback='default_folder')
     if floder_path == 'default_folder':
         floder_path = default_folder
     tagbase_name = config.get('DictManage', 'tagbase_name', fallback='tagbase')
