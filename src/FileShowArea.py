@@ -16,13 +16,17 @@ from datetime import datetime
 import concurrent.futures
 
 default_value = {
-    'SMALL_SIZE': '50',  # 小图标大小
-    'MEDIUM_SIZE': '100',  # 中等图标大小
-    'LARGE_SIZE': '250',  # 大图标大小
-    'SPACING_RATE': '0.05',  # 图标间距比例
+    'SMALL_SIZE': 50,  # 小图标大小
+    'MEDIUM_SIZE': 100,  # 中等图标大小
+    'LARGE_SIZE': 250,  # 大图标大小
+    'SPACING_RATE': 0.05,  # 图标间距比例
     'current_image_size':'mid',  # 默认图标大小
     'current_sort_key': 'date',  # 默认排序方式
     'current_sort_order': 'desc',  # 默认排序顺序
+    'WINDOW_FRAMES': 60,  # 窗口帧数
+    'SCROLL_DISTANCE_PER_SECOND': 500,  # 每秒滚动像素长度
+    'LABEL_SPACING': 5,  # 标签间距
+    'label_name_size': 20  # 文件名高度
 }
 init_config_section('FileShowArea', default_value)
 
