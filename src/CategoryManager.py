@@ -187,11 +187,11 @@ class CategoryManager(QDialog, Observer):
                 self.categoryList.setCurrentItem(items[0])
 
     def loadCategories(self):  
-        self.categoryList.clear()  
-        self.categoryList.addItems(self.relation_graph['category'].keys())  
+        self.categoryList.clear()
+        self.categoryList.addItems(self.relation_graph['category'].keys())
 
     def onCategoryChanged(self, current):  
-        self.tagList.clear()  
+        self.tagList.clear()
         if current:  
             if type(current) != str:  
                 self.current_category = current.text()  
@@ -305,7 +305,7 @@ class CategoryManager(QDialog, Observer):
                 if tag not in self.relation_graph['category'][category]['tag']:  
                     self.current_tag = tag  # 记住新添加的标签  
                     self.DictManage.change_tag_category(tag, category)  
-                    self.onCategoryChanged(category, None)  
+                    self.onCategoryChanged(category)  
                 else:  
                     QMessageBox.warning(self, "警告", "标签已存在于此类别！")  
 
@@ -323,7 +323,7 @@ class CategoryManager(QDialog, Observer):
                     self.current_tag = None  
                 
                 self.DictManage.change_tag_category(tag, '未分类')  
-                self.onCategoryChanged(category, None)  
+                self.onCategoryChanged(category)  
 
     def upMoveTag(self):
         currentTag = self.tagList.currentItem()

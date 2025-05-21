@@ -339,7 +339,11 @@ class TagbaseManager(QDialog):
                     tagbase_path = self.tagbase_path_list[0]
                 else:
                     tagbase_path = f'{self.DictManage.default_folder}/tagbase'
+                    config.set('DictManage', 'tagbase_folder', self.DictManage.default_folder)
+                    config.set('DictManage', 'tagbase_name', 'tagbase')
+                    save_config()
                     self.DictManage.create_tagbase(tagbase_path)
+                    self.DictManage.load_tagbase()
 
                 tagbase_name = os.path.basename(tagbase_path)
                 tagbase_path_dir = os.path.dirname(tagbase_path)
