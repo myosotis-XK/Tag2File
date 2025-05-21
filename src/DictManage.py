@@ -313,35 +313,19 @@ class DictManage():
         # 通知观察者更新
         self.notify_observers()
 
-    def _change_sort(self, change_object, change_value, action):
-        items = list(change_object)
-        index = items.index(change_value)
-        if action == 'up':
-            if index > 0:
-                items[index], items[index-1] = items[index-1], items[index]
-        elif action == 'down':
-            if index < len(items) - 1:
-                items[index], items[index+1] = items[index+1], items[index]
-        else:
-            raise ValueError("action 必须是 'up' 或 'down'")
-        return items
+    def reorder_categories(self, new_order):
+        """重新排序类别，根据拖放后的新顺序"""
+        new_categories = {}
+        for category in new_order:
+            new_categories[category] = self.relation_graph['category'][category]
+        self.relation_graph['category'] = new_categories
+        self.save_notify()
 
-    def move_key(self, dictionary, key, action):
-        key_list = self._change_sort(dictionary, key, action)
-        new_dict = {}
-        for key in key_list:
-            new_dict[key] = dictionary[key]
-        dictionary.clear()
-        dictionary.update(new_dict)
-        with shelve.open(self.tag_dict_path, writeback=True) as shelf:
-            shelf['category_dict'] = self.relation_graph['category']
-        self.notify_observers()
-
-    def move_element(self, list_object, element, action):
-        list_object[:] = self._change_sort(list_object, element, action)
-        with shelve.open(self.tag_dict_path, writeback=True) as shelf:
-            shelf['category_dict'] = self.relation_graph['category']
-        self.notify_observers()
+    def reorder_tags(self, category, new_order):
+        """重新排序指定类别中的标签"""
+        if category in self.relation_graph['category']:
+            self.relation_graph['category'][category]['tagOrder'] = new_order
+            self.save_notify()
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
