@@ -102,13 +102,13 @@ class CategoryManager(QDialog, Observer):
         currentItem = self.categoryList.currentItem()
         
         if currentItem:
-            editAction = menu.addAction("编辑类别")
-            deleteAction = menu.addAction("删除类别")
+            editAction = menu.addAction("重命名")
+            deleteAction = menu.addAction("删除")
             colorAction = menu.addAction("设置颜色")
             
             # 根据特殊类别状态动态设置文本
             category = currentItem.text()
-            specialText = "取消特殊类别" if category in self.DictManage.special_categories else "设为特殊类别"
+            specialText = "设为普通类别" if category in self.DictManage.special_categories else "设为筛选类别"
             specialAction = menu.addAction(specialText)
             
             # 获取用户点击的操作
@@ -136,7 +136,7 @@ class CategoryManager(QDialog, Observer):
             if action == removeAction:
                 self.removeTag()
 
-    def onCategoryOrderChanged(self, parent, start, end, destination, row):
+    def onCategoryOrderChanged(self):
         # 当用户拖动完成后更新数据模型
         categories = [self.categoryList.item(i).text() for i in range(self.categoryList.count())]
         self.reorderCategories(categories)
@@ -190,7 +190,7 @@ class CategoryManager(QDialog, Observer):
         self.categoryList.clear()  
         self.categoryList.addItems(self.relation_graph['category'].keys())  
 
-    def onCategoryChanged(self, current, previous):  
+    def onCategoryChanged(self, current):  
         self.tagList.clear()  
         if current:  
             if type(current) != str:  
@@ -207,7 +207,7 @@ class CategoryManager(QDialog, Observer):
                 if tag_items:  
                     self.tagList.setCurrentItem(tag_items[0])  
     
-    def onTagChanged(self, current, previous):  
+    def onTagChanged(self, current):  
         # 记录当前选中的标签  
         if current:  
             self.current_tag = current.text()  
