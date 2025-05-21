@@ -216,9 +216,7 @@ class CategoryManager(QDialog, Observer):
         category, ok = QInputDialog.getText(self, "添加类别", "输入新类别名称:")  
         if ok and category:  
             if category not in self.relation_graph['category']:  
-                self.relation_graph['category'][category] = {'tag': set(), 'tagColor': QColor(200, 200, 200).name(), 'tagOrder': []}  
-                self.saveCategories()  
-                self.loadCategories()  
+                self.DictManage.create_category(category)
             else:  
                 QMessageBox.warning(self, "警告", "类别已存在！")  
 
@@ -234,8 +232,7 @@ class CategoryManager(QDialog, Observer):
                 if self.current_category == oldCategory:  
                     self.current_category = newCategory  
                 
-                self.saveCategories()  
-                self.loadCategories()  
+                self.saveCategories()
 
     def deleteCategory(self):  
         currentItem = self.categoryList.currentItem()  
@@ -244,15 +241,7 @@ class CategoryManager(QDialog, Observer):
             reply = QMessageBox.question(self, "确认删除", f"确定要删除类别 '{category}' 吗？",  
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)  
             if reply == QMessageBox.Yes:  
-                del self.relation_graph['category'][category]  
-                
-                # 如果删除当前选中的类别，需要清除记录  
-                if self.current_category == category:  
-                    self.current_category = None  
-                    self.current_tag = None  
-                
-                self.saveCategories()  
-                self.loadCategories()  
+                self.DictManage.delete_category(category)
 
     def setColor(self):  
         currentItem = self.categoryList.currentItem()  
@@ -275,7 +264,7 @@ class CategoryManager(QDialog, Observer):
             # 保存更改
             with shelve.open(self.DictManage.tag_dict_path, writeback=True) as shelf:
                 shelf['special_categories'] = self.DictManage.special_categories
-            self.DictManage.save_notify()
+            self.saveCategories()
 
     def cherk_tag(self, tag):
         operators = [' ∩ ', ' ∪ ', "'", '(', ')', '-']

@@ -292,7 +292,7 @@ class DictManage():
     def change_tag_category(self, tag, category):
         old_category = list(self.relation_graph['tag'][tag]['category'])[0]
         if old_category == category:
-            return "tag already in category"
+            return
         if category not in self.relation_graph['category']:
             self.relation_graph['category'][category] = {"tagColor":QColor(200, 200, 200).name(), "tags":set()}
         self.remove_relation('tag', tag, 'category', old_category)
@@ -300,12 +300,27 @@ class DictManage():
         self.add_relation('tag', tag, 'category', category)
         self.relation_graph['category'][category]['tagOrder'].append(tag)
         self.save_notify()
-        return "success"
 
     def change_special_tags_status(self, tag, status):
         self.special_tags_status[tag] = status
         with shelve.open(self.tag_dict_path, writeback=True) as shelf:
             shelf['special_tags_status'] = self.special_tags_status
+
+    def create_category(self, category):
+        if category not in self.relation_graph['category']:  
+            self.relation_graph['category'][category] = {'tag': set(), 'tagColor': QColor(200, 200, 200).name(), 'tagOrder': []}
+        self.save_notify()
+
+    def delete_category(self, category):
+        if category not in self.relation_graph['category']:
+            return
+        tags = self.relation_graph['category'][category]['tag']
+        for tag in tags:
+            self.add_relation('tag', tag, 'category', '未分类')
+            self.relation_graph['category']['未分类']['tagOrder'].append(tag)
+        self.delete_entity('category', category)
+        self.save_notify()
+        
 
     def save_notify(self):
         # 保存更新后的字典
