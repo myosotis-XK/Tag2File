@@ -152,8 +152,9 @@ class TagInputWidget(QWidget, Observer):
         QWidget.__init__(self, parent)
         Observer.__init__(self)
         self.DictManage = DictManage()
-        self.DictManage.add_observer(self) 
-        self.tag_library = self.DictManage.relation_graph['tag'].keys()
+        self.DictManage.add_observer(self)
+        self.relation_graph = self.DictManage.relation_graph
+        self.tag_library = self.relation_graph['tag'].keys()
         # 操作符列表  
         self.operators = [' ∩ ', ' ∪ ', "'", '(', ')']  
         
