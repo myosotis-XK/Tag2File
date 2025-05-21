@@ -66,7 +66,6 @@ class Tag2File(QMainWindow, Observer):
         switch_layout.addWidget(category_button)
         # 创建搜索框布局
         search_layout = QVBoxLayout()
-        self.tag_input = TagInputWidget(self)
         search_button = QPushButton("查询", self)
         search_button.setFixedHeight(30)
         search_button.setStyleSheet("font-size: 14px;")
@@ -81,6 +80,7 @@ class Tag2File(QMainWindow, Observer):
         search_layout2.addWidget(search_button)
         search_layout2.addWidget(clear_button)
 
+        self.tag_input = TagInputWidget(self)
         search_layout.addWidget(self.tag_input)
         search_layout.addLayout(search_layout2)
 

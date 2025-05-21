@@ -149,8 +149,8 @@ class EnhancedInputTagLabel(InputTagLabel):
 class TagInputWidget(QWidget, Observer):  
     """标签输入控件，支持点击位置插入，输入框默认隐藏"""
     def __init__(self, parent=None):  
-        QWidget.__init__(self, parent)
         Observer.__init__(self)
+        QWidget.__init__(self, parent)
         self.DictManage = DictManage()
         self.DictManage.add_observer(self)
         self.relation_graph = self.DictManage.relation_graph
