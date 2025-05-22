@@ -57,3 +57,9 @@ def set_application_font():
     font.setFamily("Verdana")  # 首选 Verdana
     font.setStyleHint(QFont.SansSerif)  # 如果 Verdana 不可用，使用无衬线字体
     QApplication.setFont(font)
+
+def normalize_path_lowercase(path):
+    """确保Windows路径盘符小写"""
+    if path and len(path) > 1 and path[1] == ':':
+        return path[0].lower() + path[1:]
+    return path

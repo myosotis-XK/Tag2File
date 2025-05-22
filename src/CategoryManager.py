@@ -96,43 +96,57 @@ class CategoryManager(QDialog, Observer):
         self.tagList.currentItemChanged.connect(self.onTagChanged)  
 
     def showCategoryContextMenu(self, position):
-        menu = QMenu()
-        currentItem = self.categoryList.currentItem()
+        # 检查点击位置是否有项目
+        item = self.categoryList.itemAt(position)
+        if not item:
+            return  # 如果右击的是空白区域，不显示菜单
         
-        if currentItem:
-            editAction = menu.addAction("重命名")
-            deleteAction = menu.addAction("删除")
-            colorAction = menu.addAction("设置颜色")
-            
-            # 根据特殊类别状态动态设置文本
-            category = currentItem.text()
-            specialText = "设为普通类别" if category in self.DictManage.special_categories else "设为筛选类别"
-            specialAction = menu.addAction(specialText)
-            
-            # 获取用户点击的操作
-            action = menu.exec_(self.categoryList.mapToGlobal(position))
-            
-            # 根据用户选择执行相应操作
-            if action == editAction:
-                self.editCategory()
-            elif action == deleteAction:
-                self.deleteCategory()
-            elif action == colorAction:
-                self.setColor()
-            elif action == specialAction:
-                self.setSpecialCategory()
+        # 将点击的项目设为当前选中项
+        self.categoryList.setCurrentItem(item)
+        
+        # 创建菜单
+        menu = QMenu()
+        editAction = menu.addAction("重命名")
+        deleteAction = menu.addAction("删除")
+        colorAction = menu.addAction("设置颜色")
+        
+        # 根据特殊类别状态动态设置文本
+        category = item.text()
+        specialText = "设为普通类别" if category in self.DictManage.special_categories else "设为筛选类别"
+        specialAction = menu.addAction(specialText)
+        
+        # 获取用户点击的操作
+        action = menu.exec_(self.categoryList.mapToGlobal(position))
+        
+        # 根据用户选择执行相应操作
+        if action == editAction:
+            self.editCategory()
+        elif action == deleteAction:
+            self.deleteCategory()
+        elif action == colorAction:
+            self.setColor()
+        elif action == specialAction:
+            self.setSpecialCategory()
 
     def showTagContextMenu(self, position):
-        menu = QMenu()
-        currentTag = self.tagList.currentItem()
+        # 检查点击位置是否有项目
+        item = self.tagList.itemAt(position)
+        if not item or not self.current_category:
+            return  # 如果右击的是空白区域或没有选择分类，不显示菜单
         
-        if currentTag and self.current_category:
-            removeAction = menu.addAction("移除标签")
-            
-            action = menu.exec_(self.tagList.mapToGlobal(position))
-            
-            if action == removeAction:
-                self.removeTag()
+        # 将点击的项目设为当前选中项
+        self.tagList.setCurrentItem(item)
+        
+        # 创建菜单
+        menu = QMenu()
+        removeAction = menu.addAction("移除标签")
+        
+        # 显示菜单并获取用户选择
+        action = menu.exec_(self.tagList.mapToGlobal(position))
+        
+        # 处理用户选择
+        if action == removeAction:
+            self.removeTag()
 
     def onCategoryOrderChanged(self):
         # 当用户拖动完成后更新数据模型

@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QLabel, 
-                            QPushButton, QInputDialog, QFileDialog, QMessageBox, QLineEdit)
+                            QPushButton, QInputDialog, QFileDialog, QMessageBox, QLineEdit, QMenu)
 from PyQt5.QtCore import Qt
-from .utils import config, save_config, root
+from .utils import *
 from .DictManage import DictManage
 import os
 import re
@@ -40,6 +40,10 @@ class TagbaseManager(QDialog):
         self.tagbase_list.setColumnWidth(0, 150)
         self.tagbase_list.setColumnWidth(1, 280)
         
+        # 添加右键菜单
+        self.tagbase_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tagbase_list.customContextMenuRequested.connect(self.show_context_menu)
+        
         # 按钮区域
         button_layout = QHBoxLayout()
         
@@ -49,20 +53,12 @@ class TagbaseManager(QDialog):
         self.create_btn = QPushButton("创建")
         self.create_btn.clicked.connect(self.create_tagbase)
         
-        self.edit_btn = QPushButton("编辑")
-        self.edit_btn.clicked.connect(self.edit_tagbase)
-        
-        self.delete_btn = QPushButton("删除")
-        self.delete_btn.clicked.connect(self.delete_tagbase)
-        
-        self.repair_btn = QPushButton("从备份修复")
-        self.repair_btn.clicked.connect(self.repair_from_backup)
+        self.add_btn = QPushButton("从文件添加标签库")
+        self.add_btn.clicked.connect(self.add_existing_tagbase)
         
         button_layout.addWidget(self.switch_btn)
         button_layout.addWidget(self.create_btn)
-        button_layout.addWidget(self.edit_btn)
-        button_layout.addWidget(self.delete_btn)
-        button_layout.addWidget(self.repair_btn)
+        button_layout.addWidget(self.add_btn)
         
         layout.addLayout(current_info_layout)
         layout.addWidget(QLabel("可用标签库:"))
@@ -70,6 +66,35 @@ class TagbaseManager(QDialog):
         layout.addLayout(button_layout)
         
         self.setLayout(layout)
+
+    def show_context_menu(self, position):
+        """显示右键菜单"""
+        # 检查点击位置是否有项目
+        item = self.tagbase_list.itemAt(position)
+        if not item:
+            return  # 如果右击的是空白区域，不显示菜单
+        
+        # 将点击的项目设为当前选中项
+        self.tagbase_list.setCurrentItem(item)
+        
+        # 创建菜单
+        context_menu = QMenu(self)
+        
+        # 添加菜单项
+        edit_action = context_menu.addAction("编辑")
+        delete_action = context_menu.addAction("删除")
+        repair_action = context_menu.addAction("从备份修复")
+        
+        # 获取用户选择的动作
+        action = context_menu.exec_(self.tagbase_list.mapToGlobal(position))
+        
+        # 根据选择执行相应操作
+        if action == edit_action:
+            self.edit_tagbase()
+        elif action == delete_action:
+            self.delete_tagbase()
+        elif action == repair_action:
+            self.repair_from_backup()
     
     def get_file_size(self, path, name):
         """计算标签库文件的总大小"""
@@ -215,12 +240,6 @@ class TagbaseManager(QDialog):
         path_layout.addWidget(path_input)
         
         browse_btn = QPushButton("浏览...")
-        
-        def normalize_path_lowercase(path):
-            """确保Windows路径盘符小写"""
-            if path and len(path) > 1 and path[1] == ':':
-                return path[0].lower() + path[1:]
-            return path
 
         def browse_path():
             path = QFileDialog.getExistingDirectory(edit_dialog, "选择目录", path_input.text())
@@ -403,3 +422,67 @@ class TagbaseManager(QDialog):
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"恢复失败: {str(e)}")
+
+    def add_existing_tagbase(self):
+        """添加现有标签库"""
+        # 打开文件对话框，让用户选择任意一种标签库文件
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "选择标签库文件", self.DictManage.default_folder, "标签库文件 (*.dir *.dat *.bak)"
+        )
+
+        if not file_path:
+            return  # 用户取消选择
+        
+        # 获取文件路径和基本名称（去掉扩展名）
+        file_path = normalize_path_lowercase(file_path)
+        dir_path = os.path.dirname(file_path)
+        full_name = os.path.basename(file_path)
+        
+        # 处理可能的扩展名
+        if full_name.endswith('.dir'):
+            file_name = full_name[:-4]
+        elif full_name.endswith('.dat'):
+            file_name = full_name[:-4]
+        elif full_name.endswith('.bak'):
+            file_name = full_name[:-4]
+        else:
+            file_name = full_name
+        
+        # 检查是否已存在
+        tagbase_path = os.path.join(dir_path, file_name).replace('\\', '/')
+        if tagbase_path in self.tagbase_path_list:
+            QMessageBox.information(self, "提示", f"标签库 '{file_name}' 已在列表中")
+            return
+        
+        # 检查所有必要文件是否存在
+        missing_files = []
+        for ext in ['.dir', '.dat', '.bak']:
+            if not os.path.exists(tagbase_path + ext):
+                missing_files.append(ext)
+        
+        if missing_files:
+            # 有文件缺失，显示警告
+            msg = f"标签库 '{file_name}' 缺少以下文件：\n"
+            for ext in missing_files:
+                msg += f"- {file_name}{ext}\n"
+            msg += "\n是否仍然添加此标签库？（可能无法正常工作）"
+            
+            reply = QMessageBox.warning(self, "文件不完整", msg, 
+                                    QMessageBox.Yes | QMessageBox.No, 
+                                    QMessageBox.No)
+            
+            if reply != QMessageBox.Yes:
+                return
+        
+        # 添加到标签库列表
+        self.tagbase_path_list.append(tagbase_path)
+        config.set('DictManage', 'tagbase_list', '|'.join(self.tagbase_path_list))
+        save_config()
+        
+        # 刷新列表
+        self.load_tagbases()
+        
+        if missing_files:
+            QMessageBox.information(self, "已添加", f"已添加不完整的标签库: {file_name}")
+        else:
+            QMessageBox.information(self, "成功", f"已添加标签库: {file_name}")
