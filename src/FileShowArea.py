@@ -317,11 +317,14 @@ class FileShowArea(QScrollArea):
         return os.path.join(self.cache_dir, f"{file_hash}_{self.image_size}.png").replace('\\', '/')
     
     # 鼠标进入标签时改变背景颜色
-    def setBackgroundColorOnEnter(self, event, label):
+    def setBackgroundColorOnEnter(self, event, label, border=True):
         if label.file_path not in self.select_labels_keys:
             updateStyle(label, "background-color: #e5f3ff;")
         else:
-            updateStyle(label, "border: 1px solid #99d1ff;")
+            if border:
+                updateStyle(label, "border: 1px solid #99d1ff;")
+        if self.now_hang_label and not label is self.now_hang_label:
+            self.resetBackgroundColorOnLeave(event, self.now_hang_label)
         self.now_hang_label = label
 
     # 鼠标离开标签时重置背景颜色
@@ -331,6 +334,8 @@ class FileShowArea(QScrollArea):
         else:
             if label != self.labels.get(self.now_select_label_key):
                 updateStyle(label, "border: none;")
+        if self.now_hang_label and not label is self.now_hang_label:
+            self.resetBackgroundColorOnLeave(event, self.now_hang_label)
         self.now_hang_label = None
 
 
@@ -700,15 +705,13 @@ class FileShowArea(QScrollArea):
         local_pos = self.mapFromGlobal(global_pos)
         widget_pos = self.content_widget.mapFrom(self, local_pos)
         label = self.content_widget.childAt(widget_pos)
-        if label and self.labels[label.file_path] != label: # 如果存在label并且是不是父label(是icon_label或file_name_label)
+        if label and self.labels[label.file_path] != label: # 如果存在label并且不是父label(是icon_label或file_name_label)
             label = label.parent() # 获取父label
         if label != self.now_hang_label:
             if self.now_hang_label:
                 self.resetBackgroundColorOnLeave(value, self.now_hang_label)
             if label:
-                if label.file_path not in self.select_labels_keys:
-                    updateStyle(label, "background-color: #e5f3ff;")
-                self.now_hang_label = label
+                self.setBackgroundColorOnEnter(value, label, border=False)
 
         if self.MousePress:
             # 将pos修正到widget内
@@ -1379,7 +1382,15 @@ class MainFileShowArea(FileShowArea):
 
 class TagFileShowArea(FileShowArea):
     def __init__(self, file_paths=None):
+
+        self.prompt_label = QLabel("请拖入文件或文件夹")
+        self.prompt_label.setAlignment(Qt.AlignCenter)
+        self.prompt_label.hide()  # 初始隐藏
+
         super().__init__(file_paths)
+
+        self.prompt_label.setParent(self.content_widget)
+
         self.setAcceptDrops(True)
         self.acceptFloder = config.getboolean('TagFileShowArea', 'acceptFloder', fallback=False)
 
@@ -1408,6 +1419,13 @@ class TagFileShowArea(FileShowArea):
             self.now_select_label_key = self.labels[self.file_paths[0]].file_path
         self.now_hang_label = None
         self.updateLayout()
+
+    def updateLayout(self):
+        super().updateLayout()
+        if len(self.file_paths) == 0:
+            self.prompt_label.show()  # 显示提示标签
+        else:
+            self.prompt_label.hide()  # 隐藏提示标签
 
 
 
