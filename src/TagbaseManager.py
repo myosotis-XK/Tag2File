@@ -159,12 +159,12 @@ class TagbaseManager(QDialog):
         save_config()
         self.father.MainFileShowArea.changeFile([])
         self.DictManage.load_tagbase()
-        self.father.update_tag_widget()
         # 更新显示
         self.current_tagbase_name = name
         self.current_tagbase_path = path
         self.current_name_label.setText(f"名称: {name}")
         self.current_path_label.setText(f"路径: {path}")
+        self.DictManage.notify_observers()
 
     def switch_tagbase(self):
         """切换当前标签库"""
@@ -419,6 +419,7 @@ class TagbaseManager(QDialog):
                     os.rename(src, dest)
             
             QMessageBox.information(self, "成功", "恢复完成")
+            self.DictManage.notify_observers()
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"恢复失败: {str(e)}")
