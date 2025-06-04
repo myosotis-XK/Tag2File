@@ -5,6 +5,15 @@ from PyQt5.QtWidgets import QApplication
 import sys
 import multiprocessing
 
+import logging
+import warnings
+
+# 配置日志
+logging.basicConfig(level=logging.ERROR)
+
+# 过滤 libpng 警告
+warnings.filterwarnings("ignore", category=UserWarning, message=".*libpng warning: iCCP: known incorrect sRGB profile.*")
+
 def start_task_processing():  
     """启动缓存管理进程"""  
     # 使用多进程启动缓存管理  

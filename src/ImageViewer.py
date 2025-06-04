@@ -802,7 +802,7 @@ class MultiImageViewer(QMainWindow):
             
         return self.image_viewer.immersive_mode 
 
-    def load_image_files(self, file_paths):  
+    def load_image_files(self, file_paths, show_file_path=None):  
         """加载图片文件列表，过滤非图片文件"""  
         # 支持的图片格式  
         supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']  
@@ -824,15 +824,25 @@ class MultiImageViewer(QMainWindow):
         # 重置索引  
         self.current_index = -1  
         
-        # 如果有有效图片，显示第一张  
-        if self.image_files:  
-            self.show_image_at_index(0)  
-            # 显示导航按钮一秒，然后淡出  
-            self.prev_button.show_button()  
-            self.next_button.show_button()  
-            QTimer.singleShot(1000, self.check_button_visibility)  
-        else:  
-            self.statusBar.showMessage("没有找到有效的图片文件")  
+        if not show_file_path is None:
+            try:
+                index = self.image_files.index(show_file_path)  
+                self.show_image_at_index(index)
+            except:
+                pass
+
+        if self.current_index == -1:
+            # 如果有有效图片，显示第一张
+            if self.image_files:  
+                self.show_image_at_index(0)  
+                # 显示导航按钮一秒，然后淡出  
+
+                QTimer.singleShot(1000, self.check_button_visibility)  
+            else:  
+                self.statusBar.showMessage("没有找到有效的图片文件") 
+
+        self.prev_button.show_button()  
+        self.next_button.show_button()  
     
     def show_image_at_index(self, index):  
         """显示指定索引的图片"""  

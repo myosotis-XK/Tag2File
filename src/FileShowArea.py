@@ -145,12 +145,13 @@ class FileShowArea(QScrollArea):
         self.file_paths = file_paths
         self.startLoadingImagesThreadpool = QThreadPool()
         self.threadpool = QThreadPool()
+        self.starImageLoader = None
         self.threadpool.setMaxThreadCount(1)
         self.threadpool0 = QThreadPool()
         # self.threadpool0.setMaxThreadCount(4)
         self.image_cache = {self.SMALL_SIZE: {}, self.MEDIUM_SIZE: {}, self.LARGE_SIZE: {}}  # 缓存字典
         self.initFileView()
-        self.createFileLabels()
+        self.getFilesInfo()
         self.setSortKeyAndOrder(self.current_sort_key, self.current_sort_order)
 
     def initFileView(self):
@@ -339,18 +340,8 @@ class FileShowArea(QScrollArea):
             self.resetBackgroundColorOnLeave(event, self.now_hang_label)
         self.now_hang_label = None
 
-
-    #——————————————————————基础功能————————————————————————
-
+    # 计算文件名标签的高度
     def calculate_name_height(self, file_name, label_width, max_lines, font):
-        """
-        计算文件名标签的高度，但不超过最大允许高度
-        :param file_name: 文件名（字符串）
-        :param label_width: 标签的宽度（整数，像素）
-        :param max_lines: 最大行数（整数）
-        :param font: 用于计算的字体对象（QFont）
-        :return: 文件名标签的高度（整数，像素）
-        """
         font_metrics = QFontMetrics(font)
         single_line_height = font_metrics.lineSpacing()  # 每行高度
         text_width = font_metrics.horizontalAdvance(file_name)  # 文本总宽度
@@ -358,6 +349,117 @@ class FileShowArea(QScrollArea):
         total_lines = min(num_lines, max_lines)  # 限制最大行数
         name_height = total_lines * single_line_height  # 总高度
         return name_height + self.LABEL_INNER_SPACING
+
+
+    #——————————————————————基础功能————————————————————————
+
+    # 改变显示文件
+    def changeFile(self, file_paths=None):
+        if file_paths is None:
+            file_paths = []
+
+        # 线程处理
+        while self.startLoadingImagesThreadpool.activeThreadCount() > 0:
+            if self.starImageLoader:
+                self.starImageLoader.runing = False
+            time.sleep(0.1)
+        self.threadpool.clear()
+        self.threadpool0.clear()
+        while self.threadpool.activeThreadCount() > 0:
+            time.sleep(0.1)
+        while self.threadpool0.activeThreadCount() > 0:
+            time.sleep(0.1)
+        hide_label_paths = list(set(self.file_paths) - set(file_paths))
+
+        # 隐藏标签处理
+        for visible_label_key in self.visible_labels_keys:
+            label = self.labels[visible_label_key]
+            label.hide()
+        for hide_label_path in list(self.select_labels_keys):
+            if hide_label_path in hide_label_paths:
+                if hide_label_path in self.labels:
+                    label = self.labels[hide_label_path]
+                    updateStyle(label, "border: none;")
+                    updateStyle(label, "background-color: transparent;")
+                self.select_labels_keys.discard(hide_label_path)
+        if self.now_select_label_key is not None and self.now_select_label_key in hide_label_paths:
+            label = self.labels[self.now_select_label_key]
+            updateStyle(label, "border: none;")
+            updateStyle(label, "background-color: transparent;")
+            self.now_select_label_key = None
+        for hide_label_path in hide_label_paths:
+            if hide_label_path in self.labels:
+                self.labels.pop(hide_label_path)
+            self.files_info.pop(hide_label_path)
+
+        # 初始化变量
+        self.labels_rect.clear()
+        self.ctrl_select_labels_keys.clear()
+        self.visible_labels_keys.clear()
+        new_file_paths = list(set(file_paths) - set(self.file_paths))
+        self.file_paths = file_paths
+        if len(new_file_paths) != 0:
+            self.getFilesInfo(new_file_paths)
+        self.setSortKeyAndOrder(self.current_sort_key, self.current_sort_order)
+        self.changeThumbnailSize(self.image_size)
+        # 重置滚动条位置
+        self.verticalScrollBar().setValue(0)
+
+    # 获取文件排序信息
+    def getFilesInfo(self, file_paths=None):
+        if file_paths is None:
+            file_paths = self.file_paths
+        for file_path in file_paths:
+            self._getFileInfo(file_path)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self._getFileInfo, file_path) for file_path in file_paths]
+            concurrent.futures.wait(futures)
+        self._sort_files()
+        self.createBatchLabels()
+
+    def _getFileInfo(self, file_path):
+        if os.path.exists(file_path):
+            file_name = os.path.basename(file_path)  # 获取文件名
+            file_size_bytes = os.path.getsize(file_path)
+            file_date_timestamp = os.path.getmtime(file_path)
+            file_date = datetime.fromtimestamp(file_date_timestamp).strftime('%Y年%m月%d日，%H:%M:%S')
+        else:
+            file_name = '文件不存在'  # 处理文件不存在的情况
+            file_size_bytes = 0
+            file_date = '文件不存在'
+        self.files_info[file_path] = {'file_name': file_name, 'file_size_bytes': file_size_bytes, 'file_date': file_date}
+
+    # 创建一批标签
+    def createBatchLabels(self):
+        all_file_set = set(self.file_paths)
+        new_files = list(all_file_set - set(self.labels.keys()))
+        self._sort_files(new_files)
+        if len(new_files) > 0:
+            new_files = new_files[:1000]
+            self.createFileLabels(new_files)
+            self.startLoadingImages(self.threadpool)
+
+    # 创建文件标签
+    def createFileLabels(self, file_paths=None, use_cache=True):
+        if file_paths is None:
+            file_paths = self.file_paths
+        for file_path in file_paths[:]:
+            if use_cache and file_path in self.label_cache:
+                label = self.label_cache[file_path]
+                self.labels[file_path] = label
+                continue
+            # 创建标签
+            label = self._createFileLabel(file_path)
+            #添加标签
+            if file_path in self.labels:
+                # 如果标签已存在，先清除控件
+                self.labels[file_path].deleteLater()
+            self.labels[file_path] = label
+        # 使用多线程添加文件属性
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self._add_file_attributes, label) for label in self.labels.values()]
+            concurrent.futures.wait(futures)
+        self.label_cache.update(self.labels)
 
     def _createFileLabel(self, file_path):
         # 创建标签
@@ -426,12 +528,10 @@ class FileShowArea(QScrollArea):
         file_name_label.move(2, self.label_size)
 
         if os.path.exists(file_path):
-            file_size_bytes = os.path.getsize(file_path)
+            file_size_bytes = self.files_info.get(file_path, {}).get('file_size_bytes', 0)
             label.file_size_bytes = file_size_bytes
             label.file_size = self.format_file_size(file_size_bytes)
-            file_date_timestamp = os.path.getmtime(file_path)
-            file_date = datetime.fromtimestamp(file_date_timestamp).strftime('%Y年%m月%d日，%H:%M:%S')
-            label.file_date = file_date
+            label.file_date = self.files_info.get(file_path, {}).get('file_date', '')
         else:
             label.file_size_bytes = 0
             label.file_size = "文件不存在"
@@ -445,62 +545,25 @@ class FileShowArea(QScrollArea):
         label.file_name = file_name
         label.icon = False
 
-    # 创建文件标签
-    def createFileLabels(self, file_paths=None, use_cache=True):
-        if file_paths is None:
-            file_paths = self.file_paths
-        for file_path in file_paths[:]:
-            if use_cache and file_path in self.label_cache:
-                label = self.label_cache[file_path]
-                self.labels[file_path] = label
-                continue
-            # 创建标签
-            label = self._createFileLabel(file_path)
-            #添加标签
-            if file_path in self.labels:
-                # 如果标签已存在，先清除控件
-                self.labels[file_path].deleteLater()
-            self.labels[file_path] = label
-        # 使用多线程添加文件属性
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(self._add_file_attributes, label) for label in self.labels.values()]
-            concurrent.futures.wait(futures)
-        self.label_cache.update(self.labels)
-
-    def _getFileInfo(self, file_path):
-        file_name = os.path.basename(file_path)  # 获取文件名
-        file_size_bytes = os.path.getsize(file_path)
-        file_date_timestamp = os.path.getmtime(file_path)
-        file_date = datetime.fromtimestamp(file_date_timestamp).strftime('%Y年%m月%d日，%H:%M:%S')
-        self.files_info[file_path] = {'file_name': file_name, 'file_size_bytes': file_size_bytes, 'file_date': file_date}
-
-    def getFilesInfo(self, file_paths=None):
-        if file_paths is None:
-            file_paths = self.file_paths
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(self._getFileInfo, file_path) for file_path in file_paths]
-            concurrent.futures.wait(futures)
-        self._sort_files()
-        self.createBatchLabels()
-
-    def createBatchLabels(self):
-        all_files_set = set(self.file_paths)
-        existing_files_set = set(self.labels.keys())
-        new_files_set = list(all_files_set - existing_files_set)[:1000]
-        self.createFileLabels(new_files_set)
-
-
     # 开始加载文件缩略图
     def startLoadingImages(self, threadpool, file_paths=None, use_cache=True):
         if file_paths is None:
             file_paths = list(self.labels.keys())
+            self._sort_files(file_paths)
         if threadpool == self.threadpool0:
             for file_path in file_paths[:]:
                 if self.labels[file_path].icon:
                     file_paths.remove(file_path)
         if len(file_paths) > 0:
-            self.starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
-            self.startLoadingImagesThreadpool.start(self.starImageLoader)
+            if threadpool == self.threadpool:
+                if self.starImageLoader:
+                    self.starImageLoader.runing = False
+                self.threadpool.clear()
+                self.starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
+                starImageLoader = self.starImageLoader
+            else:
+                starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
+            self.startLoadingImagesThreadpool.start(starImageLoader)
 
     # 更新布局
     def updateLayout(self):
@@ -542,56 +605,6 @@ class FileShowArea(QScrollArea):
         file_name_height_all += max_file_name_height
         self.content_widget.setMinimumSize(0, 4*self.LABEL_SPACING + self.max_row * (self.label_size + self.LABEL_SPACING) + file_name_height_all)
         self.lazy_load()
-
-    # 改变显示文件
-    def changeFile(self, file_paths=None):
-        if file_paths is None:
-            file_paths = []
-
-        # 线程处理
-        while self.startLoadingImagesThreadpool.activeThreadCount() > 0:
-            self.starImageLoader.runing = False
-            time.sleep(0.1)
-        self.threadpool.clear()
-        self.threadpool0.clear()
-        while self.threadpool.activeThreadCount() > 0:
-            time.sleep(0.1)
-        while self.threadpool0.activeThreadCount() > 0:
-            time.sleep(0.1)
-        hide_label_paths = list(set(self.file_paths) - set(file_paths))
-
-        # 隐藏标签处理
-        for visible_label_key in self.visible_labels_keys:
-            label = self.labels[visible_label_key]
-            label.hide()
-        for hide_label_path in list(self.select_labels_keys):
-            if hide_label_path in hide_label_paths:
-                label = self.labels[hide_label_path]
-                updateStyle(label, "border: none;")
-                updateStyle(label, "background-color: transparent;")
-                self.select_labels_keys.discard(hide_label_path)
-        if self.now_select_label_key is not None and self.now_select_label_key in hide_label_paths:
-            label = self.labels[self.now_select_label_key]
-            updateStyle(label, "border: none;")
-            updateStyle(label, "background-color: transparent;")
-            self.now_select_label_key = None
-        for hide_label_path in hide_label_paths:
-            if hide_label_path in self.labels:
-                self.labels.pop(hide_label_path)
-            self.files_info.pop(hide_label_path)
-
-        # 初始化变量
-        self.labels_rect.clear()
-        self.ctrl_select_labels_keys.clear()
-        self.visible_labels_keys.clear()
-        new_file_paths = list(set(file_paths) - set(self.file_paths))
-        self.file_paths = file_paths
-        if len(new_file_paths) != 0:
-            self.getFilesInfo(new_file_paths)
-        self.setSortKeyAndOrder(self.current_sort_key, self.current_sort_order)
-        self.changeThumbnailSize(self.image_size)
-        # 重置滚动条位置
-        self.verticalScrollBar().setValue(0)
 
     # 懒加载
     def lazy_load(self):
@@ -870,13 +883,15 @@ class FileShowArea(QScrollArea):
         self.updateLayout()
         self.startLoadingImages(self.threadpool)  # 重新加载当前文件夹中的图片
     
-    def _sort_files(self):
+    def _sort_files(self, file_paths=None):
+        if file_paths is None:
+            file_paths = self.file_paths
         if self.current_sort_key == "name":
-            self.file_paths.sort(key=lambda path: self.files_info[path]['file_name'], reverse=(self.current_sort_order == "desc"))
+            file_paths.sort(key=lambda path: self.files_info[path]['file_name'], reverse=(self.current_sort_order == "desc"))
         elif self.current_sort_key == "size":
-            self.file_paths.sort(key=lambda path: self.files_info[path]['file_size_bytes'], reverse=(self.current_sort_order == "desc"))
+            file_paths.sort(key=lambda path: self.files_info[path]['file_size_bytes'], reverse=(self.current_sort_order == "desc"))
         elif self.current_sort_key == "date":
-            self.file_paths.sort(key=lambda path: self.files_info[path]['file_date'], reverse=(self.current_sort_order == "desc"))
+            file_paths.sort(key=lambda path: self.files_info[path]['file_date'], reverse=(self.current_sort_order == "desc"))
 
     #改变排序方式
     def setSortKeyAndOrder(self, action, value):
@@ -891,9 +906,6 @@ class FileShowArea(QScrollArea):
         self._sort_files()
 
         self.updateLayout()  # 更新布局以反映新的顺序
-        while self.startLoadingImagesThreadpool.activeThreadCount() > 0:
-            self.starImageLoader.runing = False
-            time.sleep(0.1)
         self.threadpool.clear()
         self.startLoadingImages(self.threadpool)
 
@@ -937,26 +949,8 @@ class FileShowArea(QScrollArea):
             image_viewer = MultiImageViewer()  # 保存为实例变量以防止被垃圾回收
             self.image_viewers.append(image_viewer)
             image_viewer.destroyed.connect(lambda: self.image_viewers.remove(image_viewer))
-            image_files = []
-            # 筛选有效图片文件  
-            for image_path in self.file_paths:  
-                # 检查文件是否存在  
-                if not os.path.exists(image_path):  
-                    continue  
-                    
-                # 检查文件扩展名  
-                ext = os.path.splitext(image_path)[1].lower()  
-                if ext in supported_formats:  
-                    image_files.append(image_path) 
-            image_viewer.load_image_files(image_files)  
+            image_viewer.load_image_files(self.file_paths.copy(), file_path)  
             
-            # 找到当前文件在列表中的索引  
-            try:  
-                index = image_files.index(file_path)  
-                image_viewer.show_image_at_index(index)  
-            except ValueError:  
-                # 如果file_path不在列表中（异常情况），显示第一张  
-                print(f"警告：文件 {file_path} 不在文件列表中")  
                 
             # 显示图片查看器  
             image_viewer.show()  
@@ -1480,6 +1474,5 @@ class TagFileShowArea(FileShowArea):
         else:
             file_paths = paths
         self.file_paths += file_paths
-        self.createFileLabels(file_paths)
+        self.getFilesInfo(file_paths)
         self.updateLayout()
-        self.startLoadingImages(self.threadpool, file_paths)

@@ -1,4 +1,4 @@
-from PyQt5.QtCore import QRunnable, Qt, QPointF
+from PyQt5.QtCore import QRunnable, Qt, QPointF, QBuffer
 from PyQt5.QtGui import QPixmap, QPainterPath, QPen, QFont, QColor, QPainter, QImage
 from PyQt5.QtWidgets import QLabel
 from PIL import Image, UnidentifiedImageError
@@ -32,6 +32,7 @@ class StarImageLoader(QRunnable):
                 continue
             loader = ImageLoader(self.father, file_path)
             self.threadpool.start(loader)
+
     def check_cache(self, file_path):
         # 检查缓存中是否存在该尺寸的缩略图
         if file_path in self.father.image_cache[self.father.image_size]:
@@ -183,6 +184,8 @@ class ImageLoader(QRunnable):
             # 流畅
             with Image.open(self.file_path) as img:
                 img.thumbnail((self.max_size, self.max_size))
+                if 'icc_profile' in img.info:
+                    del img.info['icc_profile']
                 img_byte_array = BytesIO()
                 img.save(img_byte_array, format='PNG')
                 img_byte_array.seek(0)
