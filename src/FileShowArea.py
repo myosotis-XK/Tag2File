@@ -114,6 +114,7 @@ class FileShowArea(QScrollArea):
         self.label_name_size = config.getint('FileShowArea', 'label_name_size', fallback=20)  # 文件名高度
 
         self.labels = {}
+        self.files_info = {}  # 存储文件信息的字典
         self.label_cache = {}
         self.labels_rect = {}  # {(row, col):(label_rect, file_path)}
         self.select_labels_keys = set()  # 选中label键
@@ -466,10 +467,33 @@ class FileShowArea(QScrollArea):
             concurrent.futures.wait(futures)
         self.label_cache.update(self.labels)
 
+    def _getFileInfo(self, file_path):
+        file_name = os.path.basename(file_path)  # 获取文件名
+        file_size_bytes = os.path.getsize(file_path)
+        file_date_timestamp = os.path.getmtime(file_path)
+        file_date = datetime.fromtimestamp(file_date_timestamp).strftime('%Y年%m月%d日，%H:%M:%S')
+        self.files_info[file_path] = {'file_name': file_name, 'file_size_bytes': file_size_bytes, 'file_date': file_date}
+
+    def getFilesInfo(self, file_paths=None):
+        if file_paths is None:
+            file_paths = self.file_paths
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self._getFileInfo, file_path) for file_path in file_paths]
+            concurrent.futures.wait(futures)
+        self._sort_files()
+        self.createBatchLabels()
+
+    def createBatchLabels(self):
+        all_files_set = set(self.file_paths)
+        existing_files_set = set(self.labels.keys())
+        new_files_set = list(all_files_set - existing_files_set)[:1000]
+        self.createFileLabels(new_files_set)
+
+
     # 开始加载文件缩略图
     def startLoadingImages(self, threadpool, file_paths=None, use_cache=True):
         if file_paths is None:
-            file_paths = self.file_paths.copy()
+            file_paths = list(self.labels.keys())
         if threadpool == self.threadpool0:
             for file_path in file_paths[:]:
                 if self.labels[file_path].icon:
@@ -494,8 +518,7 @@ class FileShowArea(QScrollArea):
         file_name_height_all = 0
         old_row = 0
         max_file_name_height = 0
-        for index in range(total_labels):
-            file_path = self.file_paths[index]
+        for index, file_path in enumerate(self.labels):
             label = self.labels[file_path]
             file_name_height = label.height() - self.label_size
             if file_name_height > max_file_name_height:
@@ -553,7 +576,9 @@ class FileShowArea(QScrollArea):
             updateStyle(label, "background-color: transparent;")
             self.now_select_label_key = None
         for hide_label_path in hide_label_paths:
-            self.labels.pop(hide_label_path)
+            if hide_label_path in self.labels:
+                self.labels.pop(hide_label_path)
+            self.files_info.pop(hide_label_path)
 
         # 初始化变量
         self.labels_rect.clear()
@@ -562,9 +587,11 @@ class FileShowArea(QScrollArea):
         new_file_paths = list(set(file_paths) - set(self.file_paths))
         self.file_paths = file_paths
         if len(new_file_paths) != 0:
-            self.createFileLabels(new_file_paths)
+            self.getFilesInfo(new_file_paths)
         self.setSortKeyAndOrder(self.current_sort_key, self.current_sort_order)
         self.changeThumbnailSize(self.image_size)
+        # 重置滚动条位置
+        self.verticalScrollBar().setValue(0)
 
     # 懒加载
     def lazy_load(self):
@@ -843,6 +870,14 @@ class FileShowArea(QScrollArea):
         self.updateLayout()
         self.startLoadingImages(self.threadpool)  # 重新加载当前文件夹中的图片
     
+    def _sort_files(self):
+        if self.current_sort_key == "name":
+            self.file_paths.sort(key=lambda path: self.files_info[path]['file_name'], reverse=(self.current_sort_order == "desc"))
+        elif self.current_sort_key == "size":
+            self.file_paths.sort(key=lambda path: self.files_info[path]['file_size_bytes'], reverse=(self.current_sort_order == "desc"))
+        elif self.current_sort_key == "date":
+            self.file_paths.sort(key=lambda path: self.files_info[path]['file_date'], reverse=(self.current_sort_order == "desc"))
+
     #改变排序方式
     def setSortKeyAndOrder(self, action, value):
         if action == "key":
@@ -853,12 +888,7 @@ class FileShowArea(QScrollArea):
             config.set('FileShowArea', 'current_sort_order', value)  # 更新config对象
         save_config()  # 保存配置
 
-        if self.current_sort_key == "name":
-            self.file_paths.sort(key=lambda path: self.labels[path].file_name, reverse=(self.current_sort_order == "desc"))
-        elif self.current_sort_key == "size":
-            self.file_paths.sort(key=lambda path: self.labels[path].file_size_bytes, reverse=(self.current_sort_order == "desc"))
-        elif self.current_sort_key == "date":
-            self.file_paths.sort(key=lambda path: self.labels[path].file_date, reverse=(self.current_sort_order == "desc"))
+        self._sort_files()
 
         self.updateLayout()  # 更新布局以反映新的顺序
         while self.startLoadingImagesThreadpool.activeThreadCount() > 0:
