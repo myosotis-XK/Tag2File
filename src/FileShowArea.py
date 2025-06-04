@@ -409,10 +409,13 @@ class FileShowArea(QScrollArea):
     def getFilesInfo(self, file_paths=None):
         if file_paths is None:
             file_paths = self.file_paths
-        for file_path in file_paths:
-            self._getFileInfo(file_path)
+        BATCH_SIZE = 100
+        batches = [file_paths[i:i + BATCH_SIZE] for i in range(0, len(file_paths), BATCH_SIZE)]
+        def process_batch(batch):
+            for path in batch:
+                self._getFileInfo(path)
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(self._getFileInfo, file_path) for file_path in file_paths]
+            futures = [executor.submit(process_batch, batch) for batch in batches]
             concurrent.futures.wait(futures)
         self._sort_files()
         self.createBatchLabels()
@@ -950,9 +953,6 @@ class FileShowArea(QScrollArea):
             self.image_viewers.append(image_viewer)
             image_viewer.destroyed.connect(lambda: self.image_viewers.remove(image_viewer))
             image_viewer.load_image_files(self.file_paths.copy(), file_path)  
-            
-                
-            # 显示图片查看器  
             image_viewer.show()  
         else:  
             # 非图片文件，使用默认应用打开  

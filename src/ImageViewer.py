@@ -5,6 +5,8 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QGraphicsView, QGraphics
                             QVBoxLayout, QWidget, QShortcut, QPushButton)  
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QFont, QColor, QKeySequence, QCursor, QBrush
 from PyQt5.QtCore import Qt, QRectF, QTimer, QPropertyAnimation, QEasingCurve
+import concurrent.futures
+import threading
 
 class ZoomIndicator(QLabel):  
     """缩放指示器，用于显示当前缩放比例"""  
@@ -129,7 +131,8 @@ class ImageViewer(QGraphicsView):
         # 图像项  
         self.pixmap_item = None  
         self.original_pixmap = None  
-        self.original_image = None  # 存储原始QImage  
+        self.original_image = None  # 存储原始QImage
+        self.filter_lock = threading.Lock()
         
         # 追踪鼠标，用于拖动  
         self.setMouseTracking(True)  
@@ -802,25 +805,30 @@ class MultiImageViewer(QMainWindow):
             
         return self.image_viewer.immersive_mode 
 
+    def _filter_file(self, file_path):
+        """过滤文件列表，仅保留图片文件"""
+        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']
+
+        if not os.path.exists(file_path):  
+            with self.filter_lock:
+                self.image_files.pop(file_path)
+        # 检查文件扩展名  
+        ext = os.path.splitext(file_path)[1].lower()  
+        if ext not in supported_formats:
+            with self.filter_lock:
+                self.image_files.pop(file_path)
+
     def load_image_files(self, file_paths, show_file_path=None):  
-        """加载图片文件列表，过滤非图片文件"""  
-        # 支持的图片格式  
-        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']  
-        
-        # 清空当前列表  
-        self.image_files = []
-        
-        # 筛选有效图片文件  
-        for file_path in file_paths:  
-            # 检查文件是否存在  
-            if not os.path.exists(file_path):  
-                continue  
-                
-            # 检查文件扩展名  
-            ext = os.path.splitext(file_path)[1].lower()  
-            if ext in supported_formats:  
-                self.image_files.append(file_path)  
-        
+        """加载图片文件列表，过滤非图片文件"""
+        self.image_files = file_paths
+        BATCH_SIZE = 100
+        batches = [file_paths[i:i + BATCH_SIZE] for i in range(0, len(file_paths), BATCH_SIZE)]
+        def process_batch(batch):
+            for path in batch:
+                self._filter_file(path)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [executor.submit(process_batch, batch) for batch in batches]
+            concurrent.futures.wait(futures)
         # 重置索引  
         self.current_index = -1  
         
