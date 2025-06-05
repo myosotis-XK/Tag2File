@@ -132,7 +132,6 @@ class ImageViewer(QGraphicsView):
         self.pixmap_item = None  
         self.original_pixmap = None  
         self.original_image = None  # 存储原始QImage
-        self.filter_lock = threading.Lock()
         
         # 追踪鼠标，用于拖动  
         self.setMouseTracking(True)  
@@ -194,7 +193,6 @@ class ImageViewer(QGraphicsView):
         
         # 更新拖动模式  
         self.update_drag_mode()  
-        
         return True  
 
     def create_scaled_pixmap(self, scale_factor):  
@@ -675,6 +673,7 @@ class MultiImageViewer(QMainWindow):
         self.close_button.hide()  # 默认隐藏
 
         # 文件列表和当前索引  
+        self.filter_lock = threading.Lock()
         self.image_files = []  # 有效图片文件列表  
         self.current_index = -1  # 当前图片索引  
         
@@ -818,19 +817,39 @@ class MultiImageViewer(QMainWindow):
             with self.filter_lock:
                 self.image_files.pop(file_path)
 
+    def _start_background_filtering(self, file_paths):
+        """在后台线程中执行文件过滤"""
+        def filter_task():
+            BATCH_SIZE = 10000
+            batches = [file_paths[i:i + BATCH_SIZE] for i in range(0, len(file_paths), BATCH_SIZE)]
+            for batch in batches:
+                for path in batch:
+                    self._filter_file(path)
+                # 每处理完一个批次，更新UI
+                QTimer.singleShot(0, lambda: self._update_filter_results())
+        
+        # 创建并启动线程
+        self.filter_thread = threading.Thread(target=filter_task, daemon=True)
+        self.filter_thread.start()
+
+    def _update_filter_results(self):
+        """在主线程中更新过滤结果"""
+        if not self.image_files and self.current_index == -1:
+            self.statusBar.showMessage("正在加载图片...")
+        else:
+            self.update_status_info()
+
+    # 修改load_image_files方法
     def load_image_files(self, file_paths, show_file_path=None):  
         """加载图片文件列表，过滤非图片文件"""
+        if self.current_index != -1 and show_file_path is None:
+            show_file_path = self.image_files[self.current_index]
+        
+        # 初始化文件列表
         self.image_files = file_paths
-        BATCH_SIZE = 100
-        batches = [file_paths[i:i + BATCH_SIZE] for i in range(0, len(file_paths), BATCH_SIZE)]
-        def process_batch(batch):
-            for path in batch:
-                self._filter_file(path)
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(process_batch, batch) for batch in batches]
-            concurrent.futures.wait(futures)
-        # 重置索引  
-        self.current_index = -1  
+        
+        # 在后台线程中执行过滤
+        self._start_background_filtering(file_paths)
         
         if not show_file_path is None:
             try:
@@ -838,19 +857,18 @@ class MultiImageViewer(QMainWindow):
                 self.show_image_at_index(index)
             except:
                 pass
-
+        
         if self.current_index == -1:
             # 如果有有效图片，显示第一张
             if self.image_files:  
                 self.show_image_at_index(0)  
-                # 显示导航按钮一秒，然后淡出  
-
                 QTimer.singleShot(1000, self.check_button_visibility)  
             else:  
-                self.statusBar.showMessage("没有找到有效的图片文件") 
-
+                self.statusBar.showMessage("正在加载图片...")
+        
+        # 显示导航按钮一秒，然后淡出 
         self.prev_button.show_button()  
-        self.next_button.show_button()  
+        self.next_button.show_button()
     
     def show_image_at_index(self, index):  
         """显示指定索引的图片"""  

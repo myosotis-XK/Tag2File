@@ -89,41 +89,26 @@ class FileShowArea(QScrollArea):
         self.DictManage = DictManage()
         self.relation_graph = self.DictManage.relation_graph
 
-        self.child_widget = []
-        self.image_viewers = []
         self.cache_dir = os.path.join(root, 'data', 'cache', 'image').replace('\\', '/')
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir)
         # 读取配置文件
-        # 图标大小
+            # 图标大小
         self.SMALL_SIZE = config.getint('FileShowArea', 'SMALL_SIZE', fallback=50)
         self.MEDIUM_SIZE = config.getint('FileShowArea', 'MEDIUM_SIZE', fallback=100)
         self.LARGE_SIZE = config.getint('FileShowArea', 'LARGE_SIZE', fallback=250)
-        # 布局间隔比例
-        self.SPACING_RATE = config.getfloat('FileShowArea', 'SPACING_RATE', fallback=0.05)  # 间隔比率
-        # 默认设置
+            # 默认设置
         self.current_image_size = config.get('FileShowArea', 'current_image_size', fallback='mid')  # 默认图标大小
         self.current_sort_key = config.get('FileShowArea', 'current_sort_key', fallback='date')  # 默认排序方式
         self.current_sort_order = config.get('FileShowArea', 'current_sort_order', fallback='desc')  # 默认排序顺序
-        # 界面参数
+            # 界面参数
         self.WINDOW_FRAMES = config.getint('FileShowArea', 'WINDOW_FRAMES', fallback=60)  # 界面帧数
         self.SCROLL_DISTANCE_PER_SECOND = config.getint('FileShowArea', 'SCROLL_DISTANCE_PER_SECOND', fallback=500)  # 每秒滚动像素长度
         self.SCROLL_DISTANCE_PER_FRAME = self.SCROLL_DISTANCE_PER_SECOND / self.WINDOW_FRAMES  # 每秒滚动像素长度
-        # 布局标签相关
+            # 布局标签相关
+        self.SPACING_RATE = config.getfloat('FileShowArea', 'SPACING_RATE', fallback=0.05)  # 间隔比率
         self.LABEL_SPACING = config.getint('FileShowArea', 'LABEL_SPACING', fallback=5)  # 标签间距
         self.label_name_size = config.getint('FileShowArea', 'label_name_size', fallback=20)  # 文件名高度
-
-        self.labels = {}
-        self.files_info = {}  # 存储文件信息的字典
-        self.label_cache = {}
-        self.labels_rect = {}  # {(row, col):(label_rect, file_path)}
-        self.select_labels_keys = set()  # 选中label键
-        self.ctrl_select_labels_keys = set()  # ctrl选中label键
-        self.now_select_label_key = None  # 当前选中label_key
-        self.visible_labels_keys = set()  # 可见label键
-        self.MousePress = False  # 鼠标按压标记
-
-        self.ctrl_key_pressed = False  # 控制键标记
 
         image_size_dict = {
             'small': self.SMALL_SIZE,
@@ -133,23 +118,45 @@ class FileShowArea(QScrollArea):
         self.image_size = image_size_dict[self.current_image_size]
         self.LABEL_INNER_SPACING = int(self.image_size * self.SPACING_RATE) # 标签内间距
         self.label_size = self.image_size + 2*self.LABEL_INNER_SPACING #标签大小
-        self.mouseMove = False
-        self.now_hang_label = None
-        
+
+        # 文件相关变量
+        if file_paths is None:
+            file_paths = []
+        self.file_paths:list = file_paths # 窗口中的所有文件
+        self.files_info = {}  # 存储文件信息的字典 {'flie_path':{'file_name': file_name, 'file_size_bytes': file_size_bytes, 'file_date': file_date}}
+        self.labels = {}  # 当前懒加载的标签
+        self.labels_rect = {}  # {(row, col):(label_rect, file_path)}
+        self.loaded_labels = {} # 已创建的标签
+        self.visible_labels_keys = set()  # 可见label键
+        self.select_labels_keys = set()  # 选中label键
+        self.ctrl_select_labels_keys = set()  # ctrl选中label键
+        self.now_select_label_key = None  # 当前选中label_key
+        self.now_hang_label = None  # 当前悬停label
+        self.label_cache = {} # 文件label缓存
+        self.image_cache = {self.SMALL_SIZE: {}, self.MEDIUM_SIZE: {}, self.LARGE_SIZE: {}}  # 缩略图缓存
+
+        # 标记
+        self.MousePress = False  # 鼠标按压标记
+        self.ctrl_key_pressed = False  # 控制键标记
+        self.mouseMove = False  # 鼠标移动标记
+
+        # 子窗口
+        self.child_widget = []
+        self.image_viewers = []
+
+        # 定时器
         self.auto_scroll_timer = QTimer(self)
         self.auto_scroll_timer.setInterval(round(1000/self.WINDOW_FRAMES))
         self.verticalScrollBar().valueChanged.connect(self.on_scroll)
 
-        if file_paths is None:
-            file_paths = []
-        self.file_paths = file_paths
+        # 线程池
         self.startLoadingImagesThreadpool = QThreadPool()
         self.threadpool = QThreadPool()
         self.starImageLoader = None
         self.threadpool.setMaxThreadCount(1)
         self.threadpool0 = QThreadPool()
         # self.threadpool0.setMaxThreadCount(4)
-        self.image_cache = {self.SMALL_SIZE: {}, self.MEDIUM_SIZE: {}, self.LARGE_SIZE: {}}  # 缓存字典
+        
         self.initFileView()
         self.getFilesInfo()
         self.setSortKeyAndOrder(self.current_sort_key, self.current_sort_order)
@@ -201,154 +208,6 @@ class FileShowArea(QScrollArea):
         for image_viewer in self.image_viewers:
             image_viewer.close()
         super().closeEvent(event)
-
-
-    #——————————————————————辅助方法————————————————————————
-
-    #绘制黑点
-    def create_black_dot(self,size):
-        # 创建一个正方形的 QPixmap
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.transparent)  # 填充透明背景
-        painter = QPainter(pixmap)
-        
-        # 使用 setRenderHint 确保抗锯齿效果
-        painter.setRenderHint(QPainter.Antialiasing)  
-        painter.setBrush(Qt.black)  # 设置黑色填充
-        painter.drawEllipse(0, 0, size, size)  # 绘制圆形
-        painter.end()
-        return pixmap
-
-    #判断鼠标是否点击在缩略图上
-    def isMouseOnThumbnail(self, mouse_pos, label):
-        # 获取缩略图和标签的尺寸
-        icon_label = label.findChild(QLabel, "icon_label")
-        pixmap = icon_label.pixmap()
-        if pixmap is None:
-            return True
-        
-        pixmap_size = pixmap.size()
-
-        # 计算缩略图的偏移量以居中显示
-        offset_x = (self.image_size - pixmap_size.width()) // 2
-        offset_y = self.image_size - pixmap_size.height()
-
-        # 确定缩略图的显示区域
-        thumbnail_rect = QRect(offset_x + self.LABEL_INNER_SPACING, offset_y + self.LABEL_INNER_SPACING, pixmap_size.width(), pixmap_size.height())
-        # 检查鼠标位置是否在缩略图范围内
-        return thumbnail_rect.contains(mouse_pos)
-
-    #递归获取文件路径
-    def get_all_files(slef, directory):
-        directory = directory.replace('\\', '/') 
-        files = []
-        for root, _, filenames in os.walk(directory):
-            for filename in filenames:
-                file_path = os.path.join(root, filename).replace('\\', '/')
-                files.append(file_path)
-        return files
-
-    #格式化文件大小
-    def format_file_size(self,size_in_bytes):
-        if size_in_bytes < 1024:
-            return f"{size_in_bytes} B"
-        elif size_in_bytes < 1024 ** 2:
-            return f"{size_in_bytes / 1024:.2f} KB"
-        elif size_in_bytes < 1024 ** 3:
-            return f"{size_in_bytes / (1024 ** 2):.2f} MB"
-        else:
-            return f"{size_in_bytes / (1024 ** 3):.2f} GB"
-
-    # 获取区域内label
-    def get_rect_label(self, rect):
-        labels_keys = set()
-        if len(self.labels_rect) == 0:
-            return labels_keys
-        begin_pos = rect.topLeft()
-        end_pos = rect.bottomRight()
-        # 计算开始行
-        begin_row = begin_pos.y() // (self.label_size + self.LABEL_SPACING)
-        begin_row = max(0, min(begin_row, self.max_row-1))
-            # 寻找鼠标下方离鼠标最近的底部所在行
-        while begin_row != 0 and self.labels_rect.get((begin_row-1, 0))[0].bottomRight().y() > begin_pos.y():
-            begin_row -= 1
-            # 当处在最后一行之外，越过
-        if self.labels_rect.get((begin_row, 0))[0].bottomRight().y() < begin_pos.y():
-            begin_row += 1
-        # 计算结束行
-        end_row = end_pos.y() // (self.label_size + self.LABEL_SPACING)
-        end_row = max(0, min(end_row, self.max_row-1))
-            # 寻找鼠标下方离鼠标最近的顶部所在行 
-        while end_row != 0 and self.labels_rect.get((end_row-1, 0))[0].topLeft().y() > end_pos.y():
-            end_row -= 1
-            # 当没处在最后一行之外时上移一行
-        if self.labels_rect.get((end_row, 0))[0].topLeft().y() > end_pos.y():
-            end_row -= 1
-
-        # 计算开始列
-        begin_col = begin_pos.x() // (self.label_size + self.LABEL_SPACING)
-        begin_col = max(0, min(begin_col, self.max_col-1))
-            # 寻找鼠标右方离鼠标最近的右边所在列
-        while begin_col != 0 and self.labels_rect.get((0, begin_col-1))[0].bottomRight().x() > begin_pos.x():
-            begin_col -= 1
-            # 当处在最后一列之外，越过
-        if self.labels_rect.get((0, begin_col))[0].bottomRight().x() < begin_pos.x():
-            begin_col += 1
-        # 计算结束列
-        end_col = end_pos.x() // (self.label_size + self.LABEL_SPACING)
-        end_col = max(0, min(end_col, self.max_col-1))
-            # 寻找鼠标右方离鼠标最近的左边所在行列
-        while end_col != 0 and self.labels_rect.get((0, end_col-1))[0].topLeft().x() > end_pos.x():
-            end_col -= 1
-            # 当没处在最后一列之外时左移一列
-        if self.labels_rect.get((0, end_col))[0].topLeft().x() > end_pos.x():
-            end_col -= 1
-
-        # 选择标签
-        for row in range(begin_row,end_row+1):
-            for col in range(begin_col,end_col+1):
-                label = self.labels_rect.get((row, col))
-                if label:
-                    labels_keys.add(label[1])
-        return labels_keys
-
-    # 获取缓存文件路径
-    def get_cache_path(self, file_path):
-        # 使用文件路径的哈希作为缓存文件名，以避免文件名冲突
-        file_hash = hashlib.md5(file_path.encode()).hexdigest()
-        return os.path.join(self.cache_dir, f"{file_hash}_{self.image_size}.png").replace('\\', '/')
-    
-    # 鼠标进入标签时改变背景颜色
-    def setBackgroundColorOnEnter(self, event, label, border=True):
-        if label.file_path not in self.select_labels_keys:
-            updateStyle(label, "background-color: #e5f3ff;")
-        else:
-            if border:
-                updateStyle(label, "border: 1px solid #99d1ff;")
-        if self.now_hang_label and not label is self.now_hang_label:
-            self.resetBackgroundColorOnLeave(event, self.now_hang_label)
-        self.now_hang_label = label
-
-    # 鼠标离开标签时重置背景颜色
-    def resetBackgroundColorOnLeave(self, event, label):
-        if label.file_path not in self.select_labels_keys:
-            updateStyle(label, "background-color: transparent;")
-        else:
-            if label != self.labels.get(self.now_select_label_key):
-                updateStyle(label, "border: none;")
-        if self.now_hang_label and not label is self.now_hang_label:
-            self.resetBackgroundColorOnLeave(event, self.now_hang_label)
-        self.now_hang_label = None
-
-    # 计算文件名标签的高度
-    def calculate_name_height(self, file_name, label_width, max_lines, font):
-        font_metrics = QFontMetrics(font)
-        single_line_height = font_metrics.lineSpacing()  # 每行高度
-        text_width = font_metrics.horizontalAdvance(file_name)  # 文本总宽度
-        num_lines = max(1, (text_width // label_width) + 1)  # 计算需要的行数
-        total_lines = min(num_lines, max_lines)  # 限制最大行数
-        name_height = total_lines * single_line_height  # 总高度
-        return name_height + self.LABEL_INNER_SPACING
 
 
     #——————————————————————基础功能————————————————————————
@@ -434,13 +293,29 @@ class FileShowArea(QScrollArea):
 
     # 创建一批标签
     def createBatchLabels(self):
-        all_file_set = set(self.file_paths)
-        new_files = list(all_file_set - set(self.labels.keys()))
-        self._sort_files(new_files)
-        if len(new_files) > 0:
-            new_files = new_files[:1000]
-            self.createFileLabels(new_files)
-            self.startLoadingImages(self.threadpool)
+        old_files = set(self.labels.keys())
+        new_files = []
+        show_files = set()
+        num = 0
+        for file_path in self.file_paths:
+            show_files.add(file_path)
+            if file_path in self.labels:
+                continue
+            if file_path in self.loaded_labels:
+                self.labels[file_path] = self.loaded_labels[file_path]
+            else:
+                new_files.append(file_path)
+                num += 1
+                if num == 1000:
+                    break
+        hide_labes = old_files - show_files
+        for hide_label in hide_labes:
+            if hide_label in self.labels:
+                self.labels[hide_label].hide()
+                self.visible_labels_keys.discard(hide_label)
+                self.labels.pop(hide_label)
+        
+        self.createFileLabels(new_files)
 
     # 创建文件标签
     def createFileLabels(self, file_paths=None, use_cache=True):
@@ -463,6 +338,7 @@ class FileShowArea(QScrollArea):
             futures = [executor.submit(self._add_file_attributes, label) for label in self.labels.values()]
             concurrent.futures.wait(futures)
         self.label_cache.update(self.labels)
+        self.loaded_labels.update(self.labels)
 
     def _createFileLabel(self, file_path):
         # 创建标签
@@ -584,7 +460,8 @@ class FileShowArea(QScrollArea):
         file_name_height_all = 0
         old_row = 0
         max_file_name_height = 0
-        for index, file_path in enumerate(self.labels):
+        for index in range(len(self.labels)):
+            file_path = self.file_paths[index]
             label = self.labels[file_path]
             file_name_height = label.height() - self.label_size
             if file_name_height > max_file_name_height:
@@ -627,143 +504,6 @@ class FileShowArea(QScrollArea):
             label.show()
         self.visible_labels_keys = visible_labels_keys
         self.startLoadingImages(self.threadpool0, list(visible_labels_keys))
-
-
-    #——————————————————————框选文件————————————————————————
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.MousePress = True
-            if not event.modifiers() & Qt.ControlModifier:
-                for select_label_key in self.select_labels_keys:
-                    updateStyle(self.labels[select_label_key], "background-color: transparent;")# 重置标签样式
-                self.select_labels_keys.clear()
-            # 如果按下ctrl
-            else:
-                self.now_select_labels_keys = self.select_labels_keys.copy() #记录按下ctrl时的文件选取状态
-            self.origin = event.pos()
-
-    def mouseMoveEvent(self, event):
-        if self.MousePress:
-            if event.buttons() & Qt.LeftButton:
-                self.rubber_band.show() 
-                # 设置橡皮筋框选的几何形状
-                # QRect(self.origin, event.pos()) 创建一个矩形，从起点 `self.origin` 到当前鼠标位置 `event.pos()`
-                # .normalized() 确保矩形是标准化的（即左上角为起点，右下角为终点），防止起点与终点位置不同导致的问题
-                self.rubber_band.setGeometry(QRect(self.origin, event.pos()).normalized())
-                # 获取橡皮筋的当前几何形状，用于后续操作
-                self.selectLabelsInRect(self.rubber_band.geometry(), event.modifiers())
-                mouse_pos_in_scroll_area = self.content_widget.mapToParent(event.pos())
-                scroll_area_rect = self.rect()
-                if scroll_area_rect.contains(mouse_pos_in_scroll_area):
-                    self.auto_scroll_timer.stop()
-                else:
-                    self.autoScroll(mouse_pos_in_scroll_area)
-            else:
-                self.mouseReleaseEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if self.MousePress:
-            if event.button() == Qt.LeftButton:
-                self.rubber_band.hide()
-        self.auto_scroll_timer.stop()
-        self.MousePress = False
-
-    # 选中区域内的label
-    def selectLabelsInRect(self, rubber_rect, modifiers):
-        select_labels_keys = self.get_rect_label(rubber_rect)
-        # 如果没按ctrl
-        if not modifiers & Qt.ControlModifier:
-            # 恢复未选中标签状态
-            no_select_labels_keys = self.select_labels_keys - select_labels_keys 
-            for no_select_label_key in no_select_labels_keys:
-                updateStyle(self.labels[no_select_label_key], "background-color: transparent;")
-            # 改变新增选中标签状态
-            add_select_labels_keys = select_labels_keys - self.select_labels_keys
-            for add_select_label_key in add_select_labels_keys:  
-                updateStyle(self.labels[add_select_label_key], "background-color: #cde8ff;") # 高亮选中标签
-            self.select_labels_keys = select_labels_keys
-        # 如果按下ctrl
-        else:
-            # 恢复未选中标签状态
-            no_ctrl_select_labels_keys = self.ctrl_select_labels_keys - select_labels_keys 
-            for no_ctrl_select_label_key in no_ctrl_select_labels_keys:
-                self.recover_label_select_status(self.labels[no_ctrl_select_label_key])
-            # 改变新增选中标签状态
-            add_ctrl_select_labels_keys = select_labels_keys - self.ctrl_select_labels_keys
-            for add_ctrl_select_label_key in add_ctrl_select_labels_keys:
-                self.change_label_select_status(self.labels[add_ctrl_select_label_key])
-            self.ctrl_select_labels_keys = select_labels_keys
-
-    # 切换状态
-    def change_label_select_status(self, label):
-        if label.file_path in self.now_select_labels_keys:
-            updateStyle(label, "background-color: transparent;")
-            self.select_labels_keys.discard(label.file_path)
-        elif label.file_path not in self.now_select_labels_keys:
-            updateStyle(label, "background-color: #cde8ff;")
-            self.select_labels_keys.add(label.file_path)
-    #恢复状态
-    def recover_label_select_status(self, label):
-        if label.file_path in self.now_select_labels_keys:
-            updateStyle(label, "background-color: #cde8ff;")
-            self.select_labels_keys.add(label.file_path)
-        else :
-            updateStyle(label, "background-color: transparent;")
-            self.select_labels_keys.discard(label.file_path)
-        
-    #自动滚动
-    def autoScroll(self, mouse_pos, auto=False):
-        scroll_area_rect = self.rect()
-        # 检查边缘位置和移动方向来决定是否滚动
-        if mouse_pos.y() < scroll_area_rect.top():
-            movement_scale = max(0.5, (mouse_pos.y() - scroll_area_rect.top())/50) # 计算滚动倍率
-            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME) # 计算移动距离
-            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - move_value)  # 向上滚动
-        elif mouse_pos.y() > scroll_area_rect.bottom():
-            movement_scale = max(0.5, (mouse_pos.y() - scroll_area_rect.bottom())/50)
-            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
-            self.verticalScrollBar().setValue(self.verticalScrollBar().value() + move_value)  # 向下滚动
-        if mouse_pos.x() < scroll_area_rect.left():
-            movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.left())/50)
-            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
-            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - move_value)  # 向左滚动
-        elif mouse_pos.x() > scroll_area_rect.right():
-            movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.right())/50)
-            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
-            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + move_value)  # 向右滚动
-
-        if not auto:
-            try:
-                self.auto_scroll_timer.timeout.disconnect()
-            except TypeError:
-                pass
-            self.auto_scroll_timer.timeout.connect(lambda: self.autoScroll(mouse_pos, True))
-            if not self.auto_scroll_timer.isActive():
-                self.auto_scroll_timer.start()
-
-    def on_scroll(self, value):
-        self.lazy_load()
-        global_pos = QCursor.pos()
-        local_pos = self.mapFromGlobal(global_pos)
-        widget_pos = self.content_widget.mapFrom(self, local_pos)
-        label = self.content_widget.childAt(widget_pos)
-        if label and self.labels[label.file_path] != label: # 如果存在label并且不是父label(是icon_label或file_name_label)
-            label = label.parent() # 获取父label
-        if label != self.now_hang_label:
-            if self.now_hang_label:
-                self.resetBackgroundColorOnLeave(value, self.now_hang_label)
-            if label:
-                self.setBackgroundColorOnEnter(value, label, border=False)
-
-        if self.MousePress:
-            # 将pos修正到widget内
-            x = max(1, min(local_pos.x(), self.width() - 1))
-            y = max(1, min(local_pos.y(), self.height() - 1))
-            widget_pos = self.content_widget.mapFrom(self, QPoint(x, y))
-            self.rubber_band.setGeometry(QRect(self.origin, widget_pos).normalized())
-            self.selectLabelsInRect(self.rubber_band.geometry(), QApplication.keyboardModifiers())
-        self.update()
 
 
     #————————————————————右键菜单显示——————————————————————
@@ -883,6 +623,7 @@ class FileShowArea(QScrollArea):
             pixmap = icon_label.pixmap()
             resized_pixmap = pixmap.scaled(self.image_size, self.image_size, Qt.KeepAspectRatio)  # 调整宽高
             icon_label.setPixmap(resized_pixmap)
+        self.createBatchLabels()
         self.updateLayout()
         self.startLoadingImages(self.threadpool)  # 重新加载当前文件夹中的图片
     
@@ -901,13 +642,14 @@ class FileShowArea(QScrollArea):
         if action == "key":
             self.current_sort_key = value
             config.set('FileShowArea', 'current_sort_key', value)  # 更新config对象
+            self._sort_files()
         if action == "order":
             self.current_sort_order = value  # 更新当前排序顺序
+            self.file_paths.reverse()  # 反转文件路径列表
             config.set('FileShowArea', 'current_sort_order', value)  # 更新config对象
         save_config()  # 保存配置
 
-        self._sort_files()
-
+        self.createBatchLabels()
         self.updateLayout()  # 更新布局以反映新的顺序
         self.threadpool.clear()
         self.startLoadingImages(self.threadpool)
@@ -919,7 +661,7 @@ class FileShowArea(QScrollArea):
     def onLabelLeftClick(self, event, label):
         if event.button() == Qt.LeftButton:
             if event.modifiers() & Qt.ControlModifier:
-                self.now_select_labels_keys = self.select_labels_keys.copy() # 快照
+                self.select_labels_keys_snapshot = self.select_labels_keys.copy() # 快照
                 self.change_label_select_status(label)
             else:
                 for select_label_key in self.select_labels_keys:
@@ -952,8 +694,8 @@ class FileShowArea(QScrollArea):
             image_viewer = MultiImageViewer()  # 保存为实例变量以防止被垃圾回收
             self.image_viewers.append(image_viewer)
             image_viewer.destroyed.connect(lambda: self.image_viewers.remove(image_viewer))
-            image_viewer.load_image_files(self.file_paths.copy(), file_path)  
-            image_viewer.show()  
+            image_viewer.load_image_files(self.file_paths.copy(), file_path)
+            image_viewer.show()
         else:  
             # 非图片文件，使用默认应用打开  
             try:  
@@ -1172,7 +914,7 @@ class FileShowArea(QScrollArea):
     def refresh(self):
         # 不使用缓存加载
         self.createFileLabels(list(self.select_labels_keys), use_cache=False)
-        self.startLoadingImages(self.threadpool0, use_cache=False)
+        self.startLoadingImages(self.threadpool0, list(self.select_labels_keys), use_cache=False)
         self.updateLayout()
 
 
@@ -1382,6 +1124,292 @@ class FileShowArea(QScrollArea):
         widget.show()
 
 
+    #——————————————————————框选文件————————————————————————
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.MousePress = True
+            if not event.modifiers() & Qt.ControlModifier:
+                for select_label_key in self.select_labels_keys:
+                    updateStyle(self.labels[select_label_key], "background-color: transparent;")# 重置标签样式
+                self.select_labels_keys.clear()
+            # 如果按下ctrl
+            else:
+                self.select_labels_keys_snapshot = self.select_labels_keys.copy() #记录按下ctrl时的文件选取状态
+            self.origin = event.pos()
+
+    def mouseMoveEvent(self, event):
+        if self.MousePress:
+            if event.buttons() & Qt.LeftButton:
+                self.rubber_band.show() 
+                # 设置橡皮筋框选的几何形状
+                # QRect(self.origin, event.pos()) 创建一个矩形，从起点 `self.origin` 到当前鼠标位置 `event.pos()`
+                # .normalized() 确保矩形是标准化的（即左上角为起点，右下角为终点），防止起点与终点位置不同导致的问题
+                self.rubber_band.setGeometry(QRect(self.origin, event.pos()).normalized())
+                # 获取橡皮筋的当前几何形状，用于后续操作
+                self.selectLabelsInRect(self.rubber_band.geometry(), event.modifiers())
+                mouse_pos_in_scroll_area = self.content_widget.mapToParent(event.pos())
+                scroll_area_rect = self.rect()
+                if scroll_area_rect.contains(mouse_pos_in_scroll_area):
+                    self.auto_scroll_timer.stop()
+                else:
+                    self.autoScroll(mouse_pos_in_scroll_area)
+            else:
+                self.mouseReleaseEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.MousePress:
+            if event.button() == Qt.LeftButton:
+                self.rubber_band.hide()
+        self.auto_scroll_timer.stop()
+        self.MousePress = False
+        self.ctrl_select_labels_keys.clear()
+
+    # 选中区域内的label
+    def selectLabelsInRect(self, rubber_rect, modifiers):
+        select_labels_keys = self.get_rect_label(rubber_rect)
+        # 如果没按ctrl
+        if not modifiers & Qt.ControlModifier:
+            # 恢复未选中标签状态
+            no_select_labels_keys = self.select_labels_keys - select_labels_keys 
+            for no_select_label_key in no_select_labels_keys:
+                updateStyle(self.labels[no_select_label_key], "background-color: transparent;")
+            # 改变新增选中标签状态
+            add_select_labels_keys = select_labels_keys - self.select_labels_keys
+            for add_select_label_key in add_select_labels_keys:  
+                updateStyle(self.labels[add_select_label_key], "background-color: #cde8ff;") # 高亮选中标签
+            self.select_labels_keys = select_labels_keys
+        # 如果按下ctrl
+        else:
+            # 恢复未选中标签状态
+            no_ctrl_select_labels_keys = self.ctrl_select_labels_keys - select_labels_keys 
+            for no_ctrl_select_label_key in no_ctrl_select_labels_keys:
+                self.recover_label_select_status(self.labels[no_ctrl_select_label_key])
+            # 改变新增选中标签状态
+            add_ctrl_select_labels_keys = select_labels_keys - self.ctrl_select_labels_keys
+            for add_ctrl_select_label_key in add_ctrl_select_labels_keys:
+                self.change_label_select_status(self.labels[add_ctrl_select_label_key])
+            self.ctrl_select_labels_keys = select_labels_keys
+
+    # 切换状态
+    def change_label_select_status(self, label):
+        if label.file_path in self.select_labels_keys_snapshot:
+            updateStyle(label, "background-color: transparent;")
+            self.select_labels_keys.discard(label.file_path)
+        elif label.file_path not in self.select_labels_keys_snapshot:
+            updateStyle(label, "background-color: #cde8ff;")
+            self.select_labels_keys.add(label.file_path)
+    #恢复状态
+    def recover_label_select_status(self, label):
+        if label.file_path in self.select_labels_keys_snapshot:
+            updateStyle(label, "background-color: #cde8ff;")
+            self.select_labels_keys.add(label.file_path)
+        else :
+            updateStyle(label, "background-color: transparent;")
+            self.select_labels_keys.discard(label.file_path)
+        
+    #自动滚动
+    def autoScroll(self, mouse_pos, auto=False):
+        scroll_area_rect = self.rect()
+        # 检查边缘位置和移动方向来决定是否滚动
+        if mouse_pos.y() < scroll_area_rect.top():
+            movement_scale = max(0.5, (mouse_pos.y() - scroll_area_rect.top())/50) # 计算滚动倍率
+            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME) # 计算移动距离
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - move_value)  # 向上滚动
+        elif mouse_pos.y() > scroll_area_rect.bottom():
+            movement_scale = max(0.5, (mouse_pos.y() - scroll_area_rect.bottom())/50)
+            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() + move_value)  # 向下滚动
+        if mouse_pos.x() < scroll_area_rect.left():
+            movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.left())/50)
+            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - move_value)  # 向左滚动
+        elif mouse_pos.x() > scroll_area_rect.right():
+            movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.right())/50)
+            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + move_value)  # 向右滚动
+
+        if not auto:
+            try:
+                self.auto_scroll_timer.timeout.disconnect()
+            except TypeError:
+                pass
+            self.auto_scroll_timer.timeout.connect(lambda: self.autoScroll(mouse_pos, True))
+            if not self.auto_scroll_timer.isActive():
+                self.auto_scroll_timer.start()
+
+    def on_scroll(self, value):
+        self.lazy_load()
+        global_pos = QCursor.pos()
+        local_pos = self.mapFromGlobal(global_pos)
+        widget_pos = self.content_widget.mapFrom(self, local_pos)
+        label = self.content_widget.childAt(widget_pos)
+        if label and self.labels[label.file_path] != label: # 如果存在label并且不是父label(是icon_label或file_name_label)
+            label = label.parent() # 获取父label
+        if label != self.now_hang_label:
+            if self.now_hang_label:
+                self.resetBackgroundColorOnLeave(value, self.now_hang_label)
+            if label:
+                self.setBackgroundColorOnEnter(value, label, border=False)
+
+        if self.MousePress:
+            # 将pos修正到widget内
+            x = max(1, min(local_pos.x(), self.width() - 1))
+            y = max(1, min(local_pos.y(), self.height() - 1))
+            widget_pos = self.content_widget.mapFrom(self, QPoint(x, y))
+            self.rubber_band.setGeometry(QRect(self.origin, widget_pos).normalized())
+            self.selectLabelsInRect(self.rubber_band.geometry(), QApplication.keyboardModifiers())
+        self.update()
+
+
+    #——————————————————————辅助方法————————————————————————
+
+    #绘制黑点
+    def create_black_dot(self,size):
+        # 创建一个正方形的 QPixmap
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)  # 填充透明背景
+        painter = QPainter(pixmap)
+        
+        # 使用 setRenderHint 确保抗锯齿效果
+        painter.setRenderHint(QPainter.Antialiasing)  
+        painter.setBrush(Qt.black)  # 设置黑色填充
+        painter.drawEllipse(0, 0, size, size)  # 绘制圆形
+        painter.end()
+        return pixmap
+
+    #判断鼠标是否点击在缩略图上
+    def isMouseOnThumbnail(self, mouse_pos, label):
+        # 获取缩略图和标签的尺寸
+        icon_label = label.findChild(QLabel, "icon_label")
+        pixmap = icon_label.pixmap()
+        if pixmap is None:
+            return True
+        
+        pixmap_size = pixmap.size()
+
+        # 计算缩略图的偏移量以居中显示
+        offset_x = (self.image_size - pixmap_size.width()) // 2
+        offset_y = self.image_size - pixmap_size.height()
+
+        # 确定缩略图的显示区域
+        thumbnail_rect = QRect(offset_x + self.LABEL_INNER_SPACING, offset_y + self.LABEL_INNER_SPACING, pixmap_size.width(), pixmap_size.height())
+        # 检查鼠标位置是否在缩略图范围内
+        return thumbnail_rect.contains(mouse_pos)
+
+    #递归获取文件路径
+    def get_all_files(slef, directory):
+        directory = directory.replace('\\', '/') 
+        files = []
+        for root, _, filenames in os.walk(directory):
+            for filename in filenames:
+                file_path = os.path.join(root, filename).replace('\\', '/')
+                files.append(file_path)
+        return files
+
+    #格式化文件大小
+    def format_file_size(self,size_in_bytes):
+        if size_in_bytes < 1024:
+            return f"{size_in_bytes} B"
+        elif size_in_bytes < 1024 ** 2:
+            return f"{size_in_bytes / 1024:.2f} KB"
+        elif size_in_bytes < 1024 ** 3:
+            return f"{size_in_bytes / (1024 ** 2):.2f} MB"
+        else:
+            return f"{size_in_bytes / (1024 ** 3):.2f} GB"
+
+    # 获取区域内label
+    def get_rect_label(self, rect):
+        labels_keys = set()
+        if len(self.labels_rect) == 0:
+            return labels_keys
+        begin_pos = rect.topLeft()
+        end_pos = rect.bottomRight()
+        # 计算开始行
+        begin_row = begin_pos.y() // (self.label_size + self.LABEL_SPACING)
+        begin_row = max(0, min(begin_row, self.max_row-1))
+            # 寻找鼠标下方离鼠标最近的底部所在行
+        while begin_row != 0 and self.labels_rect.get((begin_row-1, 0))[0].bottomRight().y() > begin_pos.y():
+            begin_row -= 1
+            # 当处在最后一行之外，越过
+        if self.labels_rect.get((begin_row, 0))[0].bottomRight().y() < begin_pos.y():
+            begin_row += 1
+        # 计算结束行
+        end_row = end_pos.y() // (self.label_size + self.LABEL_SPACING)
+        end_row = max(0, min(end_row, self.max_row-1))
+            # 寻找鼠标下方离鼠标最近的顶部所在行 
+        while end_row != 0 and self.labels_rect.get((end_row-1, 0))[0].topLeft().y() > end_pos.y():
+            end_row -= 1
+            # 当没处在最后一行之外时上移一行
+        if self.labels_rect.get((end_row, 0))[0].topLeft().y() > end_pos.y():
+            end_row -= 1
+
+        # 计算开始列
+        begin_col = begin_pos.x() // (self.label_size + self.LABEL_SPACING)
+        begin_col = max(0, min(begin_col, self.max_col-1))
+            # 寻找鼠标右方离鼠标最近的右边所在列
+        while begin_col != 0 and self.labels_rect.get((0, begin_col-1))[0].bottomRight().x() > begin_pos.x():
+            begin_col -= 1
+            # 当处在最后一列之外，越过
+        if self.labels_rect.get((0, begin_col))[0].bottomRight().x() < begin_pos.x():
+            begin_col += 1
+        # 计算结束列
+        end_col = end_pos.x() // (self.label_size + self.LABEL_SPACING)
+        end_col = max(0, min(end_col, self.max_col-1))
+            # 寻找鼠标右方离鼠标最近的左边所在行列
+        while end_col != 0 and self.labels_rect.get((0, end_col-1))[0].topLeft().x() > end_pos.x():
+            end_col -= 1
+            # 当没处在最后一列之外时左移一列
+        if self.labels_rect.get((0, end_col))[0].topLeft().x() > end_pos.x():
+            end_col -= 1
+
+        # 选择标签
+        for row in range(begin_row,end_row+1):
+            for col in range(begin_col,end_col+1):
+                label = self.labels_rect.get((row, col))
+                if label:
+                    labels_keys.add(label[1])
+        return labels_keys
+
+    # 获取缓存文件路径
+    def get_cache_path(self, file_path):
+        # 使用文件路径的哈希作为缓存文件名，以避免文件名冲突
+        file_hash = hashlib.md5(file_path.encode()).hexdigest()
+        return os.path.join(self.cache_dir, f"{file_hash}_{self.image_size}.png").replace('\\', '/')
+    
+    # 鼠标进入标签时改变背景颜色
+    def setBackgroundColorOnEnter(self, event, label, border=True):
+        if label.file_path not in self.select_labels_keys:
+            updateStyle(label, "background-color: #e5f3ff;")
+        else:
+            if border:
+                updateStyle(label, "border: 1px solid #99d1ff;")
+        if self.now_hang_label and not label is self.now_hang_label:
+            self.resetBackgroundColorOnLeave(event, self.now_hang_label)
+        self.now_hang_label = label
+
+    # 鼠标离开标签时重置背景颜色
+    def resetBackgroundColorOnLeave(self, event, label):
+        if label.file_path not in self.select_labels_keys:
+            updateStyle(label, "background-color: transparent;")
+        else:
+            if label != self.labels.get(self.now_select_label_key):
+                updateStyle(label, "border: none;")
+        if self.now_hang_label and not label is self.now_hang_label:
+            self.resetBackgroundColorOnLeave(event, self.now_hang_label)
+        self.now_hang_label = None
+
+    # 计算文件名标签的高度
+    def calculate_name_height(self, file_name, label_width, max_lines, font):
+        font_metrics = QFontMetrics(font)
+        single_line_height = font_metrics.lineSpacing()  # 每行高度
+        text_width = font_metrics.horizontalAdvance(file_name)  # 文本总宽度
+        num_lines = max(1, (text_width // label_width) + 1)  # 计算需要的行数
+        total_lines = min(num_lines, max_lines)  # 限制最大行数
+        name_height = total_lines * single_line_height  # 总高度
+        return name_height + self.LABEL_INNER_SPACING
+
+
 
 class MainFileShowArea(FileShowArea):
     def __init__(self, MainWindow, file_paths=None):
@@ -1450,7 +1478,6 @@ class TagFileShowArea(FileShowArea):
             self.prompt_label.show()  # 显示提示标签
         else:
             self.prompt_label.hide()  # 隐藏提示标签
-
 
 
      #————————————————————拖入文件——————————————————————
