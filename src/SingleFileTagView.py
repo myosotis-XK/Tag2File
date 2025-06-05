@@ -182,9 +182,9 @@ class SingleFileTagView(QScrollArea, Observer):
         file_path = self.current_file_path
         self.DictManage.delete_tag(tag, [file_path])
 
-    def update_index(self, file_paths=None):
-        if file_paths is not None:
-            self.current_file_path = file_paths
+    def update_index(self, file_path=None):
+        if file_path is not None:
+            self.current_file_path = file_path
         if self.current_file_path in self.file_paths:
             self.current_index = self.file_paths.index(self.current_file_path)
         else:
