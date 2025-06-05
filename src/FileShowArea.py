@@ -230,7 +230,7 @@ class FileShowArea(QScrollArea):
             time.sleep(0.1)
         hide_label_paths = list(set(self.file_paths) - set(file_paths))
 
-        # 隐藏标签处理
+        # 隐藏标签处理 
         for visible_label_key in self.visible_labels_keys:
             label = self.labels[visible_label_key]
             label.hide()
@@ -249,6 +249,8 @@ class FileShowArea(QScrollArea):
         for hide_label_path in hide_label_paths:
             if hide_label_path in self.labels:
                 self.labels.pop(hide_label_path)
+            if hide_label_path in self.loaded_labels:
+                self.loaded_labels.pop(hide_label_path)
             self.files_info.pop(hide_label_path)
 
         # 初始化变量
