@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QScrollArea, QSizePolicy, QTextEdit, QLayout
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QScrollArea, QSizePolicy, QTextEdit, QLayout, QFileIconProvider
 from PyQt5.QtGui import QPixmap, QColor, QFont
-from PyQt5.QtCore import Qt, QPoint, QRect, QSize
+from PyQt5.QtCore import Qt, QPoint, QRect, QSize, QFileInfo
 from .DictManage import *
 from .ImageViewer import *
 
@@ -94,20 +94,20 @@ class SingleFileTagView(QScrollArea, Observer):
         if self.current_file_path is None:
             self.pixmap = QPixmap()
         else:
-            label = self.TagFileShowArea.labels[self.current_file_path]
+            file_info = self.TagFileShowArea.files_info[self.current_file_path]
             self.pixmap = QPixmap(self.current_file_path)
             if self.pixmap.isNull():
-                icon_label = label.findChild(QLabel, "icon_label")
-                self.pixmap = icon_label.pixmap()
+                icon_provider = QFileIconProvider()
+                file_icon = icon_provider.icon(QFileInfo(self.current_file_path))
+                self.pixmap = file_icon.pixmap()
             message = (
-                f"<b>{label.file_name}</b><br><br>"
-                f"<b>文件路径: </b>&nbsp; {label.file_path}<br><br>"
-                f"<b>文件大小: </b>&nbsp; {label.file_size}<br><br>"
-                f"<b>修改时间: </b>&nbsp; {label.file_date}<br><br>"
+                f"<b>{file_info['file_name']}</b><br><br>"
+                f"<b>文件路径: </b>&nbsp; {self.current_file_path}<br><br>"
+                f"<b>文件大小: </b>&nbsp; {format_file_size(file_info['file_size_bytes'])}<br><br>"
+                f"<b>修改时间: </b>&nbsp; {file_info['file_date']}<br><br>"
             )
             self.text_edit.setHtml(message)
         self.image_viewer.load_image(self.pixmap)
-        # self.change_image_size()
         # 显示标签
         self.update_tags()
     

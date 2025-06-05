@@ -312,7 +312,7 @@ class TagView(QMainWindow, Observer):
             if not self.TagFileShowArea.now_select_label_key is None:
                 label = self.TagFileShowArea.labels[self.TagFileShowArea.now_select_label_key]
                 updateStyle(label, "border: none;")
-            if not self.SingleFileTagView.current_file_path is None:
+            if not self.SingleFileTagView.current_file_path is None and self.SingleFileTagView.current_file_path in self.TagFileShowArea.labels:
                 label = self.TagFileShowArea.labels[self.SingleFileTagView.current_file_path]
                 self.TagFileShowArea.now_select_label_key = label.file_path
                 updateStyle(label, "border: 1px solid #99d1ff;")

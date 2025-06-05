@@ -409,11 +409,9 @@ class FileShowArea(QScrollArea):
         if os.path.exists(file_path):
             file_size_bytes = self.files_info.get(file_path, {}).get('file_size_bytes', 0)
             label.file_size_bytes = file_size_bytes
-            label.file_size = self.format_file_size(file_size_bytes)
             label.file_date = self.files_info.get(file_path, {}).get('file_date', '')
         else:
             label.file_size_bytes = 0
-            label.file_size = "文件不存在"
             label.file_date = "文件不存在"
 
         # 设置标签固定大小
@@ -1086,7 +1084,7 @@ class FileShowArea(QScrollArea):
         message = (
             f"<b>文件名:</b>&nbsp; {label.file_name}<br><br>"
             f"<b>文件路径: </b>&nbsp; {label.file_path}<br><br>"
-            f"<b>文件大小: </b>&nbsp; {label.file_size}<br><br>"
+            f"<b>文件大小: </b>&nbsp; {format_file_size(label.file_size)}<br><br>"
             f"<b>修改时间: </b>&nbsp; {label.file_date}<br><br>"
             f"<b>文件标签: </b>&nbsp; {tags_str}"
         )
@@ -1307,17 +1305,6 @@ class FileShowArea(QScrollArea):
                 files.append(file_path)
         return files
 
-    #格式化文件大小
-    def format_file_size(self,size_in_bytes):
-        if size_in_bytes < 1024:
-            return f"{size_in_bytes} B"
-        elif size_in_bytes < 1024 ** 2:
-            return f"{size_in_bytes / 1024:.2f} KB"
-        elif size_in_bytes < 1024 ** 3:
-            return f"{size_in_bytes / (1024 ** 2):.2f} MB"
-        else:
-            return f"{size_in_bytes / (1024 ** 3):.2f} GB"
-
     # 获取区域内label
     def get_rect_label(self, rect):
         labels_keys = set()
@@ -1500,6 +1487,7 @@ class TagFileShowArea(FileShowArea):
                     file_paths.append(path)
         else:
             file_paths = paths
+        file_paths = list(set(file_paths) - set(self.file_paths))
         self.file_paths += file_paths
         self.getFilesInfo(file_paths)
         self.updateLayout()

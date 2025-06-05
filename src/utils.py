@@ -63,3 +63,17 @@ def normalize_path_lowercase(path):
     if path and len(path) > 1 and path[1] == ':':
         return path[0].lower() + path[1:]
     return path
+
+#格式化文件大小
+def format_file_size(size_in_bytes):
+    if not isinstance(size_in_bytes, int):
+        return size_in_bytes
+    if size_in_bytes < 1024:
+        return f"{size_in_bytes} B"
+    elif size_in_bytes < 1024 ** 2:
+        return f"{size_in_bytes / 1024:.2f} KB"
+    elif size_in_bytes < 1024 ** 3:
+        return f"{size_in_bytes / (1024 ** 2):.2f} MB"
+    else:
+        return f"{size_in_bytes / (1024 ** 3):.2f} GB"
+    

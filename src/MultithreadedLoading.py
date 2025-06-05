@@ -40,6 +40,7 @@ class StarImageLoader(QRunnable):
             pixmap = self.father.image_cache[self.father.image_size][file_path]
             if pixmap:
                 self.updateLabelIcon(pixmap, file_path)
+                time.sleep(0.01)
             return True
         # 检查磁盘缓存
         cache_path = self.father.get_cache_path(file_path)
@@ -54,25 +55,24 @@ class StarImageLoader(QRunnable):
                         print(f"已删除损坏的缓存文件: {cache_path}")  
                 except Exception as del_err:  
                     print(f"无法删除损坏的缓存: {del_err}")  
-                    pass 
-                print(f"加载文件 {file_path} 时出现错误: {e}")
+                    pass
                 pixmap = None
             if pixmap:
                 self.updateLabelIcon(pixmap, file_path)
+                time.sleep(0.01)
             return True
         return False
 
     def updateLabelIcon(self, pixmap, file_path):
         if pixmap is None:
             pixmap = QPixmap(self.father.image_size, self.father.image_size)
-        label = self.father.labels[file_path]
+        label = self.father.loaded_labels[file_path]
         label.icon = True
         icon_label = label.findChild(QLabel)
         self.father.image_cache[self.father.image_size][label.file_path] = pixmap
         if not os.path.exists(file_path):
             pixmap = self.draw_text_on_pixmap(pixmap, "文件不存在")
         icon_label.setPixmap(pixmap)
-        time.sleep(0.01)
 
     def draw_text_on_pixmap(self, pixmap, text):
         pixmap = pixmap.copy()

@@ -676,6 +676,7 @@ class MultiImageViewer(QMainWindow):
         self.filter_lock = threading.Lock()
         self.image_files = []  # 有效图片文件列表  
         self.current_index = -1  # 当前图片索引  
+        self.current_file = ""  # 当前图片文件路径
         
         # 设置键盘快捷键  
         self.setup_shortcuts()  
@@ -810,12 +811,19 @@ class MultiImageViewer(QMainWindow):
 
         if not os.path.exists(file_path):  
             with self.filter_lock:
-                self.image_files.pop(file_path)
+                try:
+                    self.image_files.remove(file_path)
+                except:
+                    pass
+            return
         # 检查文件扩展名  
         ext = os.path.splitext(file_path)[1].lower()  
         if ext not in supported_formats:
             with self.filter_lock:
-                self.image_files.pop(file_path)
+                try:
+                    self.image_files.remove(file_path)
+                except:
+                    pass
 
     def _start_background_filtering(self, file_paths):
         """在后台线程中执行文件过滤"""
@@ -826,7 +834,7 @@ class MultiImageViewer(QMainWindow):
                 for path in batch:
                     self._filter_file(path)
                 # 每处理完一个批次，更新UI
-                QTimer.singleShot(0, lambda: self._update_filter_results())
+                self._update_filter_results()
         
         # 创建并启动线程
         self.filter_thread = threading.Thread(target=filter_task, daemon=True)
@@ -877,13 +885,17 @@ class MultiImageViewer(QMainWindow):
             
         # 加载并显示图片  
         file_path = self.image_files[index]  
+        self.current_file = file_path
         if self.image_viewer.load_image(file_path):  
             self.current_index = index  
             self.update_status_info()  
             return True  
         else:  
             # 如果加载失败，从列表中移除该文件  
-            self.image_files.pop(index)  
+            try:
+                self.image_files.remove(file_path)
+            except:
+                pass
             # 如果还有其他图片，尝试加载当前索引的图片  
             if self.image_files:  
                 # 确保索引在有效范围内  
@@ -898,21 +910,27 @@ class MultiImageViewer(QMainWindow):
         """显示下一张图片"""  
         if not self.image_files:  
             return  
-            
-        next_index = (self.current_index + 1) % len(self.image_files)  
-        self.show_image_at_index(next_index)  
+        with self.filter_lock:
+            if self.current_index >= len(self.image_files) or self.image_files[self.current_index] != self.current_file:
+                self.current_index = self.image_files.index(self.current_file)
+            next_index = (self.current_index + 1) % len(self.image_files)  
+            self.show_image_at_index(next_index)  
     
     def show_previous_image(self):  
         """显示上一张图片"""  
         if not self.image_files:  
             return  
-            
-        prev_index = (self.current_index - 1) % len(self.image_files)  
-        self.show_image_at_index(prev_index)  
+        with self.filter_lock:
+            if self.current_index >= len(self.image_files) or self.image_files[self.current_index] != self.current_file:
+                self.current_index = self.image_files.index(self.current_file)
+            prev_index = (self.current_index - 1) % len(self.image_files)  
+            self.show_image_at_index(prev_index)  
     
     def update_status_info(self):  
         """更新状态栏信息"""  
         if self.current_index >= 0 and self.image_files:  
+            if self.current_index >= len(self.image_files) or self.image_files[self.current_index] != self.current_file:
+                self.current_index = self.image_files.index(self.current_file)
             # 获取当前图片文件路径和文件名  
             file_path = self.image_files[self.current_index]  
             file_name = os.path.basename(file_path)  
@@ -1004,7 +1022,6 @@ class ImageBrowser(QMainWindow):
     def toggle_immersive_mode(self):  
         """切换沉浸模式"""  
         # 将请求转发到multi_viewer  
-        print(111)
         is_immersive = self.multi_viewer.toggle_immersive_mode()  
         
         # 根据沉浸模式状态隐藏/显示菜单栏  
