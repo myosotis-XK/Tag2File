@@ -852,14 +852,7 @@ class FileShowArea(QScrollArea):
 
         # 如果目标路径已存在，生成新名称
         if os.path.exists(target_path):
-            # 分离文件名和扩展名（适用于文件，文件夹没有扩展名）
-            name, ext = os.path.splitext(base_name)
-            counter = 1
-            # 循环生成新的名称，直到找到不存在的路径
-            while os.path.exists(target_path):
-                new_name = f"{name}_{counter}{ext}"  # 在文件名后加数字后缀
-                target_path = os.path.join(target_folder, new_name).replace('\\', '/')
-                counter += 1
+            target_path = get_available_filename(target_path)
 
         # 如果是文件夹，创建新文件夹
         # 移动文件或文件夹到目标路径
