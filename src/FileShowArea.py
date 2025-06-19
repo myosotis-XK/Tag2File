@@ -2,6 +2,7 @@ from .utils import *
 from .MultithreadedLoading import *
 from .DictManage import *
 from .ImageViewer import *
+from .FileSelectionComponent import FileSelectionComponent
 import re
 import os
 import subprocess
@@ -681,7 +682,7 @@ class FileShowArea(QScrollArea):
     # 双击打开文件
     def openFile(self, event, file_path, default=False):
         if not os.path.exists(file_path):
-            print(f"文件不存在: {file_path}")
+            QMessageBox.warning(self, "文件不存在", f"无法打开文件：\n{file_path}\n文件已不存在。")
             return
         # 支持的图片格式  
         supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']  
@@ -701,7 +702,7 @@ class FileShowArea(QScrollArea):
             try:  
                 os.startfile(file_path)  
             except Exception as e:  
-                print(f"无法打开文件 {file_path}: {e}")  
+                QMessageBox.critical(self, "打开文件失败", f"无法打开文件：\n{file_path}\n错误：{e}")
         
     # 右键菜单
     def showLabelMenu(self, pos, label):
@@ -854,7 +855,6 @@ class FileShowArea(QScrollArea):
         if os.path.exists(target_path):
             target_path = get_available_filename(target_path)
 
-        # 如果是文件夹，创建新文件夹
         # 移动文件或文件夹到目标路径
         if file_action == "剪切":
             shutil.move(file_path, target_path)
@@ -923,129 +923,93 @@ class FileShowArea(QScrollArea):
                 label = self.labels[file_path]
                 updateStyle(label, "background-color: #cde8ff;")
 
-    # 文件修复
+    # 修复文件
     def repairFile(self):
-        # 选择文件所在文件夹
+        # 1. 选择文件所在文件夹
         options = QFileDialog.Options()
         options |= QFileDialog.ShowDirsOnly
-        folder_path = QFileDialog.getExistingDirectory(self, "选择文件夹", options=options)
+        folder_path = QFileDialog.getExistingDirectory(self, "选择候选文件文件夹", options=options)
         if not folder_path:
             return
-        # 递归遍历文件夹中的所有文件的文件名
-        
+
+        # 2. 递归遍历文件夹中的所有文件和目录，构建文件名到路径的映射
+        # 注意：这里会包含目录，如果你的修复只针对文件，可能需要进一步过滤
         fileName2filePath = {}
         for root, dirs, files in os.walk(folder_path):
-            for file in files+dirs:
-                file_path = os.path.join(root, file).replace('\\', '/')
-                if file in fileName2filePath:
-                    fileName2filePath[file].append(file_path)
+            for item in files + dirs: # 遍历文件和目录
+                file_path = os.path.join(root, item).replace('\\', '/')
+                if item in fileName2filePath:
+                    fileName2filePath[item].append(file_path)
                 else:
-                    fileName2filePath[file] = [file_path]
-
-        # 创建对话框窗口
-        dialog = QDialog(self)
-        dialog.setWindowTitle("选择修复文件")
-        dialog.resize(800, 600)
+                    fileName2filePath[item] = [file_path]
         
-        # 主布局
-        main_layout = QVBoxLayout(dialog)
-        
-        # 创建滚动区域
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_area.setWidget(scroll_content)
-        main_layout.addWidget(scroll_area)
+        # 3. 准备 FileSelectionComponent 所需的输入数据
+        repair_file_groups = []
+        repair_group_titles = []
+        original_file_paths_for_mapping = [] # 用于映射最终选择结果到原始失效文件
 
-        # 按钮布局
-        button_layout = QHBoxLayout()
-        confirm_button = QPushButton("确认修复")
-        cancel_button = QPushButton("取消")
-        button_layout.addWidget(confirm_button)
-        button_layout.addWidget(cancel_button)
-        main_layout.addLayout(button_layout)
-        font = QFont()
-        font.setFamily("Verdana")  # 首选 Verdana
-        font.setStyleHint(QFont.SansSerif)  # 如果 Verdana 不可用，使用无衬线字体
-        # 为每个失效文件创建选择界面
-        for file in self.select_labels_keys:
-            if os.path.exists(file):
+        for original_missing_file_path in self.select_labels_keys:
+            # 仅处理当前不存在的文件
+            if os.path.exists(original_missing_file_path):
                 continue
-                
-            file_name = os.path.basename(file)
-            if file_name in fileName2filePath:
-                # 创建分组标题
-                group_label = QLabel(f"修复文件: {file_name}")
-                group_label.setStyleSheet("font-weight: bold; background-color: #f0f0f0; padding: 5px;")
-                scroll_layout.addWidget(group_label)
-                
-                # 创建水平布局的容器
-                container = QWidget()
-                layout = QHBoxLayout(container)
-                layout.setSpacing(10)
-                
-                # 为每个候选文件创建显示项
-                for candidate_path in fileName2filePath[file_name]:
-                    # 创建垂直布局的文件项
-                    file_widget = QWidget()
-                    file_layout = QVBoxLayout(file_widget)
-                    file_layout.setAlignment(Qt.AlignCenter)
-                    
-                    # 图片预览
-                    # image_label = self._createFileLabel(file_path, font)
-                    image_label = QLabel()
-                    image_label.setAlignment(Qt.AlignCenter)
-                    # image_label.setStyleSheet("border: 1px solid #ccc;")
-                    image_label.setFixedSize(200, 200)
-                    
-                    # 加载图片缩略图
-                    pixmap = QPixmap(candidate_path)
-                    pixmap = pixmap.scaled(self.image_size, self.image_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                    if not pixmap.isNull():
-                        image_label.setPixmap(pixmap)
-                    
-                    # 文件路径标签
-                    path_label = QLabel(os.path.dirname(candidate_path))
-                    path_label.setAlignment(Qt.AlignCenter)
-                    path_label.setStyleSheet("font-size: 11px; color: #666;")
-                    path_label.setWordWrap(True)
-                    path_label.setMaximumWidth(200)
-                    
-                    # 选择按钮
-                    select_button = QRadioButton("选择此文件")
-                    select_button.candidate_path = candidate_path
-                    select_button.original_path = file
-                    if candidate_path == fileName2filePath[file_name][0]:
-                        select_button.setChecked(True)
-                    
-                    # 添加到布局
-                    file_layout.addWidget(image_label)
-                    file_layout.addWidget(path_label)
-                    file_layout.addWidget(select_button, alignment=Qt.AlignCenter)
-                    
-                    layout.addWidget(file_widget)
-                layout.addStretch()
-                # 添加到滚动区域
-                scroll_layout.addWidget(container)
-        
-        # 右侧添加弹簧
-        # scroll_layout.addStretch()
-        
-        # 按钮信号连接
-        def on_confirm():
-            # 查找所有选中的单选按钮
-            for widget in scroll_content.findChildren(QRadioButton):
-                if widget.isChecked():
-                    # 执行修复操作
-                    self.DictManage.rename_entity('file', widget.original_path, widget.candidate_path)
-            self.DictManage.save_notify()
-            dialog.accept()
             
-        confirm_button.clicked.connect(on_confirm)
-        cancel_button.clicked.connect(dialog.reject)
-        
-        dialog.exec_()
+            file_name = os.path.basename(original_missing_file_path)
+            candidate_paths = fileName2filePath.get(file_name, [])
+
+            # 即使没有候选文件，也要为这个失效文件创建一个组，让用户知道其状态
+            repair_file_groups.append(candidate_paths) 
+            repair_group_titles.append(f"修复: '{file_name}' (原路径: {original_missing_file_path})")
+            original_file_paths_for_mapping.append(original_missing_file_path) 
+
+        # 如果没有需要修复的文件组（所有 select_labels_keys 中的文件都存在或没有找到候选），则提示并返回
+        if not repair_file_groups:
+            QMessageBox.information(self, "信息", "当前没有需要修复的失效文件。")
+            return
+
+        # 4. 定义初始选择处理函数：在修复场景下，通常会默认选择每个组的第一个文件
+        def repair_initial_selector(group_files_list):
+            if group_files_list:
+                return [group_files_list[0]] # 默认选择第一个
+            return []
+
+        # 5. 创建并显示 FileSelectionComponent
+        repair_dialog = FileSelectionComponent(
+            parent=self, # 父窗口设为 self，使其成为模态对话框
+            file_groups=repair_file_groups,
+            selection_type='single', # 修复通常是单选一个最佳匹配
+            image_size=180, # 调整图片大小以适应更多信息
+            group_titles=repair_group_titles,
+            initial_selection_handler=repair_initial_selector
+        )
+
+        # 6. 连接组件的 result_selected 信号到处理槽函数
+        def handle_repair_selection(selected_groups_2d):
+            print("\n--- 收到 FileSelectionComponent 的修复选择结果 ---")
+            for i, group_selection in enumerate(selected_groups_2d):
+                if i < len(original_file_paths_for_mapping):
+                    original_path_to_repair = original_file_paths_for_mapping[i]
+                    if group_selection:
+                        # 修复场景下，每个组只应选择一个文件
+                        selected_candidate_path = group_selection[0] 
+                        print(f"准备修复: '{original_path_to_repair}' -> 使用: '{selected_candidate_path}'")
+                        # 执行实际的文件修复操作
+                        self.DictManage.rename_entity('file', original_path_to_repair, selected_candidate_path)
+                    else:
+                        print(f"文件 '{original_path_to_repair}' 未选择修复文件，跳过。")
+                else:
+                    print(f"警告: 结果中包含未知组索引 {i}: {group_selection}")
+            
+            # 通知 DictManage 保存或更新状态
+            self.DictManage.save_notify()
+            QMessageBox.information(self, "修复完成", "所有文件修复操作已处理。")
+
+        repair_dialog.result_selected.connect(handle_repair_selection)
+
+        # 7. 模态显示对话框
+        if repair_dialog.exec_() == QDialog.Accepted:
+            print("文件修复对话框确认关闭。")
+        else:
+            print("文件修复对话框取消关闭。")
 
 
     # 打开文件所在位置
