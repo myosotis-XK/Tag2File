@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QScrollArea, QSizePolicy, QTextEdit, QLayout
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QScrollArea, QSizePolicy, QTextEdit, QLayout, QFileIconProvider
 from PyQt5.QtGui import QPixmap, QColor, QFont
-from PyQt5.QtCore import Qt, QPoint, QRect, QSize
+from PyQt5.QtCore import Qt, QPoint, QRect, QSize, QFileInfo
 from .DictManage import *
 from .ImageViewer import *
 
@@ -102,12 +102,11 @@ class SingleFileTagView(QScrollArea, Observer):
             message = (
                 f"<b>{label.file_name}</b><br><br>"
                 f"<b>文件路径: </b>&nbsp; {label.file_path}<br><br>"
-                f"<b>文件大小: </b>&nbsp; {label.file_size}<br><br>"
+                f"<b>文件大小: </b>&nbsp; {format_file_size(label.file_size_bytes)}<br><br>"
                 f"<b>修改时间: </b>&nbsp; {label.file_date}<br><br>"
             )
             self.text_edit.setHtml(message)
         self.image_viewer.load_image(self.pixmap)
-        # self.change_image_size()
         # 显示标签
         self.update_tags()
     
@@ -182,9 +181,9 @@ class SingleFileTagView(QScrollArea, Observer):
         file_path = self.current_file_path
         self.DictManage.delete_tag(tag, [file_path])
 
-    def update_index(self, file_paths=None):
-        if file_paths is not None:
-            self.current_file_path = file_paths
+    def update_index(self, file_path=None):
+        if file_path is not None:
+            self.current_file_path = file_path
         if self.current_file_path in self.file_paths:
             self.current_index = self.file_paths.index(self.current_file_path)
         else:

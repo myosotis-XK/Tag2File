@@ -32,6 +32,7 @@ class StarImageLoader(QRunnable):
                 continue
             loader = ImageLoader(self.father, file_path)
             self.threadpool.start(loader)
+
     def check_cache(self, file_path):
         # 检查缓存中是否存在该尺寸的缩略图
         if file_path in self.father.image_cache[self.father.image_size]:
@@ -39,6 +40,7 @@ class StarImageLoader(QRunnable):
             pixmap = self.father.image_cache[self.father.image_size][file_path]
             if pixmap:
                 self.updateLabelIcon(pixmap, file_path)
+                time.sleep(0.01)
             return True
         # 检查磁盘缓存
         cache_path = self.father.get_cache_path(file_path)
@@ -53,11 +55,11 @@ class StarImageLoader(QRunnable):
                         print(f"已删除损坏的缓存文件: {cache_path}")  
                 except Exception as del_err:  
                     print(f"无法删除损坏的缓存: {del_err}")  
-                    pass 
-                print(f"加载文件 {file_path} 时出现错误: {e}")
+                    pass
                 pixmap = None
             if pixmap:
                 self.updateLabelIcon(pixmap, file_path)
+                time.sleep(0.01)
             return True
         return False
 
@@ -71,7 +73,6 @@ class StarImageLoader(QRunnable):
         if not os.path.exists(file_path):
             pixmap = self.draw_text_on_pixmap(pixmap, "文件不存在")
         icon_label.setPixmap(pixmap)
-        time.sleep(0.01)
 
     def draw_text_on_pixmap(self, pixmap, text):
         pixmap = pixmap.copy()
@@ -183,6 +184,8 @@ class ImageLoader(QRunnable):
             # 流畅
             with Image.open(self.file_path) as img:
                 img.thumbnail((self.max_size, self.max_size))
+                if 'icc_profile' in img.info:
+                    del img.info['icc_profile']
                 img_byte_array = BytesIO()
                 img.save(img_byte_array, format='PNG')
                 img_byte_array.seek(0)

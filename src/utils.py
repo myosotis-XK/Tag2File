@@ -63,3 +63,36 @@ def normalize_path_lowercase(path):
     if path and len(path) > 1 and path[1] == ':':
         return path[0].lower() + path[1:]
     return path
+
+def get_available_filename(file_path):
+    """确保文件名不重复"""
+    base_name, extension = os.path.splitext(file_path)
+    counter = 1
+    while os.path.exists(file_path):
+        file_path = f"{base_name}({counter}){extension}"
+        counter += 1
+    return file_path
+
+#格式化文件大小
+def format_file_size(size_in_bytes):
+    if not isinstance(size_in_bytes, int):
+        return size_in_bytes
+    if size_in_bytes < 1024:
+        return f"{size_in_bytes} B"
+    elif size_in_bytes < 1024 ** 2:
+        return f"{size_in_bytes / 1024:.2f} KB"
+    elif size_in_bytes < 1024 ** 3:
+        return f"{size_in_bytes / (1024 ** 2):.2f} MB"
+    else:
+        return f"{size_in_bytes / (1024 ** 3):.2f} GB"
+    
+#递归获取文件路径
+def get_all_files(directory):
+    directory = directory.replace('\\', '/') 
+    files = []
+    for root, _, filenames in os.walk(directory):
+        for filename in filenames:
+            file_path = os.path.join(root, filename).replace('\\', '/')
+            files.append(file_path)
+    return files
+    

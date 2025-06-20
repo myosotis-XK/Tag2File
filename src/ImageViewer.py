@@ -5,6 +5,8 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QGraphicsView, QGraphics
                             QVBoxLayout, QWidget, QShortcut, QPushButton)  
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QFont, QColor, QKeySequence, QCursor, QBrush
 from PyQt5.QtCore import Qt, QRectF, QTimer, QPropertyAnimation, QEasingCurve
+import concurrent.futures
+import threading
 
 class ZoomIndicator(QLabel):  
     """缩放指示器，用于显示当前缩放比例"""  
@@ -129,7 +131,7 @@ class ImageViewer(QGraphicsView):
         # 图像项  
         self.pixmap_item = None  
         self.original_pixmap = None  
-        self.original_image = None  # 存储原始QImage  
+        self.original_image = None  # 存储原始QImage
         
         # 追踪鼠标，用于拖动  
         self.setMouseTracking(True)  
@@ -191,7 +193,6 @@ class ImageViewer(QGraphicsView):
         
         # 更新拖动模式  
         self.update_drag_mode()  
-        
         return True  
 
     def create_scaled_pixmap(self, scale_factor):  
@@ -672,8 +673,10 @@ class MultiImageViewer(QMainWindow):
         self.close_button.hide()  # 默认隐藏
 
         # 文件列表和当前索引  
+        self.filter_lock = threading.Lock()
         self.image_files = []  # 有效图片文件列表  
         self.current_index = -1  # 当前图片索引  
+        self.current_file = ""  # 当前图片文件路径
         
         # 设置键盘快捷键  
         self.setup_shortcuts()  
@@ -802,37 +805,78 @@ class MultiImageViewer(QMainWindow):
             
         return self.image_viewer.immersive_mode 
 
-    def load_image_files(self, file_paths):  
-        """加载图片文件列表，过滤非图片文件"""  
-        # 支持的图片格式  
-        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']  
+    def _filter_file(self, file_path):
+        """过滤文件列表，仅保留图片文件"""
+        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']
+
+        if not os.path.exists(file_path):  
+            with self.filter_lock:
+                try:
+                    self.image_files.remove(file_path)
+                except:
+                    pass
+            return
+        # 检查文件扩展名  
+        ext = os.path.splitext(file_path)[1].lower()  
+        if ext not in supported_formats:
+            with self.filter_lock:
+                try:
+                    self.image_files.remove(file_path)
+                except:
+                    pass
+
+    def _start_background_filtering(self, file_paths):
+        """在后台线程中执行文件过滤"""
+        def filter_task():
+            BATCH_SIZE = 10000
+            batches = [file_paths[i:i + BATCH_SIZE] for i in range(0, len(file_paths), BATCH_SIZE)]
+            for batch in batches:
+                for path in batch:
+                    self._filter_file(path)
+                # 每处理完一个批次，更新UI
+                self._update_filter_results()
         
-        # 清空当前列表  
-        self.image_files = []
+        # 创建并启动线程
+        self.filter_thread = threading.Thread(target=filter_task, daemon=True)
+        self.filter_thread.start()
+
+    def _update_filter_results(self):
+        """在主线程中更新过滤结果"""
+        if not self.image_files and self.current_index == -1:
+            self.statusBar.showMessage("正在加载图片...")
+        else:
+            self.update_status_info()
+
+    # 修改load_image_files方法
+    def load_image_files(self, file_paths, show_file_path=None):  
+        """加载图片文件列表，过滤非图片文件"""
+        if self.current_index != -1 and show_file_path is None:
+            show_file_path = self.image_files[self.current_index]
         
-        # 筛选有效图片文件  
-        for file_path in file_paths:  
-            # 检查文件是否存在  
-            if not os.path.exists(file_path):  
-                continue  
-                
-            # 检查文件扩展名  
-            ext = os.path.splitext(file_path)[1].lower()  
-            if ext in supported_formats:  
-                self.image_files.append(file_path)  
+        # 初始化文件列表
+        self.image_files = file_paths
         
-        # 重置索引  
-        self.current_index = -1  
+        # 在后台线程中执行过滤
+        self._start_background_filtering(file_paths)
         
-        # 如果有有效图片，显示第一张  
-        if self.image_files:  
-            self.show_image_at_index(0)  
-            # 显示导航按钮一秒，然后淡出  
-            self.prev_button.show_button()  
-            self.next_button.show_button()  
-            QTimer.singleShot(1000, self.check_button_visibility)  
-        else:  
-            self.statusBar.showMessage("没有找到有效的图片文件")  
+        if not show_file_path is None:
+            try:
+                index = self.image_files.index(show_file_path)  
+                self.show_image_at_index(index)
+            except:
+                pass
+        
+        if self.current_index == -1:
+            # 如果有有效图片，显示第一张
+            if self.image_files:  
+                self.show_image_at_index(0)  
+                QTimer.singleShot(1000, self.check_button_visibility)  
+            else:  
+                self.statusBar.showMessage("正在加载图片...")
+        
+        # 显示导航按钮一秒，然后淡出 
+        self.prev_button.show_button()  
+        self.next_button.show_button()
     
     def show_image_at_index(self, index):  
         """显示指定索引的图片"""  
@@ -841,13 +885,17 @@ class MultiImageViewer(QMainWindow):
             
         # 加载并显示图片  
         file_path = self.image_files[index]  
+        self.current_file = file_path
         if self.image_viewer.load_image(file_path):  
             self.current_index = index  
             self.update_status_info()  
             return True  
         else:  
             # 如果加载失败，从列表中移除该文件  
-            self.image_files.pop(index)  
+            try:
+                self.image_files.remove(file_path)
+            except:
+                pass
             # 如果还有其他图片，尝试加载当前索引的图片  
             if self.image_files:  
                 # 确保索引在有效范围内  
@@ -862,21 +910,27 @@ class MultiImageViewer(QMainWindow):
         """显示下一张图片"""  
         if not self.image_files:  
             return  
-            
-        next_index = (self.current_index + 1) % len(self.image_files)  
-        self.show_image_at_index(next_index)  
+        with self.filter_lock:
+            if self.current_index >= len(self.image_files) or self.image_files[self.current_index] != self.current_file:
+                self.current_index = self.image_files.index(self.current_file)
+            next_index = (self.current_index + 1) % len(self.image_files)  
+            self.show_image_at_index(next_index)  
     
     def show_previous_image(self):  
         """显示上一张图片"""  
         if not self.image_files:  
             return  
-            
-        prev_index = (self.current_index - 1) % len(self.image_files)  
-        self.show_image_at_index(prev_index)  
+        with self.filter_lock:
+            if self.current_index >= len(self.image_files) or self.image_files[self.current_index] != self.current_file:
+                self.current_index = self.image_files.index(self.current_file)
+            prev_index = (self.current_index - 1) % len(self.image_files)  
+            self.show_image_at_index(prev_index)  
     
     def update_status_info(self):  
         """更新状态栏信息"""  
         if self.current_index >= 0 and self.image_files:  
+            if self.current_index >= len(self.image_files) or self.image_files[self.current_index] != self.current_file:
+                self.current_index = self.image_files.index(self.current_file)
             # 获取当前图片文件路径和文件名  
             file_path = self.image_files[self.current_index]  
             file_name = os.path.basename(file_path)  
@@ -968,7 +1022,6 @@ class ImageBrowser(QMainWindow):
     def toggle_immersive_mode(self):  
         """切换沉浸模式"""  
         # 将请求转发到multi_viewer  
-        print(111)
         is_immersive = self.multi_viewer.toggle_immersive_mode()  
         
         # 根据沉浸模式状态隐藏/显示菜单栏  

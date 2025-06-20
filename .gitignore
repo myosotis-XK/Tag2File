@@ -10,7 +10,7 @@ config/
 # 自定义其他文件
 爬虫/
 自动打标/
-测试.py
+test.py
 temp.py
 
 # 打包相关
