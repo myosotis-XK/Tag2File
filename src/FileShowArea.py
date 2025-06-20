@@ -1004,7 +1004,7 @@ class FileShowArea(QScrollArea):
         message = (
             f"<b>文件名:</b>&nbsp; {label.file_name}<br><br>"
             f"<b>文件路径: </b>&nbsp; {label.file_path}<br><br>"
-            f"<b>文件大小: </b>&nbsp; {format_file_size(label.file_size)}<br><br>"
+            f"<b>文件大小: </b>&nbsp; {format_file_size(label.file_size_bytes)}<br><br>"
             f"<b>修改时间: </b>&nbsp; {label.file_date}<br><br>"
             f"<b>文件标签: </b>&nbsp; {tags_str}"
         )
