@@ -868,7 +868,7 @@ class FileShowArea(QScrollArea):
 
     # 修改文件夹内的所有文件
     def changeFolderAllFilePath(self, parent_path, target_folder):
-        file_paths = self.get_all_files(target_folder)
+        file_paths = get_all_files(target_folder)
         for file_path in file_paths:
             old_file_path = file_path.replace(target_folder, parent_path)
             # 修改文件路径
@@ -973,7 +973,7 @@ class FileShowArea(QScrollArea):
             return []
 
         # 5. 创建并显示 FileSelectionComponent
-        repair_dialog = FileSelectionComponent(
+        self.repair_dialog = FileSelectionComponent(
             parent=self, # 父窗口设为 self，使其成为模态对话框
             file_groups=repair_file_groups,
             selection_type='single', # 修复通常是单选一个最佳匹配
@@ -1003,13 +1003,9 @@ class FileShowArea(QScrollArea):
             self.DictManage.save_notify()
             QMessageBox.information(self, "修复完成", "所有文件修复操作已处理。")
 
-        repair_dialog.result_selected.connect(handle_repair_selection)
+        self.repair_dialog.result_selected.connect(handle_repair_selection)
 
-        # 7. 模态显示对话框
-        if repair_dialog.exec_() == QDialog.Accepted:
-            print("文件修复对话框确认关闭。")
-        else:
-            print("文件修复对话框取消关闭。")
+        self.repair_dialog.show()
 
 
     # 打开文件所在位置
@@ -1254,16 +1250,6 @@ class FileShowArea(QScrollArea):
         # 检查鼠标位置是否在缩略图范围内
         return thumbnail_rect.contains(mouse_pos)
 
-    #递归获取文件路径
-    def get_all_files(slef, directory):
-        directory = directory.replace('\\', '/') 
-        files = []
-        for root, _, filenames in os.walk(directory):
-            for filename in filenames:
-                file_path = os.path.join(root, filename).replace('\\', '/')
-                files.append(file_path)
-        return files
-
     # 获取区域内label
     def get_rect_label(self, rect):
         labels_keys = set()
@@ -1441,7 +1427,7 @@ class TagFileShowArea(FileShowArea):
         if not self.acceptFloder:
             for path in paths:
                 if os.path.isdir(path):
-                    file_paths += self.get_all_files(path)
+                    file_paths += get_all_files(path)
                 else:
                     file_paths.append(path)
         else:

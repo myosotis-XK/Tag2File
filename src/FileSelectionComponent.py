@@ -1,8 +1,8 @@
-from .utils import *
+from .utils import format_file_size
+from .ImageViewer import MultiImageViewer
 
 import os
 import time
-import subprocess
 import sys 
 
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QScrollArea,
@@ -49,6 +49,9 @@ class FileSelectionComponent(QDialog):
         self.file_path_to_selection_widget = {}
         # 新增：存储每个组的“不选择”QRadioButton，即便它是隐藏的，也需要操作它
         self.no_selection_radio_buttons = [] 
+        self.checkbox_groups = []
+
+        self.image_viewers = []
 
         self._init_ui()
         self._populate_content()
@@ -255,10 +258,34 @@ class FileSelectionComponent(QDialog):
         if not os.path.exists(file_path):
             QMessageBox.warning(self, "文件不存在", f"无法打开文件：\n{file_path}\n文件已不存在。")
             return
-        try:
-            os.startfile(file_path)
-        except Exception as e:
-            QMessageBox.critical(self, "打开文件失败", f"无法打开文件：\n{file_path}\n错误：{e}")
+
+        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']
+        ext = os.path.splitext(file_path)[1].lower()
+
+        if ext in supported_formats:
+            # 找到file_path所在的组
+            group_file_list = None
+            for group in self.file_groups:
+                if file_path in group:
+                    group_file_list = group
+                    break
+
+            if not group_file_list:
+                QMessageBox.warning(self, "未找到文件组", f"文件未包含在任何文件组中：\n{file_path}")
+                return
+
+            image_viewer = MultiImageViewer()
+            self.image_viewers.append(image_viewer)
+            image_viewer.destroyed.connect(lambda: self.image_viewers.remove(image_viewer))
+
+            image_viewer.load_image_files(group_file_list.copy(), file_path)
+            image_viewer.show()
+
+        else:
+            try:
+                os.startfile(file_path)
+            except Exception as e:
+                QMessageBox.critical(self, "打开文件失败", f"无法打开文件：\n{file_path}\n错误：{e}")
 
     def _on_radio_button_toggled(self, checked, group_idx, file_path):
         """
@@ -318,7 +345,7 @@ if __name__ == '__main__':
             os.utime(f, (time.time() - 86400 * 2, time.time() - 86400 * 2)) # 2 days ago
 
     repair_file_groups_input = [
-        ['E:\新建文件夹\图片\画师\鬼针草\pixiv\__kero_nijisanji_and_2_more_drawn_by_chen_bin__9d26c4c872350290141d869a1056f9f8.jpg', dummy_repair_files[1], dummy_repair_files[0]],
+        [dummy_repair_files[1], dummy_repair_files[0]],
         [dummy_repair_files[2]],
         ["non_existent_file_repair.jpg", dummy_repair_files[0]] 
     ]

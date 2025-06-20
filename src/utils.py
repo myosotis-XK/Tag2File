@@ -86,3 +86,13 @@ def format_file_size(size_in_bytes):
     else:
         return f"{size_in_bytes / (1024 ** 3):.2f} GB"
     
+#递归获取文件路径
+def get_all_files(directory):
+    directory = directory.replace('\\', '/') 
+    files = []
+    for root, _, filenames in os.walk(directory):
+        for filename in filenames:
+            file_path = os.path.join(root, filename).replace('\\', '/')
+            files.append(file_path)
+    return files
+    

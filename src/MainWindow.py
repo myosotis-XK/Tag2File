@@ -209,16 +209,6 @@ class Tag2File(QMainWindow, Observer):
 
     # ——————————————————————辅助功能————————————————————————
 
-    #递归获取文件路径
-    def get_all_files(slef, directory):
-        directory = directory.replace('\\', '/') 
-        files = []
-        for root, _, filenames in os.walk(directory):
-            for filename in filenames:
-                file_path = os.path.join(root, filename).replace('\\', '/')
-                files.append(file_path)
-        return files
-    
     # 获取tag对应文件路径
     def get_tag_files(self, tag_expression: str):
         result_tag = parse_set_expression(tag_expression)
