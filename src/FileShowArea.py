@@ -124,7 +124,6 @@ class FileShowArea(QScrollArea):
         if file_paths is None:
             file_paths = []
         self.file_paths:list = file_paths # 窗口中的所有文件
-        self.files_info = {}  # 存储文件信息的字典 {'flie_path':{'file_name': file_name, 'file_size_bytes': file_size_bytes, 'file_date': file_date}}
         self.labels = {}  # 当前懒加载的标签
         self.labels_rect = {}  # {(row, col):(label_rect, file_path)}
         self.visible_labels_keys = set()  # 可见label键
@@ -249,7 +248,6 @@ class FileShowArea(QScrollArea):
         for hide_label_path in hide_label_paths:
             if hide_label_path in self.labels:
                 self.labels.pop(hide_label_path)
-            self.files_info.pop(hide_label_path)
 
         # 初始化变量
         self.labels_rect.clear()
@@ -288,7 +286,6 @@ class FileShowArea(QScrollArea):
             file_name = '文件不存在'  # 处理文件不存在的情况
             file_size_bytes = 0
             file_date = '文件不存在'
-        self.files_info[file_path] = {'file_name': file_name, 'file_size_bytes': file_size_bytes, 'file_date': file_date}
 
     # 创建文件标签
     def createFileLabels(self, file_paths=None, use_cache=True):
@@ -311,7 +308,6 @@ class FileShowArea(QScrollArea):
             futures = [executor.submit(self._add_file_attributes, label) for label in self.labels.values()]
             concurrent.futures.wait(futures)
         self.label_cache.update(self.labels)
-        self.loaded_labels.update(self.labels)
 
     def _createFileLabel(self, file_path):
         # 创建标签
@@ -602,11 +598,11 @@ class FileShowArea(QScrollArea):
         if file_paths is None:
             file_paths = self.file_paths
         if self.current_sort_key == "name":
-            file_paths.sort(key=lambda path: self.files_info[path]['file_name'], reverse=(self.current_sort_order == "desc"))
+            file_paths.sort(key=lambda path: self.labels[path].file_name, reverse=(self.current_sort_order == "desc"))
         elif self.current_sort_key == "size":
-            file_paths.sort(key=lambda path: self.files_info[path]['file_size_bytes'], reverse=(self.current_sort_order == "desc"))
+            file_paths.sort(key=lambda path: self.labels[path].file_size_bytes, reverse=(self.current_sort_order == "desc"))
         elif self.current_sort_key == "date":
-            file_paths.sort(key=lambda path: self.files_info[path]['file_date'], reverse=(self.current_sort_order == "desc"))
+            file_paths.sort(key=lambda path: self.labels[path].file_date, reverse=(self.current_sort_order == "desc"))
 
     #改变排序方式
     def setSortKeyAndOrder(self, action, value):
