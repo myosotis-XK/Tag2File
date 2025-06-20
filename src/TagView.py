@@ -299,17 +299,15 @@ class TagView(QMainWindow, Observer):
             for file_path in self.TagFileShowArea.select_labels_keys:
                 label = self.TagFileShowArea.labels[file_path]
                 updateStyle(label, "background-color: transparent;")
+            file_path = None
             if not self.TagFileShowArea.now_select_label_key is None:
                 label = self.TagFileShowArea.labels[self.TagFileShowArea.now_select_label_key]
+                file_path = self.TagFileShowArea.now_select_label_key
                 self.TagFileShowArea.now_select_label_key = None
                 updateStyle(label, "border: none;")
             self.TagFileShowArea.hide()
             self.splitter.replaceWidget(0, self.SingleFileTagView)
             self.SingleFileTagView.show()
-            if self.TagFileShowArea.now_select_label_key is None:
-                file_path = None
-            else:
-                file_path = self.TagFileShowArea.now_select_label_key
             self.SingleFileTagView.update_index(file_path)
             self.switch_view_button.setText("单文件视图")
         else:
