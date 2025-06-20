@@ -203,7 +203,11 @@ class Tag2File(QMainWindow, Observer):
         if self.tag_view != None:
             self.tag_view.close()
 
-        # 调用父类的 closeEvent 以确保主窗口正常关闭
+        try:
+            self.DictManage.compact_tagbase()
+        except Exception as e:
+            print(f"Error compacting shelve: {e}")
+
         super().closeEvent(event)
 
 
