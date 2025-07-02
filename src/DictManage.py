@@ -280,7 +280,7 @@ class DictManage():
     # ——————————————————————————————————————————业务基础操作————————————————————————————————————————
 
     # 添加tag
-    def add_tag(self, tag:str, file_paths:list):
+    def add_tag(self, tag:str, file_paths:list, save=True):
         # 检查tag是否存在
         if tag not in self.relation_graph['tag']:
             if '未分类' not in self.relation_graph['category']:
@@ -289,22 +289,24 @@ class DictManage():
             self.relation_graph['category']['未分类']['tagOrder'].append(tag)
         # 检查文件是否存在
         for file_path in file_paths[:]:
-            if type(file_path) != str or not os.path.exists(file_path):
+            if type(file_path) != str:
                 file_paths.remove(file_path)
         # 更新 relation_graph
         for file_path in file_paths:
             self.add_relation('tag', tag, 'file', file_path)
         # 保存并通知
-        self.save_notify()
+        if save:
+            self.save_notify()
     
     # 删除tag
-    def delete_tag(self, tag, file_paths):
+    def delete_tag(self, tag:str, file_paths:list, save=True):
         for file_path in file_paths:
             self.remove_relation('tag', tag, 'file', file_path)
             # 如果文件没有关联的标签，则删除该文件条目
-            if file_path in self.relation_graph['file'] and not self.relation_graph['file'][file_path].get('tag', False) and not self.relation_graph['file'][file_path].get('info', False):
+            if file_path in self.relation_graph['file'] and not self.relation_graph['file'][file_path].get('tag', False):
                 del self.relation_graph['file'][file_path]
-        self.save_notify()
+        if save:
+            self.save_notify()
 
     # 删除tag实体及相关关系
     def destroy_tag(self, tag):
