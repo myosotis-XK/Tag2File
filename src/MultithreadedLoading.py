@@ -67,12 +67,14 @@ class StarImageLoader(QRunnable):
         if pixmap is None:
             pixmap = QPixmap(self.father.image_size, self.father.image_size)
         label = self.father.labels[file_path]
-        label.icon = True
+        file_item = self.father.file_items[file_path]
+        file_item.icon = True
         icon_label = label.findChild(QLabel)
         self.father.image_cache[self.father.image_size][label.file_path] = pixmap
         if not os.path.exists(file_path):
             pixmap = self.draw_text_on_pixmap(pixmap, "文件不存在")
         icon_label.setPixmap(pixmap)
+        file_item.pixmap['current'] = pixmap
 
     def draw_text_on_pixmap(self, pixmap, text):
         pixmap = pixmap.copy()
@@ -135,12 +137,14 @@ class ImageLoader(QRunnable):
                 elif mime_type == 'video/mp4':
                     pixmap = self.loadMp4Cover()
             label = self.father.labels[self.file_path]
-            label.icon = True
+            file_item = self.father.file_items[self.file_path]
+            file_item.icon = True
             icon_label = label.findChild(QLabel)
             if pixmap:
                 # 将图片按 image_size 的大小缩放，但保持原始比例  
                 pixmap = pixmap.scaled(self.max_size, self.max_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 icon_label.setPixmap(pixmap)
+                file_item.pixmap['current'] = pixmap
                 # 将缩略图存入缓存
                 self.save_to_disk_cache(pixmap)
             self.father.image_cache[self.max_size][label.file_path] = pixmap
