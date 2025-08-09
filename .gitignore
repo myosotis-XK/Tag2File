@@ -10,6 +10,7 @@ config/
 # 自定义其他文件
 爬虫/
 自动打标/
+system/
 test.py
 temp.py
 

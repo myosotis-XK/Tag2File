@@ -199,6 +199,7 @@ class SpecialTagLabel(TagLabel):
         super().__init__(text, '', color, parent)
         self.isChecked = True
         self.checkbox_size = 15  # 勾选框的大小
+        self.checkbox_rect = QRect(0,0,0,0)
 
     def paintEvent(self, event):
         painter = QPainter(self)
