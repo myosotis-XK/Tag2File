@@ -317,10 +317,12 @@ class TagView(QMainWindow, Observer):
             self.TagFileShowArea.show()
             if not self.SingleFileTagView.current_file_path is None and self.SingleFileTagView.current_file_path in self.TagFileShowArea.labels:
                 label = self.TagFileShowArea.labels[self.SingleFileTagView.current_file_path]
-                self.TagFileShowArea.now_select_label_key = label.file_path
+                file_path = label.file_path
+                file_item = self.TagFileShowArea.file_items[file_path]
+                self.TagFileShowArea.now_select_label_key = file_path
                 updateStyle(label, "border: 1px solid #99d1ff;")
                 # 滚动条滚动到当前标签
-                label_global_rect = label.pos
+                label_global_rect = file_item.label_pos
                 self.TagFileShowArea.verticalScrollBar().setValue(label_global_rect.y())
             self.switch_view_button.setText("多文件视图")
 
