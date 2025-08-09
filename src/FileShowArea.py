@@ -96,7 +96,7 @@ class FileItem():
         self.file_name = os.path.basename(file_path)
 
         self.LABEL_INNER_SPACING = LABEL_INNER_SPACING
-        name_height = self.calculate_name_height(self.file_name, label_size, 3, QApplication.font())
+        name_height = self.calculate_name_height(self.file_name, label_size, 3)
         self.label_size = QSize(label_size, label_size + name_height)
         self.label_pos: Optional[QPoint] = None
         self.label_rect: Optional[QRect] = None
@@ -113,12 +113,13 @@ class FileItem():
             'current': None,
             'small': None,
             'mid': None,
-            'large': None}
+            'large': None
+        }
         self.state = FileState.NORMAL
 
     # 计算文件名标签的高度
-    def calculate_name_height(self, file_name, label_width, max_lines, font):
-        font_metrics = QFontMetrics(font)
+    def calculate_name_height(self, file_name: str, label_width: int, max_lines: int) -> int:
+        font_metrics = QFontMetrics(QApplication.font())
         single_line_height = font_metrics.lineSpacing()  # 每行高度
         text_width = font_metrics.horizontalAdvance(file_name)  # 文本总宽度
         num_lines = max(1, (text_width // label_width) + 1)  # 计算需要的行数
@@ -301,7 +302,7 @@ class FileShowArea(QScrollArea):
         self.file_paths = file_paths
         if len(new_file_paths) != 0:
             self.createFileLabels(new_file_paths)
-        self.setSortKeyAndOrder(self.current_sort_key, self.current_sort_order)
+        self.setSortKeyAndOrder('key', self.current_sort_key)
         self.changeThumbnailSize(self.image_size)
         # 重置滚动条位置
         self.verticalScrollBar().setValue(0)
@@ -610,7 +611,31 @@ class FileShowArea(QScrollArea):
         if file_paths is None:
             file_paths = self.file_paths
         if self.current_sort_key == "name":
-            file_paths.sort(key=lambda path: self.file_items[path].file_name, reverse=(self.current_sort_order == "desc"))
+            # file_paths.sort(key=lambda path: self.file_items[path].file_name, reverse=(self.current_sort_order == "desc"))
+            # 自然排序
+            from natsort import natsort_keygen
+            nkey = natsort_keygen(key=lambda path: self.file_items[path].file_name)
+            file_paths.sort(
+                key=nkey,
+                reverse=(self.current_sort_order == "desc")
+            )
+
+            # windown api
+            # import ctypes
+            # from functools import cmp_to_key
+
+            # cmp_func = ctypes.windll.shlwapi.StrCmpLogicalW
+
+            # def windows_cmp(a, b):
+            #     return cmp_func(a, b)
+
+            # file_paths.sort(
+            #     key=cmp_to_key(lambda a, b: cmp_func(
+            #         self.file_items[a].file_name,
+            #         self.file_items[b].file_name
+            #     )),
+            #     reverse=(self.current_sort_order == "desc")
+            # )
         elif self.current_sort_key == "size":
             file_paths.sort(key=lambda path: self.file_items[path].file_size_bytes, reverse=(self.current_sort_order == "desc"))
         elif self.current_sort_key == "date":
@@ -623,10 +648,11 @@ class FileShowArea(QScrollArea):
             config.set('FileShowArea', 'current_sort_key', value)  # 更新config对象
             self._sort_files()
         if action == "order":
-            self.current_sort_order = value  # 更新当前排序顺序
-            self.file_paths.reverse()  # 反转文件路径列表
-            config.set('FileShowArea', 'current_sort_order', value)  # 更新config对象
-        save_config()  # 保存配置
+            if value != self.current_sort_order:
+                self.current_sort_order = value  # 更新当前排序顺序
+                self.file_paths.reverse()  # 反转文件路径列表
+                config.set('FileShowArea', 'current_sort_order', value)  # 更新config对象
+            save_config()  # 保存配置
 
         self.updateLayout()  # 更新布局以反映新的顺序
         self.threadpool.clear()
