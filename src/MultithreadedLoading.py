@@ -11,11 +11,10 @@ import cv2
 import hashlib
 import mimetypes
 import time
-from .FileShowArea import FileShowArea
 
 
 class StarImageLoader(QRunnable):
-    def __init__(self, fathet:FileShowArea, threadpool:QThreadPool, file_paths:list=None, use_cache=True):
+    def __init__(self, fathet, threadpool:QThreadPool, file_paths:list=None, use_cache=True):
         super().__init__()
         self.father = fathet
         self.threadpool = threadpool
@@ -25,24 +24,34 @@ class StarImageLoader(QRunnable):
         self.use_cache = use_cache
         self.runing = True
 
+    def change_pixmap_size(self, file_path):
+        file_item = self.father.file_items[file_path]
+        pixmap = file_item.pixmap['current']
+        pixmap = pixmap.scaled(self.father.image_size, self.father.image_size, Qt.KeepAspectRatio)
+        file_item.pixmap['current'] = pixmap
+        label = self.father.labels.get(file_path)
+        if label:
+            icon_label = label.findChild(QLabel)
+            icon_label.setPixmap(pixmap)       
+
     def run(self):
         for file_path in self.file_paths:
             if not self.runing:
                 break
             if (self.use_cache or not os.path.exists(file_path)) and self.check_cache(file_path):
                 continue
+            self.change_pixmap_size(file_path)
             loader = ImageLoader(self.father, file_path)
             self.threadpool.start(loader)
 
     def check_cache(self, file_path):
-        # 检查缓存中是否存在该尺寸的缩略图
-        if file_path in self.father.image_cache[self.father.image_size]:
-            # 如果存在，则直接更新图标
-            pixmap = self.father.image_cache[self.father.image_size][file_path]
-            if pixmap:
-                self.updateLabelIcon(pixmap, file_path)
-                time.sleep(0.01)
+        file_item = self.father.file_items[file_path]
+        image_size = self.father.image_size
+        if image_size in file_item.pixmap:
+            pixmap = file_item.pixmap[image_size]
+            self.updateLabelIcon(pixmap, file_path)
             return True
+
         # 检查磁盘缓存
         cache_path = self.father.get_cache_path(file_path)
         if os.path.exists(cache_path):
@@ -58,24 +67,24 @@ class StarImageLoader(QRunnable):
                     print(f"无法删除损坏的缓存: {del_err}")  
                     pass
                 pixmap = None
-            if pixmap:
-                self.updateLabelIcon(pixmap, file_path)
-                time.sleep(0.01)
+            self.updateLabelIcon(pixmap, file_path)
             return True
         return False
 
     def updateLabelIcon(self, pixmap, file_path):
-        if pixmap is None:
-            pixmap = QPixmap(self.father.image_size, self.father.image_size)
-        label = self.father.labels[file_path]
         file_item = self.father.file_items[file_path]
         file_item.icon = True
-        icon_label = label.findChild(QLabel)
-        self.father.image_cache[self.father.image_size][label.file_path] = pixmap
+        file_item.pixmap[self.father.image_size] = pixmap
         if not os.path.exists(file_path):
             pixmap = self.draw_text_on_pixmap(pixmap, "文件不存在")
-        icon_label.setPixmap(pixmap)
-        file_item.pixmap['current'] = pixmap
+        if pixmap:
+            file_item.pixmap['current'] = pixmap
+            label = self.father.labels.get(file_path)
+            if label:
+                icon_label = label.findChild(QLabel)
+                icon_label.setPixmap(pixmap)
+        else:
+            self.change_pixmap_size(file_path)
 
     def draw_text_on_pixmap(self, pixmap, text):
         pixmap = pixmap.copy()
@@ -120,7 +129,7 @@ class StarImageLoader(QRunnable):
 class ImageLoader(QRunnable):
     """负责加载单个文件图标的任务类"""
 
-    def __init__(self, father:FileShowArea, file_path:str):
+    def __init__(self, father, file_path:str):
         super().__init__()
         self.father = father
         self.max_size = father.image_size
@@ -143,13 +152,13 @@ class ImageLoader(QRunnable):
                 # 将图片按 image_size 的大小缩放，但保持原始比例  
                 pixmap = pixmap.scaled(self.max_size, self.max_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 file_item.pixmap['current'] = pixmap
-                if self.file_path in self.father.labels:
-                    label = self.father.labels[self.file_path]
+                label = self.father.labels.get(self.file_path)
+                if label:
                     icon_label = label.findChild(QLabel, "icon_label")
                     icon_label.setPixmap(pixmap)
                 # 将缩略图存入缓存
                 self.save_to_disk_cache(pixmap)
-            self.father.image_cache[self.max_size][self.file_path] = pixmap
+            file_item.pixmap[self.max_size] = pixmap
 
         except Exception as e:
             print(f"加载文件 {self.file_path} 时出现错误: {e}")
