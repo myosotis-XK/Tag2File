@@ -40,52 +40,6 @@ default_value = {
 init_config_section('TagFileShowArea', default_value)
 save_config()
 
-def updateStyle(label:QLabel, new_style_property:str):
-    try:
-        # 如果没有 objectName，则临时设置为 "styledLabel"
-        is_temp_name = False
-        if not label.objectName():
-            label.setObjectName("styledLabel")
-            is_temp_name = True  # 标记为临时设置的名字
-
-        # 获取当前的样式表
-        current_style = label.styleSheet()
-        selector_prefix = f"#{label.objectName()}"
-        
-        # 查找样式是否包含当前对象的选择器
-        if selector_prefix in current_style:
-            # 只提取选择器内的内容
-            inner_style_pattern = re.compile(rf'{selector_prefix}\s*\{{(.*?)\}}', re.DOTALL)
-            match = re.search(inner_style_pattern, current_style)
-            
-            if match:
-                inner_style = match.group(1).strip()  # 获取当前选择器内的样式
-                property_name = new_style_property.split(":")[0].strip()
-                property_pattern = re.compile(rf'{property_name}:.*?;')
-                
-                # 如果属性存在，替换它；否则，添加新的样式
-                if re.search(property_pattern, inner_style):
-                    inner_style = re.sub(property_pattern, new_style_property, inner_style)
-                else:
-                    inner_style += " " + new_style_property
-
-                # 更新完整的样式
-                updated_style = re.sub(inner_style_pattern, f'{selector_prefix} {{ {inner_style} }}', current_style)
-            else:
-                updated_style = f"{selector_prefix} {{ {new_style_property} }}"
-        else:
-            # 如果没有选择器，则直接添加选择器和新样式
-            updated_style = f"{current_style} {selector_prefix} {{ {new_style_property} }}"
-
-        # 设置更新后的样式
-        label.setStyleSheet(updated_style)
-
-        # 如果是临时设置的名字，则删除它
-        if is_temp_name:
-            label.setObjectName("")
-    except Exception as e:
-        print(e)
-
 from enum import Enum
 
 class Border(Enum):
@@ -436,10 +390,13 @@ class FileShowArea(QScrollArea):
         
         label.setFixedSize(file_item.label_size)
         label.move(file_item.label_pos)
-        # css = f'{file_item.border.value} {file_item.background.value}'
-        updateStyle(label, file_item.border.value)
-        updateStyle(label, file_item.background.value)
-
+        style = f"""
+        QLabel#{label.objectName()} {{
+            {file_item.border.value}
+            {file_item.background.value}
+        }}
+        """
+        label.setStyleSheet(style)
         label.show()
         self.labels[file_path] = label
 
@@ -1383,14 +1340,17 @@ class FileShowArea(QScrollArea):
     def set_file_css(self, file_item: FileItem):
         border, background = self.file_status_map.get((file_item.specifid, file_item.selected, file_item.hover))
         label = self.labels.get(file_item.file_path)
-        if border != file_item.border:
+        if border != file_item.border or background != file_item.background:
             file_item.border = border
-            if label:
-                updateStyle(label, border.value)
-        if background != file_item.background:
             file_item.background = background
             if label:
-                updateStyle(label, background.value)
+                style = f"""
+                QLabel#{label.objectName()} {{
+                    {file_item.border.value}
+                    {file_item.background.value}
+                }}
+                """
+                label.setStyleSheet(style)
 
     # 鼠标进入标签时改变背景颜色
     def setBackgroundColorOnEnter(self, event, label: QLabel):
