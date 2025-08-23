@@ -69,6 +69,11 @@ class StarImageLoader(QRunnable):
                 pixmap = None
             self.updateLabelIcon(pixmap, file_path)
             return True
+        if not os.path.exists(file_path):
+            pixmap = QPixmap(self.father.image_size, self.father.image_size)
+            pixmap.fill(Qt.transparent)
+            self.updateLabelIcon(pixmap, file_path)
+
         return False
 
     def updateLabelIcon(self, pixmap, file_path):

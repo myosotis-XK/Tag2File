@@ -86,18 +86,25 @@ def updateStyle(label:QLabel, new_style_property:str):
     except Exception as e:
         print(e)
 
-class FileState(Enum):
-    NORMAL = auto()
-    SELECTED = auto()
-    HANG = auto()
+from enum import Enum
+
+class Border(Enum):
+    NONE = "border: none;"
+    BLUE = "border: 1px solid #99d1ff;"
+
+class Background(Enum):
+    TRANSPARENT = "background-color: transparent;"
+    LIGHTBLUE = "background-color: #e5f3ff;"
+    DARKBLUE = "background-color: #cde8ff;"
 
 class FileItem():
-    def __init__(self, file_path:str, label_size:int, SPACING_RATE:float):
+    def __init__(self, file_path:str, label_width: int, SPACING_RATE: float):
         self.file_path = file_path
         self.file_name = os.path.basename(file_path)
 
         self.SPACING_RATE = SPACING_RATE
-        self.update_label_size(label_size)
+        self.label_width = label_width
+        self.update_label_size()
         self.label_pos: Optional[QPoint] = None
         self.label_rect: Optional[QRect] = None
 
@@ -111,23 +118,42 @@ class FileItem():
         self.icon: bool = False
         self.pixmap: dict[str, Optional[QPixmap]] = {'current': None}    
 
-        self.state = FileState.NORMAL
+        self.specifid = 0
+        self.selected = 0
+        self.hover = 0
 
-    def update_label_size(self, label_size:int):
-        self.name_height = self.calculate_name_height(self.file_name, label_size, 3)
-        self.label_size = QSize(label_size, label_size + self.name_height)
+        self.border = Border.NONE
+        self.background = Background.TRANSPARENT
+
+    def update_label_size(self, label_width: int=None):
+        if label_width is None:
+            label_width = self.label_width
+        else:
+            self.label_width = label_width
+        self.name_height = self.calculate_name_height(self.file_name, label_width, 3)
+        self.label_size = QSize(label_width, label_width + self.name_height)
 
     # 计算文件名标签的高度
     def calculate_name_height(self, file_name: str, label_width: int, max_lines: int) -> int:
         font_metrics = QFontMetrics(QApplication.font())
         single_line_height = font_metrics.lineSpacing()  # 每行高度
         text_width = font_metrics.horizontalAdvance(file_name)  # 文本总宽度
-        num_lines = max(1, (text_width // label_width) + 1)  # 计算需要的行数
+        num_lines = max(1, (text_width // (label_width-4)) + 1)  # 计算需要的行数
         total_lines = min(num_lines, max_lines)  # 限制最大行数
         name_height = total_lines * single_line_height  # 总高度
         return name_height + int(label_width*self.SPACING_RATE)
 
 class FileShowArea(QScrollArea):
+    file_status_map = {  # 指定, 选中, 悬停  specifid, selected, hover
+        (0,0,0): (Border.NONE, Background.TRANSPARENT),
+        (0,0,1): (Border.NONE, Background.LIGHTBLUE),
+        (0,1,0): (Border.NONE, Background.DARKBLUE),
+        (0,1,1): (Border.BLUE, Background.DARKBLUE),
+        (1,0,0): (Border.BLUE, Background.TRANSPARENT),
+        (1,0,1): (Border.BLUE, Background.LIGHTBLUE),
+        (1,1,0): (Border.BLUE, Background.DARKBLUE),
+        (1,1,1): (Border.BLUE, Background.DARKBLUE),
+    }
     def __init__(self, file_paths=None):
         super().__init__()
         self.DictManage = DictManage()
@@ -161,7 +187,7 @@ class FileShowArea(QScrollArea):
         }
         self.image_size = image_size_dict[self.current_image_size]
         self.LABEL_INNER_SPACING = int(self.image_size * self.SPACING_RATE) # 标签内间距
-        self.label_size = self.image_size + 2*self.LABEL_INNER_SPACING #标签大小
+        self.label_width = self.image_size + 2*self.LABEL_INNER_SPACING #标签大小
 
         # 文件相关变量
         if file_paths is None:
@@ -176,7 +202,7 @@ class FileShowArea(QScrollArea):
         self.select_labels_keys = set()  # 选中label键
         self.ctrl_select_labels_keys = set()  # ctrl选中label键
         self.now_select_label_key: Optional[str] = None  # 当前选中label_key
-        self.now_hang_label: Optional[QLabel] = None  # 当前悬停label
+        self.now_hang_file: Optional[str] = None  # 当前悬停label
 
         self.extension_icon: dict[str, dict[str, QPixmap]] = {self.SMALL_SIZE: {}, self.MEDIUM_SIZE: {}, self.LARGE_SIZE: {}}  # 缩略图缓存
 
@@ -273,29 +299,20 @@ class FileShowArea(QScrollArea):
             time.sleep(0.1)
         while self.threadpool0.activeThreadCount() > 0:
             time.sleep(0.1)
-        hide_label_paths = list(set(self.file_paths) - set(file_paths))
 
-        # 隐藏标签处理 
-        for visible_label_key in self.visible_labels_keys:
-            label = self.labels[visible_label_key]
-            label.hide()
-        for hide_label_path in list(self.select_labels_keys):
-            if hide_label_path in hide_label_paths:
-                if hide_label_path in self.labels:
-                    label = self.labels[hide_label_path]
-                    updateStyle(label, "border: none;")
-                    updateStyle(label, "background-color: transparent;")
-                self.select_labels_keys.discard(hide_label_path)
-        if self.now_select_label_key is not None and self.now_select_label_key in hide_label_paths:
-            label = self.labels[self.now_select_label_key]
-            updateStyle(label, "border: none;")
-            updateStyle(label, "background-color: transparent;")
+        del_file_paths = set(self.file_paths) - set(file_paths)
+        for file_path in del_file_paths:
+            del self.file_items[file_path]
+
+        self.select_labels_keys -= del_file_paths
+        if self.now_select_label_key in del_file_paths:
             self.now_select_label_key = None
-        for hide_label_path in hide_label_paths:
-            if hide_label_path in self.labels:
-                self.labels.pop(hide_label_path)
 
         # 初始化变量
+        while self.labels:
+            _, label = self.labels.popitem()
+            label.hide()
+            self.label_pool.append(label)
         self.labels_rect.clear()
         self.ctrl_select_labels_keys.clear()
         self.visible_labels_keys.clear()
@@ -318,8 +335,16 @@ class FileShowArea(QScrollArea):
             concurrent.futures.wait(futures)
 
     def _createFileItem(self, file_path:str):
-        file_path = file_path # 获取文件名
-        file_item = FileItem(file_path, self.label_size, self.SPACING_RATE)
+        if file_path in self.file_items_cache:
+            file_item = self.file_items_cache[file_path]
+            file_item.specifid = 0
+            file_item.selected = 0
+            file_item.hover = 0
+            if file_item.label_width != self.label_width:
+                file_item.update_label_size(self.label_width)
+            self.file_items[file_path] = file_item
+            return
+        file_item = FileItem(file_path, self.label_width, self.SPACING_RATE)
         # 获取文件图标
         file_extension = os.path.splitext(file_path)[1]
         try:
@@ -336,6 +361,7 @@ class FileShowArea(QScrollArea):
             self.extension_icon[self.image_size][file_extension] = pixmap
         file_item.pixmap['current'] = pixmap
         self.file_items[file_path] = file_item
+        self.file_items_cache[file_path] = file_item
 
     def createFileLabel(self):
         # 创建标签
@@ -357,8 +383,8 @@ class FileShowArea(QScrollArea):
         file_name_label.setWordWrap(True)
         file_name_label.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         # 设置文件名标签的大小和位置
-        file_name_label.setFixedWidth(self.label_size - 4)
-        file_name_label.move(2, self.label_size)
+        file_name_label.setFixedWidth(self.label_width - 4)
+        file_name_label.move(2, self.label_width)
 
         #绑定标签操作
         label.mouseDoubleClickEvent = partial(self.openFile, label=label) # 双击
@@ -368,7 +394,7 @@ class FileShowArea(QScrollArea):
         label.customContextMenuRequested.connect(partial(self.showLabelMenu, label=label))
         # 绑定鼠标进入和离开的事件
         label.enterEvent = partial(self.setBackgroundColorOnEnter, label=label)
-        label.leaveEvent = partial(self.resetBackgroundColorOnLeave, label=label)
+        label.leaveEvent = self.resetBackgroundColorOnLeave
         label.setParent(self.content_widget)
         label.hide()
         return label
@@ -410,6 +436,10 @@ class FileShowArea(QScrollArea):
         
         label.setFixedSize(file_item.label_size)
         label.move(file_item.label_pos)
+        # css = f'{file_item.border.value} {file_item.background.value}'
+        updateStyle(label, file_item.border.value)
+        updateStyle(label, file_item.background.value)
+
         label.show()
         self.labels[file_path] = label
 
@@ -417,12 +447,12 @@ class FileShowArea(QScrollArea):
     def updateLayout(self):
         # 计算列数
         area_width = self.viewport().width() - 4*self.LABEL_SPACING # 保证左端至少有4倍间距的空白
-        num_columns = max(1, 1 + (area_width - self.label_size) // (self.label_size + self.LABEL_SPACING))
+        num_columns = max(1, 1 + (area_width - self.label_width) // (self.label_width + self.LABEL_SPACING))
         total_files = len(self.file_items)  # 获取标签数量
         if num_columns > total_files or num_columns == 1:
             HORIZONTAL_SPACING = self.LABEL_SPACING
         else:
-            HORIZONTAL_SPACING = round((area_width - num_columns * self.label_size) / num_columns)
+            HORIZONTAL_SPACING = round((area_width - num_columns * self.label_width) / num_columns)
         self.HORIZONTAL_SPACING = HORIZONTAL_SPACING
         row = -1
         # 计算label位置
@@ -442,8 +472,8 @@ class FileShowArea(QScrollArea):
                 max_file_name_height = 0
                 old_row = row
 
-            x = 4*self.LABEL_SPACING + col * (self.label_size + HORIZONTAL_SPACING)  # 计算x位置
-            y = 2*self.LABEL_SPACING + row * (self.label_size + self.LABEL_SPACING) + file_name_height_all # 计算y位置
+            x = 4*self.LABEL_SPACING + col * (self.label_width + HORIZONTAL_SPACING)  # 计算x位置
+            y = 2*self.LABEL_SPACING + row * (self.label_width + self.LABEL_SPACING) + file_name_height_all # 计算y位置
 
             label_pos = QPoint(x,y)
             label_rect = QRect(label_pos, file_item.label_size)
@@ -453,7 +483,7 @@ class FileShowArea(QScrollArea):
         self.max_col = min(num_columns, total_files)
         self.max_row = row + 1
         file_name_height_all += max_file_name_height
-        self.content_widget.setMinimumSize(0, 4*self.LABEL_SPACING + self.max_row * (self.label_size + self.LABEL_SPACING) + file_name_height_all)
+        self.content_widget.setMinimumSize(0, 4*self.LABEL_SPACING + self.max_row * (self.label_width + self.LABEL_SPACING) + file_name_height_all)
         self.lazy_load()
 
     # 懒加载
@@ -474,6 +504,11 @@ class FileShowArea(QScrollArea):
         for visible_label_key in visible_labels_keys:
             if visible_label_key not in self.labels:
                 self.setFileQLabel(visible_label_key)
+            else:
+                file_item = self.file_items[visible_label_key]
+                label = self.labels[visible_label_key]
+                label.move(file_item.label_pos)
+                label.show()
         self.visible_labels_keys = visible_labels_keys
         self.startLoadingImages(self.threadpool0, list(visible_labels_keys))
 
@@ -482,7 +517,9 @@ class FileShowArea(QScrollArea):
 
     def showContextMenu(self, pos):
         for select_label_key in self.select_labels_keys:
-            updateStyle(self.labels[select_label_key], "background-color: transparent;")# 重置标签样式
+            file_item = self.file_items[select_label_key]
+            file_item.selected = 0
+            self.set_file_css(file_item)
         self.select_labels_keys.clear()
         context_menu = QMenu(self)
         self.addViewMenu(context_menu)  # 添加查看菜单
@@ -560,8 +597,9 @@ class FileShowArea(QScrollArea):
     # 全选
     def select_all_file(self):
         self.select_labels_keys = set(self.file_paths)
-        for label in self.labels.values():
-            updateStyle(label, "background-color: #cde8ff;")
+        for file_item in self.file_items.values():
+            file_item.selected = 1
+            self.set_file_css(file_item)
 
 
     #————————————————————右键菜单功能——————————————————————
@@ -574,13 +612,13 @@ class FileShowArea(QScrollArea):
             save_config()
         self.image_size = size
         self.LABEL_INNER_SPACING = int(self.image_size * self.SPACING_RATE)
-        self.label_size = self.image_size + 2*self.LABEL_INNER_SPACING
+        self.label_width = self.image_size + 2*self.LABEL_INNER_SPACING
         while self.startLoadingImagesThreadpool.activeThreadCount() > 0:
             self.starImageLoader.runing = False
             time.sleep(0.1)
         self.threadpool.clear()  # 清空当前线程池中的任务
 
-        while self.labels:   # 每次弹出一个键值对
+        while self.labels:
             _, label = self.labels.popitem()
             label.hide()
             self.label_pool.append(label)
@@ -588,13 +626,14 @@ class FileShowArea(QScrollArea):
         for label in self.label_pool:
             icon_label = label.findChild(QLabel, "icon_label")
             icon_label.setFixedSize(self.image_size, self.image_size)
+            icon_label.move(self.LABEL_INNER_SPACING, self.LABEL_INNER_SPACING)
             file_name_label = label.findChild(QLabel, "file_name_label")
-            file_name_label.setFixedWidth(self.label_size - 4)
-            file_name_label.move(2, self.label_size)
+            file_name_label.setFixedWidth(self.label_width - 4)
+            file_name_label.move(2, self.label_width)
 
         for file_item in self.file_items.values():
             file_item.icon = False
-            file_item.update_label_size(self.label_size)
+            file_item.update_label_size(self.label_width)
 
         self.updateLayout()
         while self.threadpool.activeThreadCount() > 0:
@@ -653,24 +692,35 @@ class FileShowArea(QScrollArea):
     
     #左击选中
     def onLabelLeftClick(self, event: QMouseEvent, label: QLabel):
-        if event.button() == Qt.LeftButton:
-            if event.modifiers() & Qt.ControlModifier:
-                self.select_labels_keys_snapshot = self.select_labels_keys.copy() # 快照
-                self.change_label_select_status(label)
-            else:
-                for select_label_key in self.select_labels_keys:
-                    updateStyle(self.labels[select_label_key], "background-color: transparent;")# 重置标签样式
-                self.select_labels_keys.clear()
-                updateStyle(label, "background-color: #cde8ff;")
-                self.select_labels_keys.add(label.file_path)
-            if self.now_select_label_key is not None:
-                updateStyle(self.labels.get(self.now_select_label_key), "border: none;")
-            self.now_select_label_key = label.file_path
-            updateStyle(label, "border: 1px solid #99d1ff;")
-            # if not self.isMouseOnThumbnail(event.pos(), label): # 如果鼠标不在缩略图上
-            self.MousePress = True
-            parent_pos = label.mapTo(self.content_widget, event.pos())
-            self.origin = parent_pos
+        if event.button() != Qt.LeftButton:
+            return
+
+        file_path = label.file_path
+        if event.modifiers() & Qt.ControlModifier:
+            self.select_labels_keys_snapshot = self.select_labels_keys.copy() # 快照
+            self.change_label_select_status(label)
+        else:
+            for select_label_key in self.select_labels_keys:
+                if select_label_key == file_path:
+                    continue
+                file_item = self.file_items[select_label_key]
+                file_item.selected = 0
+                self.set_file_css(file_item)
+            self.select_labels_keys.clear()
+            self.select_labels_keys.add(file_path)
+        if self.now_select_label_key is not None:
+            file_item = self.file_items[self.now_select_label_key]
+            file_item.specifid = 0
+            self.set_file_css(file_item)
+        self.now_select_label_key = file_path
+        file_item = self.file_items[file_path]
+        file_item.specifid = 1
+        file_item.selected = 1
+        self.set_file_css(file_item)
+        # if not self.isMouseOnThumbnail(event.pos(), label): # 如果鼠标不在缩略图上
+        self.MousePress = True
+        parent_pos = label.mapTo(self.content_widget, event.pos())
+        self.origin = parent_pos
 
     # 双击打开文件
     def openFile(self, event, label: QLabel, default=False):
@@ -703,19 +753,27 @@ class FileShowArea(QScrollArea):
         file_path = label.file_path
         if file_path not in self.select_labels_keys: # 如果label未被选中
             for select_label_key in self.select_labels_keys:
-                updateStyle(self.labels[select_label_key], "background-color: transparent;")# 重置标签样式
+                file_item = self.file_items[select_label_key]
+                file_item.selected = 0
+                self.set_file_css(file_item)
             self.select_labels_keys.clear()
             if not self.isMouseOnThumbnail(pos, label):
                 parent_pos = label.mapTo(self.content_widget, pos)
                 self.content_widget.customContextMenuRequested.emit(parent_pos)
                 return
-
-        updateStyle(label, "background-color: #cde8ff;")
-        self.select_labels_keys.add(file_path)
         if self.now_select_label_key is not None:
-            updateStyle(self.labels.get(self.now_select_label_key), "border: none;")
+            file_item = self.file_items[self.now_select_label_key]
+            file_item.specifid = 0
+            self.set_file_css(file_item)
+
+        self.select_labels_keys.add(file_path)
+        file_item = self.file_items[file_path]
+        file_item.selected = 1
+
         self.now_select_label_key = file_path
-        updateStyle(label, "border: 1px solid #99d1ff;")
+        file_item.specifid = 1
+        self.set_file_css(file_item)
+
         context_menu = QMenu(self)
         properties_action = QAction("属性", self)
         properties_action.triggered.connect(lambda: self.displayImageProperties(file_path))
@@ -909,14 +967,16 @@ class FileShowArea(QScrollArea):
     # 选中所有失效文件
     def selectAllUnvalidFile(self):
         for file_path in self.select_labels_keys:
-            label = self.labels[file_path]
-            updateStyle(label, "background-color: transparent;")
+            file_item = self.file_items[file_path]
+            file_item.selected = 0
+            self.set_file_css(file_item)
         self.select_labels_keys.clear()
         for file_path in self.file_paths:
             if not os.path.exists(file_path):
                 self.select_labels_keys.add(file_path)
-                label = self.labels[file_path]
-                updateStyle(label, "background-color: #cde8ff;")
+                file_item = self.file_items[file_path]
+                file_item.selected = 1
+                self.set_file_css(file_item)
 
     # 修复文件
     def repairFile(self):
@@ -1077,16 +1137,20 @@ class FileShowArea(QScrollArea):
     #——————————————————————框选文件————————————————————————
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.MousePress = True
-            if not event.modifiers() & Qt.ControlModifier:
-                for select_label_key in self.select_labels_keys:
-                    updateStyle(self.labels[select_label_key], "background-color: transparent;")# 重置标签样式
-                self.select_labels_keys.clear()
-            # 如果按下ctrl
-            else:
-                self.select_labels_keys_snapshot = self.select_labels_keys.copy() #记录按下ctrl时的文件选取状态
-            self.origin = event.pos()
+        if event.button() != Qt.LeftButton:
+            return
+
+        self.MousePress = True
+        if not event.modifiers() & Qt.ControlModifier:
+            for select_label_key in self.select_labels_keys:
+                file_item = self.file_items[select_label_key]
+                file_item.selected = 0
+                self.set_file_css(file_item)
+            self.select_labels_keys.clear()
+        # 如果按下ctrl
+        else:
+            self.select_labels_keys_snapshot = self.select_labels_keys.copy() #记录按下ctrl时的文件选取状态
+        self.origin = event.pos()
 
     def mouseMoveEvent(self, event):
         if self.MousePress:
@@ -1123,40 +1187,46 @@ class FileShowArea(QScrollArea):
             # 恢复未选中标签状态
             no_select_labels_keys = self.select_labels_keys - select_labels_keys 
             for no_select_label_key in no_select_labels_keys:
-                updateStyle(self.labels[no_select_label_key], "background-color: transparent;")
+                file_item = self.file_items[no_select_label_key]
+                file_item.selected = 0
+                self.set_file_css(file_item)
             # 改变新增选中标签状态
             add_select_labels_keys = select_labels_keys - self.select_labels_keys
-            for add_select_label_key in add_select_labels_keys:  
-                updateStyle(self.labels[add_select_label_key], "background-color: #cde8ff;") # 高亮选中标签
+            for add_select_label_key in add_select_labels_keys:
+                file_item = self.file_items[add_select_label_key]
+                file_item.selected = 1
+                self.set_file_css(file_item)
             self.select_labels_keys = select_labels_keys
         # 如果按下ctrl
         else:
             # 恢复未选中标签状态
             no_ctrl_select_labels_keys = self.ctrl_select_labels_keys - select_labels_keys 
-            for no_ctrl_select_label_key in no_ctrl_select_labels_keys:
-                self.recover_label_select_status(self.labels[no_ctrl_select_label_key])
+            for key in no_ctrl_select_labels_keys:
+                should_select = (key in self.select_labels_keys_snapshot)
+                self.update_label_select_status(key, should_select)
+
             # 改变新增选中标签状态
             add_ctrl_select_labels_keys = select_labels_keys - self.ctrl_select_labels_keys
-            for add_ctrl_select_label_key in add_ctrl_select_labels_keys:
-                self.change_label_select_status(self.labels[add_ctrl_select_label_key])
+            for key in add_ctrl_select_labels_keys:
+                should_select = not (key in self.select_labels_keys_snapshot)
+                self.update_label_select_status(key, should_select)
+
             self.ctrl_select_labels_keys = select_labels_keys
 
-    # 切换状态
-    def change_label_select_status(self, label):
-        if label.file_path in self.select_labels_keys_snapshot:
-            updateStyle(label, "background-color: transparent;")
-            self.select_labels_keys.discard(label.file_path)
-        elif label.file_path not in self.select_labels_keys_snapshot:
-            updateStyle(label, "background-color: #cde8ff;")
-            self.select_labels_keys.add(label.file_path)
-    #恢复状态
-    def recover_label_select_status(self, label):
-        if label.file_path in self.select_labels_keys_snapshot:
-            updateStyle(label, "background-color: #cde8ff;")
-            self.select_labels_keys.add(label.file_path)
-        else :
-            updateStyle(label, "background-color: transparent;")
-            self.select_labels_keys.discard(label.file_path)
+    def update_label_select_status(self, file_path: str, should_select: bool):
+        """
+        更新file的选中状态
+        """
+        file_item = self.file_items[file_path]
+
+        if should_select:
+            self.select_labels_keys.add(file_path)
+            file_item.selected = 1
+        else:
+            self.select_labels_keys.discard(file_path)
+            file_item.selected = 0
+
+        self.set_file_css(file_item)
         
     #自动滚动
     def autoScroll(self, mouse_pos, auto=False):
@@ -1192,16 +1262,6 @@ class FileShowArea(QScrollArea):
         self.lazy_load()
         global_pos = QCursor.pos()
         local_pos = self.mapFromGlobal(global_pos)
-        widget_pos = self.content_widget.mapFrom(self, local_pos)
-        label = self.content_widget.childAt(widget_pos)
-        if label and self.labels[label.file_path] != label: # 如果存在label并且不是父label(是icon_label或file_name_label)
-            label = label.parent() # 获取父label
-        if label != self.now_hang_label:
-            if self.now_hang_label:
-                self.resetBackgroundColorOnLeave(value, self.now_hang_label)
-            if label:
-                self.setBackgroundColorOnEnter(value, label, border=False)
-
         if self.MousePress:
             # 将pos修正到widget内
             x = max(1, min(local_pos.x(), self.width() - 1))
@@ -1209,13 +1269,27 @@ class FileShowArea(QScrollArea):
             widget_pos = self.content_widget.mapFrom(self, QPoint(x, y))
             self.rubber_band.setGeometry(QRect(self.origin, widget_pos).normalized())
             self.selectLabelsInRect(self.rubber_band.geometry(), QApplication.keyboardModifiers())
+        else:
+            widget_pos = self.content_widget.mapFrom(self, local_pos)
+            label = self.content_widget.childAt(widget_pos)
+            if label:
+                file_path = label.file_path
+            else:
+                file_path = None
+            if label and self.labels[file_path] != label: # 如果存在label并且不是父label(是icon_label或file_name_label)
+                label = label.parent() # 获取父label
+            if file_path != self.now_hang_file:
+                if self.now_hang_file:
+                    self.resetBackgroundColorOnLeave(value)
+                if label:
+                    self.setBackgroundColorOnEnter(value, label)
         self.update()
 
 
     #——————————————————————辅助方法————————————————————————
 
     #绘制黑点
-    def create_black_dot(self,size):
+    def create_black_dot(self, size):
         # 创建一个正方形的 QPixmap
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.transparent)  # 填充透明背景
@@ -1249,13 +1323,13 @@ class FileShowArea(QScrollArea):
 
     # 获取区域内label
     def get_rect_label(self, rect):
-        labels_keys = set()
+        file_paths: set[str] = set()
         if len(self.labels_rect) == 0:
-            return labels_keys
+            return file_paths
         begin_pos = rect.topLeft()
         end_pos = rect.bottomRight()
         # 计算开始行
-        begin_row = begin_pos.y() // (self.label_size + self.LABEL_SPACING)
+        begin_row = begin_pos.y() // (self.label_width + self.LABEL_SPACING)
         begin_row = max(0, min(begin_row, self.max_row-1))
             # 寻找鼠标下方离鼠标最近的底部所在行
         while begin_row != 0 and self.labels_rect.get((begin_row-1, 0))[0].bottomRight().y() > begin_pos.y():
@@ -1264,7 +1338,7 @@ class FileShowArea(QScrollArea):
         if self.labels_rect.get((begin_row, 0))[0].bottomRight().y() < begin_pos.y():
             begin_row += 1
         # 计算结束行
-        end_row = end_pos.y() // (self.label_size + self.LABEL_SPACING)
+        end_row = end_pos.y() // (self.label_width + self.LABEL_SPACING)
         end_row = max(0, min(end_row, self.max_row-1))
             # 寻找鼠标下方离鼠标最近的顶部所在行 
         while end_row != 0 and self.labels_rect.get((end_row-1, 0))[0].topLeft().y() > end_pos.y():
@@ -1274,7 +1348,7 @@ class FileShowArea(QScrollArea):
             end_row -= 1
 
         # 计算开始列
-        begin_col = begin_pos.x() // (self.label_size + self.LABEL_SPACING)
+        begin_col = begin_pos.x() // (self.label_width + self.LABEL_SPACING)
         begin_col = max(0, min(begin_col, self.max_col-1))
             # 寻找鼠标右方离鼠标最近的右边所在列
         while begin_col != 0 and self.labels_rect.get((0, begin_col-1))[0].bottomRight().x() > begin_pos.x():
@@ -1283,7 +1357,7 @@ class FileShowArea(QScrollArea):
         if self.labels_rect.get((0, begin_col))[0].bottomRight().x() < begin_pos.x():
             begin_col += 1
         # 计算结束列
-        end_col = end_pos.x() // (self.label_size + self.LABEL_SPACING)
+        end_col = end_pos.x() // (self.label_width + self.LABEL_SPACING)
         end_col = max(0, min(end_col, self.max_col-1))
             # 寻找鼠标右方离鼠标最近的左边所在行列
         while end_col != 0 and self.labels_rect.get((0, end_col-1))[0].topLeft().x() > end_pos.x():
@@ -1297,8 +1371,8 @@ class FileShowArea(QScrollArea):
             for col in range(begin_col,end_col+1):
                 label = self.labels_rect.get((row, col))
                 if label:
-                    labels_keys.add(label[1])
-        return labels_keys
+                    file_paths.add(label[1])
+        return file_paths
 
     # 获取缓存文件路径
     def get_cache_path(self, file_path):
@@ -1306,37 +1380,36 @@ class FileShowArea(QScrollArea):
         file_hash = hashlib.md5(file_path.encode()).hexdigest()
         return os.path.join(self.cache_dir, f"{file_hash}_{self.image_size}.png").replace('\\', '/')
     
+    def set_file_css(self, file_item: FileItem):
+        border, background = self.file_status_map.get((file_item.specifid, file_item.selected, file_item.hover))
+        label = self.labels.get(file_item.file_path)
+        if border != file_item.border:
+            file_item.border = border
+            if label:
+                updateStyle(label, border.value)
+        if background != file_item.background:
+            file_item.background = background
+            if label:
+                updateStyle(label, background.value)
+
     # 鼠标进入标签时改变背景颜色
-    def setBackgroundColorOnEnter(self, event, label: QLabel, border=True):
-        if label.file_path not in self.select_labels_keys:
-            updateStyle(label, "background-color: #e5f3ff;")
-        else:
-            if border:
-                updateStyle(label, "border: 1px solid #99d1ff;")
-        if self.now_hang_label and not label is self.now_hang_label:
-            self.resetBackgroundColorOnLeave(event, self.now_hang_label)
-        self.now_hang_label = label
+    def setBackgroundColorOnEnter(self, event, label: QLabel):
+        file_path = label.file_path
+        if self.now_hang_file and file_path != self.now_hang_file:
+            self.resetBackgroundColorOnLeave(event)
+        file_item = self.file_items[file_path]
+        self.now_hang_file = file_path
+        file_item.hover = 1
+        self.set_file_css(file_item)
 
     # 鼠标离开标签时重置背景颜色
-    def resetBackgroundColorOnLeave(self, event, label: QLabel):
-        if label.file_path not in self.select_labels_keys:
-            updateStyle(label, "background-color: transparent;")
-        else:
-            if label != self.labels.get(self.now_select_label_key):
-                updateStyle(label, "border: none;")
-        if self.now_hang_label and not label is self.now_hang_label:
-            self.resetBackgroundColorOnLeave(event, self.now_hang_label)
-        self.now_hang_label = None
+    def resetBackgroundColorOnLeave(self, event):
+        if self.now_hang_file in self.file_items:
+            file_item = self.file_items[self.now_hang_file]
+            file_item.hover = 0
+            self.set_file_css(file_item)
+        self.now_hang_file = None
 
-    # 计算文件名标签的高度
-    def calculate_name_height(self, file_name, label_width, max_lines, font):
-        font_metrics = QFontMetrics(font)
-        single_line_height = font_metrics.lineSpacing()  # 每行高度
-        text_width = font_metrics.horizontalAdvance(file_name)  # 文本总宽度
-        num_lines = max(1, (text_width // label_width) + 1)  # 计算需要的行数
-        total_lines = min(num_lines, max_lines)  # 限制最大行数
-        name_height = total_lines * single_line_height  # 总高度
-        return name_height + self.LABEL_INNER_SPACING
 
 
 
@@ -1398,7 +1471,7 @@ class TagFileShowArea(FileShowArea):
             self.now_select_label_key = None
         else:
             self.now_select_label_key = self.labels[self.file_paths[0]].file_path
-        self.now_hang_label = None
+        self.now_hang_file = None
         self.updateLayout()
 
     def updateLayout(self):
