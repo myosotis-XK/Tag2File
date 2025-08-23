@@ -1,4 +1,4 @@
-from PyQt5.QtCore import QRunnable, Qt, QPointF
+from PyQt5.QtCore import QRunnable, Qt, QPointF, QThreadPool
 from PyQt5.QtGui import QPixmap, QPainterPath, QPen, QFont, QColor, QPainter, QImage
 from PyQt5.QtWidgets import QLabel
 from PIL import Image, UnidentifiedImageError
@@ -11,10 +11,11 @@ import cv2
 import hashlib
 import mimetypes
 import time
+from .FileShowArea import FileShowArea
 
 
 class StarImageLoader(QRunnable):
-    def __init__(self, fathet, threadpool, file_paths=None, use_cache=True):
+    def __init__(self, fathet:FileShowArea, threadpool:QThreadPool, file_paths:list=None, use_cache=True):
         super().__init__()
         self.father = fathet
         self.threadpool = threadpool
@@ -119,7 +120,7 @@ class StarImageLoader(QRunnable):
 class ImageLoader(QRunnable):
     """负责加载单个文件图标的任务类"""
 
-    def __init__(self, father, file_path):
+    def __init__(self, father:FileShowArea, file_path:str):
         super().__init__()
         self.father = father
         self.max_size = father.image_size
@@ -136,18 +137,19 @@ class ImageLoader(QRunnable):
                     pixmap = self.loadMp3Cover()
                 elif mime_type == 'video/mp4':
                     pixmap = self.loadMp4Cover()
-            label = self.father.labels[self.file_path]
             file_item = self.father.file_items[self.file_path]
             file_item.icon = True
-            icon_label = label.findChild(QLabel)
             if pixmap:
                 # 将图片按 image_size 的大小缩放，但保持原始比例  
                 pixmap = pixmap.scaled(self.max_size, self.max_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                icon_label.setPixmap(pixmap)
                 file_item.pixmap['current'] = pixmap
+                if self.file_path in self.father.labels:
+                    label = self.father.labels[self.file_path]
+                    icon_label = label.findChild(QLabel, "icon_label")
+                    icon_label.setPixmap(pixmap)
                 # 将缩略图存入缓存
                 self.save_to_disk_cache(pixmap)
-            self.father.image_cache[self.max_size][label.file_path] = pixmap
+            self.father.image_cache[self.max_size][self.file_path] = pixmap
 
         except Exception as e:
             print(f"加载文件 {self.file_path} 时出现错误: {e}")
