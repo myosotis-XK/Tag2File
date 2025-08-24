@@ -315,12 +315,9 @@ class FileShowArea(QWidget):
         if file_paths is None:
             file_paths = self.file_paths
         # 使用多线程添加文件属性
-        begin_time = time.perf_counter()
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = [executor.submit(self._createFileItem, file_path) for file_path in file_paths]
             concurrent.futures.wait(futures)
-        end_time = time.perf_counter()
-        print(f"创建文件标签耗时: {end_time - begin_time} 秒")
 
     def _createFileItem(self, file_path:str):
         if file_path in self.file_items_cache:
@@ -395,13 +392,15 @@ class FileShowArea(QWidget):
             if self.starImageLoader:
                 self.starImageLoader.runing = False
             self.threadpool.clear()
+            self.starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
+            self.startLoadingImagesThreadpool.start(self.starImageLoader)
         if threadpool is self.threadpool0:
             for file_path in file_paths[:]:
                 if self.file_items[file_path].icon:
                     file_paths.remove(file_path)
-        if len(file_paths) > 0:
-            self.starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
-            self.startLoadingImagesThreadpool.start(self.starImageLoader)
+            if len(file_paths) > 0:
+                starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
+                self.startLoadingImagesThreadpool.start(starImageLoader)
 
     def setFileQLabel(self, file_path: str):
         if not self.label_pool:
