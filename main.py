@@ -1,5 +1,5 @@
 from src.utils import set_application_font
-from src import MainWindow, StartTask
+from src import StartTask
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
 import sys
@@ -23,6 +23,7 @@ if __name__ == '__main__':
         QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
     set_application_font()
+    from src import MainWindow
     viewer = MainWindow.Tag2File()
     start_task_processing()
 
