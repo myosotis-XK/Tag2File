@@ -226,6 +226,13 @@ class FileShowArea(QWidget):
         self.rubber_band = QRubberBand(QRubberBand.Rectangle, self)  
         self.origin = QPoint()
 
+    #——————————————————————重写方法————————————————————————
+
+    #监控界面大小变化
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.updateLayout()
+
     def wheelEvent(self, event):
         delta = event.angleDelta()
         if delta.y() != 0:
@@ -237,38 +244,6 @@ class FileShowArea(QWidget):
             self.h_scroll.setValue(
                 self.h_scroll.value() - int(delta.x() * 0.5)
             )
-
-    def on_v_scroll(self, value):
-        self._offset.setY(value)
-        self.on_scroll(value)
-
-    def on_h_scroll(self, value):
-        self._offset.setX(value)
-        self.on_scroll(value)
-
-    def update_scrollbars(self):
-        w, h = self.width(), self.height()
-        cw, ch = self._content_size.width(), self._content_size.height()
-
-        self.v_scroll.setGeometry(w - 15, 0, 15, h - 15)
-        self.v_scroll.setMinimum(0)
-        self.v_scroll.setMaximum(max(0, ch - h))
-        self.v_scroll.setPageStep(h)
-        self.v_scroll.setValue(self._offset.y())
-
-        self.h_scroll.setGeometry(0, h - 15, w - 15, 15)
-        self.h_scroll.setMinimum(0)
-        self.h_scroll.setMaximum(max(0, cw - w))
-        self.h_scroll.setPageStep(w)
-        self.h_scroll.setValue(self._offset.x())
-        self.corner.setGeometry(w - 15, h - 15, 15, 15)
-
-    #——————————————————————重写方法————————————————————————
-
-    #监控界面大小变化
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.updateLayout()
 
     def closeEvent(self, event):
         # 清空图片加载任务
@@ -620,7 +595,32 @@ class FileShowArea(QWidget):
             file_item.selected = 0
 
         self.set_file_css(file_item)
-        
+
+    def on_v_scroll(self, value):
+        self._offset.setY(value)
+        self.on_scroll(value)
+
+    def on_h_scroll(self, value):
+        self._offset.setX(value)
+        self.on_scroll(value)
+
+    def update_scrollbars(self):
+        w, h = self.width(), self.height()
+        cw, ch = self._content_size.width(), self._content_size.height()
+
+        self.v_scroll.setGeometry(w - 15, 0, 15, h - 15)
+        self.v_scroll.setMinimum(0)
+        self.v_scroll.setMaximum(max(0, ch - h))
+        self.v_scroll.setPageStep(h)
+        self.v_scroll.setValue(self._offset.y())
+
+        self.h_scroll.setGeometry(0, h - 15, w - 15, 15)
+        self.h_scroll.setMinimum(0)
+        self.h_scroll.setMaximum(max(0, cw - w))
+        self.h_scroll.setPageStep(w)
+        self.h_scroll.setValue(self._offset.x())
+        self.corner.setGeometry(w - 15, h - 15, 15, 15)
+
     #自动滚动
     def autoScroll(self, mouse_pos, auto=False):
         scroll_area_rect = self.rect()
@@ -1456,6 +1456,10 @@ class TagFileShowArea(FileShowArea):
 
         self.prompt_label = QLabel("请拖入文件或文件夹")
         self.prompt_label.setAlignment(Qt.AlignCenter)
+        self.prompt_label.setStyleSheet("""
+            color: gray;
+            font-size: 16px;
+        """)
         self.prompt_label.hide()  # 初始隐藏
 
         super().__init__(file_paths)
@@ -1494,6 +1498,14 @@ class TagFileShowArea(FileShowArea):
     def updateLayout(self):
         super().updateLayout()
         if len(self.file_paths) == 0:
+            parent_width = self.width()
+            parent_height = self.height()
+            label_width = self.prompt_label.width()
+            label_height = self.prompt_label.height()
+            self.prompt_label.move(
+                (parent_width - label_width) // 2,
+                (parent_height - label_height) // 2
+            )
             self.prompt_label.show()  # 显示提示标签
         else:
             self.prompt_label.hide()  # 隐藏提示标签
