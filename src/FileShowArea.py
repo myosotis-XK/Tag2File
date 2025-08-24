@@ -3,14 +3,14 @@ from .MultithreadedLoading import *
 from .DictManage import *
 from .ImageViewer import *
 from .FileSelectionComponent import FileSelectionComponent
-import re
 import os
 import subprocess
 import shutil
 import hashlib
-from PyQt5.QtWidgets import QWidget, QScrollArea, QLabel, QMenu, QAction, QVBoxLayout, QRubberBand, \
-QApplication, QTextEdit, QPushButton, QFileIconProvider, QMessageBox
-from PyQt5.QtGui import QPixmap, QFont, QIcon, QPainter, QCursor, QDragEnterEvent, QDropEvent, QMouseEvent, QFontMetrics
+from PyQt5.QtWidgets import QWidget, QScrollBar, QLabel, QMenu, QAction, QVBoxLayout, QRubberBand, \
+QApplication, QTextEdit, QPushButton, QFileIconProvider, QMessageBox, QStyleOptionSlider
+from PyQt5.QtGui import QPixmap, QFont, QIcon, QPainter, QCursor, QDragEnterEvent, QDropEvent, \
+    QMouseEvent, QFontMetrics, QPalette, QColor
 from PyQt5.QtCore import Qt, QThreadPool, QPoint, QRect, QSize, QTimer, QFileInfo
 import time
 from functools import partial
@@ -97,7 +97,7 @@ class FileItem():
         name_height = total_lines * single_line_height  # 总高度
         return name_height + int(label_width*self.SPACING_RATE)
 
-class FileShowArea(QScrollArea):
+class FileShowArea(QWidget):
     file_status_map = {  # 指定, 选中, 悬停  specifid, selected, hover
         (0,0,0): (Border.NONE, Background.TRANSPARENT),
         (0,0,1): (Border.NONE, Background.LIGHTBLUE),
@@ -141,7 +141,7 @@ class FileShowArea(QScrollArea):
         }
         self.image_size = image_size_dict[self.current_image_size]
         self.LABEL_INNER_SPACING = int(self.image_size * self.SPACING_RATE) # 标签内间距
-        self.label_width = self.image_size + 2*self.LABEL_INNER_SPACING #标签大小
+        self.label_width: int = self.image_size + 2*self.LABEL_INNER_SPACING #标签大小
 
         # 文件相关变量
         if file_paths is None:
@@ -172,7 +172,6 @@ class FileShowArea(QScrollArea):
         # 定时器
         self.auto_scroll_timer = QTimer(self)
         self.auto_scroll_timer.setInterval(round(1000/self.WINDOW_FRAMES))
-        self.verticalScrollBar().valueChanged.connect(self.on_scroll)
 
         # 线程池
         self.startLoadingImagesThreadpool = QThreadPool()
@@ -183,31 +182,86 @@ class FileShowArea(QScrollArea):
         # self.threadpool0.setMaxThreadCount(4)
         
         self.initFileView()
+        self.update_scrollbars()
         self.createFileItem()
         self.setSortKeyAndOrder(self.current_sort_key, self.current_sort_order)
 
     def initFileView(self):
         # 创建一个滚动区域
-        self.setWidgetResizable(True)
-        self.content_widget = QWidget()
-        self.content_widget.setStyleSheet("""  
-            QWidget {  
-                background-color: white;
-            }  
-        """)  
-        self.setWidget(self.content_widget)
+        self.setAutoFillBackground(True)
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor(255, 255, 255))
+        self.setPalette(palette)
+
+        self._content_size = QSize(1000, 2000)
+        self._offset = QPoint(0, 0)
+
+        # 纵向滚动条
+        self.v_scroll = QScrollBar(Qt.Vertical, self)
+        self.v_scroll.setFixedWidth(15)
+        self.v_scroll.valueChanged.connect(self.on_v_scroll)
+
+        # 横向滚动条
+        self.h_scroll = QScrollBar(Qt.Horizontal, self)
+        self.h_scroll.setFixedHeight(15)
+        self.h_scroll.valueChanged.connect(self.on_h_scroll)
+
+        # 填充corner
+        self.corner = QWidget(self)
+        scrollbar = self.v_scroll
+        # 获取背景槽颜色（滑槽 background）
+        option = QStyleOptionSlider()
+        scrollbar.initStyleOption(option)
+        bg_color = scrollbar.style().standardPalette().color(QPalette.Button)
+        self.corner.setStyleSheet(f"background-color: {bg_color.name()};")
 
         # 绑定鼠标事件
-        self.content_widget.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.content_widget.customContextMenuRequested.connect(self.showContextMenu) 
-        self.content_widget.mousePressEvent = self.mousePressEvent
-        self.content_widget.mouseMoveEvent = self.mouseMoveEvent
-        self.content_widget.setMouseTracking(True)
-        self.content_widget.mouseReleaseEvent = self.mouseReleaseEvent
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.showContextMenu) 
+        self.mousePressEvent = self.mousePressEvent
+        self.mouseMoveEvent = self.mouseMoveEvent
+        self.setMouseTracking(True)
+        self.mouseReleaseEvent = self.mouseReleaseEvent
 
-        self.rubber_band = QRubberBand(QRubberBand.Rectangle, self.content_widget)  
+        self.rubber_band = QRubberBand(QRubberBand.Rectangle, self)  
         self.origin = QPoint()
 
+    def wheelEvent(self, event):
+        delta = event.angleDelta()
+        if delta.y() != 0:
+            self.v_scroll.setValue(
+                self.v_scroll.value() - int(delta.y() * 0.5)
+            )
+
+        if delta.x() != 0:
+            self.h_scroll.setValue(
+                self.h_scroll.value() - int(delta.x() * 0.5)
+            )
+
+    def on_v_scroll(self, value):
+        self._offset.setY(value)
+        self.on_scroll(value)
+
+    def on_h_scroll(self, value):
+        self._offset.setX(value)
+        self.on_scroll(value)
+
+    def update_scrollbars(self):
+        w, h = self.width(), self.height()
+        cw, ch = self._content_size.width(), self._content_size.height()
+
+        self.v_scroll.setGeometry(w - 15, 0, 15, h - 15)
+        self.v_scroll.setMinimum(0)
+        self.v_scroll.setMaximum(max(0, ch - h))
+        self.v_scroll.setPageStep(h)
+        self.v_scroll.setValue(self._offset.y())
+
+        self.h_scroll.setGeometry(0, h - 15, w - 15, 15)
+        self.h_scroll.setMinimum(0)
+        self.h_scroll.setMaximum(max(0, cw - w))
+        self.h_scroll.setPageStep(w)
+        self.h_scroll.setValue(self._offset.x())
+        self.corner.setGeometry(w - 15, h - 15, 15, 15)
 
     #——————————————————————重写方法————————————————————————
 
@@ -277,7 +331,7 @@ class FileShowArea(QScrollArea):
         self.setSortKeyAndOrder('key', self.current_sort_key)
         self.changeThumbnailSize(self.image_size)
         # 重置滚动条位置
-        self.verticalScrollBar().setValue(0)
+        self.v_scroll.setValue(0)
 
     # 创建文件标签
     def createFileItem(self, file_paths=None):
@@ -349,7 +403,7 @@ class FileShowArea(QScrollArea):
         # 绑定鼠标进入和离开的事件
         label.enterEvent = partial(self.setBackgroundColorOnEnter, label=label)
         label.leaveEvent = self.resetBackgroundColorOnLeave
-        label.setParent(self.content_widget)
+        label.setParent(self)
         label.hide()
         return label
 
@@ -389,7 +443,7 @@ class FileShowArea(QScrollArea):
         file_name_label.setFixedHeight(file_item.name_height)
         
         label.setFixedSize(file_item.label_size)
-        label.move(file_item.label_pos)
+        label.move(file_item.label_pos - self._offset)
         style = f"""
         QLabel#{label.objectName()} {{
             {file_item.border.value}
@@ -402,8 +456,8 @@ class FileShowArea(QScrollArea):
 
     # 更新布局
     def updateLayout(self):
-        # 计算列数
-        area_width = self.viewport().width() - 4*self.LABEL_SPACING # 保证左端至少有4倍间距的空白
+        fixed_width = 4*self.LABEL_SPACING + self.v_scroll.width() # 保证左端至少有4倍间距的空白
+        area_width = self.width() - fixed_width 
         num_columns = max(1, 1 + (area_width - self.label_width) // (self.label_width + self.LABEL_SPACING))
         total_files = len(self.file_items)  # 获取标签数量
         if num_columns > total_files or num_columns == 1:
@@ -440,15 +494,19 @@ class FileShowArea(QScrollArea):
         self.max_col = min(num_columns, total_files)
         self.max_row = row + 1
         file_name_height_all += max_file_name_height
-        self.content_widget.setMinimumSize(0, 4*self.LABEL_SPACING + self.max_row * (self.label_width + self.LABEL_SPACING) + file_name_height_all)
+        content_width = max(self.width(), self.label_width + fixed_width)
+        content_height = 4*self.LABEL_SPACING + self.max_row * (self.label_width + self.LABEL_SPACING) + file_name_height_all + self.h_scroll.height()
+        self._content_size = QSize(content_width, content_height)
+        if self._offset.y() > self._content_size.height() - self.height():
+            self._offset.setY(max(0, self._content_size.height() - self.height()))
+        self.update_scrollbars()
         self.lazy_load()
 
     # 懒加载
     def lazy_load(self):
         self.threadpool0.clear()
-        viewport = self.viewport()
         # 计算self.content_widget可见范围
-        visible_rect = QRect(self.content_widget.mapFrom(self, viewport.rect().topLeft()), viewport.size())
+        visible_rect = QRect(self._offset, self._offset + self.rect().bottomRight())
         visible_labels_keys = self.get_rect_label(visible_rect)
         # 隐藏不可见label
         no_visible_labels_keys = self.visible_labels_keys - visible_labels_keys
@@ -464,10 +522,162 @@ class FileShowArea(QScrollArea):
             else:
                 file_item = self.file_items[visible_label_key]
                 label = self.labels[visible_label_key]
-                label.move(file_item.label_pos)
+                label.move(file_item.label_pos - self._offset)
                 label.show()
         self.visible_labels_keys = visible_labels_keys
         self.startLoadingImages(self.threadpool0, list(visible_labels_keys))
+        self.v_scroll.raise_()
+        self.h_scroll.raise_()
+        self.corner.raise_()
+
+    def mousePressEvent(self, event):
+        if event.button() != Qt.LeftButton:
+            return
+
+        self.MousePress = True
+        if not event.modifiers() & Qt.ControlModifier:
+            for select_label_key in self.select_labels_keys:
+                file_item = self.file_items[select_label_key]
+                file_item.selected = 0
+                self.set_file_css(file_item)
+            self.select_labels_keys.clear()
+        # 如果按下ctrl
+        else:
+            self.select_labels_keys_snapshot = self.select_labels_keys.copy() #记录按下ctrl时的文件选取状态
+        self.origin = event.pos() + self._offset
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        if self.MousePress:
+            if event.buttons() & Qt.LeftButton:
+                # 设置橡皮筋框选的几何形状
+                # QRect(self.origin, event.pos()) 创建一个矩形，从起点 `self.origin` 到当前鼠标位置 `event.pos()`
+                # .normalized() 确保矩形是标准化的（即左上角为起点，右下角为终点），防止起点与终点位置不同导致的问题
+                self.rubber_band.setGeometry(QRect(self.origin - self._offset, event.pos()).normalized())
+                self.rubber_band.show() 
+                self.selectLabelsInRect(QRect(self.origin, event.pos() + self._offset).normalized(), event.modifiers())
+                mouse_pos_in_scroll_area = event.pos()
+                scroll_area_rect = self.rect()
+                if scroll_area_rect.contains(mouse_pos_in_scroll_area):
+                    self.auto_scroll_timer.stop()
+                else:
+                    self.autoScroll(mouse_pos_in_scroll_area)
+            else:
+                self.mouseReleaseEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.MousePress:
+            if event.button() == Qt.LeftButton:
+                self.rubber_band.hide()
+        self.auto_scroll_timer.stop()
+        self.MousePress = False
+        self.ctrl_select_labels_keys.clear()
+
+    # 选中区域内的label
+    def selectLabelsInRect(self, rubber_rect, modifiers):
+        select_labels_keys = self.get_rect_label(rubber_rect)
+        # 如果没按ctrl
+        if not modifiers & Qt.ControlModifier:
+            # 恢复未选中标签状态
+            no_select_labels_keys = self.select_labels_keys - select_labels_keys 
+            for no_select_label_key in no_select_labels_keys:
+                file_item = self.file_items[no_select_label_key]
+                file_item.selected = 0
+                self.set_file_css(file_item)
+            # 改变新增选中标签状态
+            add_select_labels_keys = select_labels_keys - self.select_labels_keys
+            for add_select_label_key in add_select_labels_keys:
+                file_item = self.file_items[add_select_label_key]
+                file_item.selected = 1
+                self.set_file_css(file_item)
+            self.select_labels_keys = select_labels_keys
+        # 如果按下ctrl
+        else:
+            # 恢复未选中标签状态
+            no_ctrl_select_labels_keys = self.ctrl_select_labels_keys - select_labels_keys 
+            for key in no_ctrl_select_labels_keys:
+                should_select = (key in self.select_labels_keys_snapshot)
+                self.update_label_select_status(key, should_select)
+
+            # 改变新增选中标签状态
+            add_ctrl_select_labels_keys = select_labels_keys - self.ctrl_select_labels_keys
+            for key in add_ctrl_select_labels_keys:
+                should_select = not (key in self.select_labels_keys_snapshot)
+                self.update_label_select_status(key, should_select)
+
+            self.ctrl_select_labels_keys = select_labels_keys
+
+    def update_label_select_status(self, file_path: str, should_select: bool):
+        """
+        更新file的选中状态
+        """
+        file_item = self.file_items[file_path]
+
+        if should_select:
+            self.select_labels_keys.add(file_path)
+            file_item.selected = 1
+        else:
+            self.select_labels_keys.discard(file_path)
+            file_item.selected = 0
+
+        self.set_file_css(file_item)
+        
+    #自动滚动
+    def autoScroll(self, mouse_pos, auto=False):
+        scroll_area_rect = self.rect()
+        # 检查边缘位置和移动方向来决定是否滚动
+        if mouse_pos.y() < scroll_area_rect.top():
+            movement_scale = max(0.5, (mouse_pos.y() - scroll_area_rect.top())/50) # 计算滚动倍率
+            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME) # 计算移动距离
+            self.v_scroll.setValue(self.v_scroll.value() - move_value)  # 向上滚动
+        elif mouse_pos.y() > scroll_area_rect.bottom():
+            movement_scale = max(0.5, (mouse_pos.y() - scroll_area_rect.bottom())/50)
+            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
+            self.v_scroll.setValue(self.v_scroll.value() + move_value)  # 向下滚动
+
+        if mouse_pos.x() < scroll_area_rect.left():
+            movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.left())/50)
+            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
+            self.h_scroll.setValue(self.h_scroll.value() - move_value)  # 向左滚动
+        elif mouse_pos.x() > scroll_area_rect.right():
+            movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.right())/50)
+            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
+            self.h_scroll.setValue(self.h_scroll.value() + move_value)  # 向右滚动
+
+        if not auto:
+            try:
+                self.auto_scroll_timer.timeout.disconnect()
+            except TypeError:
+                pass
+            self.auto_scroll_timer.timeout.connect(lambda: self.autoScroll(mouse_pos, True))
+            if not self.auto_scroll_timer.isActive():
+                self.auto_scroll_timer.start()
+
+    def on_scroll(self, value):
+        self.lazy_load()
+        global_pos = QCursor.pos()
+        local_pos = self.mapFromGlobal(global_pos)
+        if self.MousePress:
+            # 将pos修正到widget内
+            x = max(1, min(local_pos.x(), self.width() - 1))
+            y = max(1, min(local_pos.y(), self.height() - 1))
+            widget_pos = self.mapFrom(self, QPoint(x, y))
+            self.rubber_band.setGeometry(QRect(self.origin - self._offset, widget_pos).normalized())
+            self.rubber_band.show()
+            self.selectLabelsInRect(QRect(self.origin, widget_pos + self._offset).normalized(), QApplication.keyboardModifiers())
+        else:
+            # widget_pos = self.mapFrom(self, local_pos)
+            label = self.childAt(local_pos)
+            if isinstance(label, QLabel):
+                file_path = label.file_path
+                label = self.labels[file_path]
+            else:
+                file_path = None
+            if file_path != self.now_hang_file:
+                if self.now_hang_file:
+                    self.resetBackgroundColorOnLeave(value)
+                if isinstance(label, QLabel):
+                    self.setBackgroundColorOnEnter(value, label)
+        self.update()
 
 
     #————————————————————右键菜单显示——————————————————————
@@ -486,7 +696,6 @@ class FileShowArea(QScrollArea):
         context_menu.addAction(select_all_action)
 
         scroll_area_global_pos = self.mapToGlobal(QPoint(0, 0))
-        pos = self.content_widget.mapToParent(pos)
         global_pos = scroll_area_global_pos + pos
         context_menu.exec_(global_pos)
 
@@ -676,8 +885,8 @@ class FileShowArea(QScrollArea):
         self.set_file_css(file_item)
         # if not self.isMouseOnThumbnail(event.pos(), label): # 如果鼠标不在缩略图上
         self.MousePress = True
-        parent_pos = label.mapTo(self.content_widget, event.pos())
-        self.origin = parent_pos
+        parent_pos = label.mapTo(self, event.pos())
+        self.origin = parent_pos + self._offset
 
     # 双击打开文件
     def openFile(self, event, label: QLabel, default=False):
@@ -715,8 +924,8 @@ class FileShowArea(QScrollArea):
                 self.set_file_css(file_item)
             self.select_labels_keys.clear()
             if not self.isMouseOnThumbnail(pos, label):
-                parent_pos = label.mapTo(self.content_widget, pos)
-                self.content_widget.customContextMenuRequested.emit(parent_pos)
+                parent_pos = label.mapTo(self, pos)
+                self.customContextMenuRequested.emit(parent_pos)
                 return
         if self.now_select_label_key is not None:
             file_item = self.file_items[self.now_select_label_key]
@@ -1091,158 +1300,6 @@ class FileShowArea(QScrollArea):
         widget.show()
 
 
-    #——————————————————————框选文件————————————————————————
-
-    def mousePressEvent(self, event):
-        if event.button() != Qt.LeftButton:
-            return
-
-        self.MousePress = True
-        if not event.modifiers() & Qt.ControlModifier:
-            for select_label_key in self.select_labels_keys:
-                file_item = self.file_items[select_label_key]
-                file_item.selected = 0
-                self.set_file_css(file_item)
-            self.select_labels_keys.clear()
-        # 如果按下ctrl
-        else:
-            self.select_labels_keys_snapshot = self.select_labels_keys.copy() #记录按下ctrl时的文件选取状态
-        self.origin = event.pos()
-
-    def mouseMoveEvent(self, event):
-        if self.MousePress:
-            if event.buttons() & Qt.LeftButton:
-                self.rubber_band.show() 
-                # 设置橡皮筋框选的几何形状
-                # QRect(self.origin, event.pos()) 创建一个矩形，从起点 `self.origin` 到当前鼠标位置 `event.pos()`
-                # .normalized() 确保矩形是标准化的（即左上角为起点，右下角为终点），防止起点与终点位置不同导致的问题
-                self.rubber_band.setGeometry(QRect(self.origin, event.pos()).normalized())
-                # 获取橡皮筋的当前几何形状，用于后续操作
-                self.selectLabelsInRect(self.rubber_band.geometry(), event.modifiers())
-                mouse_pos_in_scroll_area = self.content_widget.mapToParent(event.pos())
-                scroll_area_rect = self.rect()
-                if scroll_area_rect.contains(mouse_pos_in_scroll_area):
-                    self.auto_scroll_timer.stop()
-                else:
-                    self.autoScroll(mouse_pos_in_scroll_area)
-            else:
-                self.mouseReleaseEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if self.MousePress:
-            if event.button() == Qt.LeftButton:
-                self.rubber_band.hide()
-        self.auto_scroll_timer.stop()
-        self.MousePress = False
-        self.ctrl_select_labels_keys.clear()
-
-    # 选中区域内的label
-    def selectLabelsInRect(self, rubber_rect, modifiers):
-        select_labels_keys = self.get_rect_label(rubber_rect)
-        # 如果没按ctrl
-        if not modifiers & Qt.ControlModifier:
-            # 恢复未选中标签状态
-            no_select_labels_keys = self.select_labels_keys - select_labels_keys 
-            for no_select_label_key in no_select_labels_keys:
-                file_item = self.file_items[no_select_label_key]
-                file_item.selected = 0
-                self.set_file_css(file_item)
-            # 改变新增选中标签状态
-            add_select_labels_keys = select_labels_keys - self.select_labels_keys
-            for add_select_label_key in add_select_labels_keys:
-                file_item = self.file_items[add_select_label_key]
-                file_item.selected = 1
-                self.set_file_css(file_item)
-            self.select_labels_keys = select_labels_keys
-        # 如果按下ctrl
-        else:
-            # 恢复未选中标签状态
-            no_ctrl_select_labels_keys = self.ctrl_select_labels_keys - select_labels_keys 
-            for key in no_ctrl_select_labels_keys:
-                should_select = (key in self.select_labels_keys_snapshot)
-                self.update_label_select_status(key, should_select)
-
-            # 改变新增选中标签状态
-            add_ctrl_select_labels_keys = select_labels_keys - self.ctrl_select_labels_keys
-            for key in add_ctrl_select_labels_keys:
-                should_select = not (key in self.select_labels_keys_snapshot)
-                self.update_label_select_status(key, should_select)
-
-            self.ctrl_select_labels_keys = select_labels_keys
-
-    def update_label_select_status(self, file_path: str, should_select: bool):
-        """
-        更新file的选中状态
-        """
-        file_item = self.file_items[file_path]
-
-        if should_select:
-            self.select_labels_keys.add(file_path)
-            file_item.selected = 1
-        else:
-            self.select_labels_keys.discard(file_path)
-            file_item.selected = 0
-
-        self.set_file_css(file_item)
-        
-    #自动滚动
-    def autoScroll(self, mouse_pos, auto=False):
-        scroll_area_rect = self.rect()
-        # 检查边缘位置和移动方向来决定是否滚动
-        if mouse_pos.y() < scroll_area_rect.top():
-            movement_scale = max(0.5, (mouse_pos.y() - scroll_area_rect.top())/50) # 计算滚动倍率
-            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME) # 计算移动距离
-            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - move_value)  # 向上滚动
-        elif mouse_pos.y() > scroll_area_rect.bottom():
-            movement_scale = max(0.5, (mouse_pos.y() - scroll_area_rect.bottom())/50)
-            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
-            self.verticalScrollBar().setValue(self.verticalScrollBar().value() + move_value)  # 向下滚动
-        if mouse_pos.x() < scroll_area_rect.left():
-            movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.left())/50)
-            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
-            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - move_value)  # 向左滚动
-        elif mouse_pos.x() > scroll_area_rect.right():
-            movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.right())/50)
-            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
-            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + move_value)  # 向右滚动
-
-        if not auto:
-            try:
-                self.auto_scroll_timer.timeout.disconnect()
-            except TypeError:
-                pass
-            self.auto_scroll_timer.timeout.connect(lambda: self.autoScroll(mouse_pos, True))
-            if not self.auto_scroll_timer.isActive():
-                self.auto_scroll_timer.start()
-
-    def on_scroll(self, value):
-        self.lazy_load()
-        global_pos = QCursor.pos()
-        local_pos = self.mapFromGlobal(global_pos)
-        if self.MousePress:
-            # 将pos修正到widget内
-            x = max(1, min(local_pos.x(), self.width() - 1))
-            y = max(1, min(local_pos.y(), self.height() - 1))
-            widget_pos = self.content_widget.mapFrom(self, QPoint(x, y))
-            self.rubber_band.setGeometry(QRect(self.origin, widget_pos).normalized())
-            self.selectLabelsInRect(self.rubber_band.geometry(), QApplication.keyboardModifiers())
-        else:
-            widget_pos = self.content_widget.mapFrom(self, local_pos)
-            label = self.content_widget.childAt(widget_pos)
-            if label:
-                file_path = label.file_path
-            else:
-                file_path = None
-            if label and self.labels[file_path] != label: # 如果存在label并且不是父label(是icon_label或file_name_label)
-                label = label.parent() # 获取父label
-            if file_path != self.now_hang_file:
-                if self.now_hang_file:
-                    self.resetBackgroundColorOnLeave(value)
-                if label:
-                    self.setBackgroundColorOnEnter(value, label)
-        self.update()
-
-
     #——————————————————————辅助方法————————————————————————
 
     #绘制黑点
@@ -1403,7 +1460,7 @@ class TagFileShowArea(FileShowArea):
 
         super().__init__(file_paths)
 
-        self.prompt_label.setParent(self.content_widget)
+        self.prompt_label.setParent(self)
 
         self.setAcceptDrops(True)
         self.acceptFloder = config.getboolean('TagFileShowArea', 'acceptFloder', fallback=False)
