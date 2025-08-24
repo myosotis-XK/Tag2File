@@ -8,9 +8,11 @@ from PyQt5.QtWidgets import QApplication
 def get_root():
     if getattr(sys, 'frozen', False):
         root = os.path.dirname(sys.executable)
+        if len(root) >= 2 and root[1] == ":":
+            root = root[0].lower() + root[1:]
     else:
         root = os.path.dirname(os.path.dirname(__file__))
-    return root
+    return root.replace('\\', '/')
 
 root = get_root()
 config = configparser.ConfigParser()

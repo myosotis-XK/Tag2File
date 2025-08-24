@@ -1548,6 +1548,8 @@ class TagFileShowArea(FileShowArea):
 
         super().__init__(file_paths)
 
+        self.prompt_label.setParent(self)
+
         self.setAcceptDrops(True)
         self.acceptFloder = config.getboolean('TagFileShowArea', 'acceptFloder', fallback=False)
 
