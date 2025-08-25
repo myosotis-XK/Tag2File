@@ -8,10 +8,8 @@ from mutagen.mp3 import MP3
 from mutagen.id3 import ID3
 from mutagen.mp4 import MP4, MP4Cover
 import cv2
-import hashlib
 import mimetypes
-import time
-
+from .utils import get_cache_path
 
 class StarImageLoader(QRunnable):
     def __init__(self, fathet, threadpool:QThreadPool, file_paths:list=None, use_cache=True):
@@ -53,7 +51,7 @@ class StarImageLoader(QRunnable):
             return True
 
         # 检查磁盘缓存
-        cache_path = self.father.get_cache_path(file_path)
+        cache_path = get_cache_path(file_path, image_size)
         if os.path.exists(cache_path):
             try:
                 pixmap = QPixmap(cache_path)
@@ -139,7 +137,6 @@ class ImageLoader(QRunnable):
         self.father = father
         self.max_size = father.image_size
         self.file_path = file_path
-        self.cache_dir = father.cache_dir
     def run(self):
         try:
             pixmap = None
@@ -168,13 +165,8 @@ class ImageLoader(QRunnable):
         except Exception as e:
             print(f"加载文件 {self.file_path} 时出现错误: {e}")
 
-    def get_cache_path(self):
-        # 使用文件路径的哈希作为缓存文件名，以避免文件名冲突
-        file_hash = hashlib.md5(self.file_path.encode()).hexdigest()
-        return os.path.join(self.cache_dir, f"{file_hash}_{self.max_size}.png")
-
     def save_to_disk_cache(self, pixmap):
-        cache_path = self.get_cache_path()
+        cache_path = get_cache_path(self.file_path, self.max_size)
         pixmap.save(cache_path, "PNG")
 
     def loadImageFile(self):

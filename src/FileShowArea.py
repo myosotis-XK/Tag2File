@@ -6,7 +6,6 @@ from .FileSelectionComponent import FileSelectionComponent
 import os
 import subprocess
 import shutil
-import hashlib
 from PyQt5.QtWidgets import QWidget, QScrollBar, QLabel, QMenu, QAction, QVBoxLayout, QRubberBand, \
 QApplication, QTextEdit, QPushButton, QFileIconProvider, QMessageBox, QStyleOptionSlider
 from PyQt5.QtGui import QPixmap, QFont, QIcon, QPainter, QCursor, QDragEnterEvent, QDropEvent, \
@@ -15,7 +14,7 @@ from PyQt5.QtCore import Qt, QThreadPool, QPoint, QRect, QSize, QTimer, QFileInf
 import time
 from functools import partial
 from datetime import datetime
-from enum import Enum, auto
+from enum import Enum
 from typing import Optional
 import concurrent.futures
 
@@ -108,14 +107,11 @@ class FileShowArea(QWidget):
         (1,1,0): (Border.BLUE, Background.DARKBLUE),
         (1,1,1): (Border.BLUE, Background.DARKBLUE),
     }
-    def __init__(self, file_paths=None):
+    def __init__(self, file_paths: list=None):
         super().__init__()
         self.DictManage = DictManage()
         self.relation_graph = self.DictManage.relation_graph
 
-        self.cache_dir = os.path.join(root, 'data', 'cache', 'image').replace('\\', '/')
-        if not os.path.exists(self.cache_dir):
-            os.makedirs(self.cache_dir)
         # 读取配置文件
             # 图标大小
         self.SMALL_SIZE = config.getint('FileShowArea', 'SMALL_SIZE', fallback=50)
@@ -228,7 +224,6 @@ class FileShowArea(QWidget):
 
     #——————————————————————重写方法————————————————————————
 
-    #监控界面大小变化
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.updateLayout()
@@ -266,6 +261,7 @@ class FileShowArea(QWidget):
 
     #——————————————————————基础功能————————————————————————
 
+    # 改变显示文件
     def changeFile(self, file_paths: list=None):
         '''
         改变显示文件
@@ -310,8 +306,12 @@ class FileShowArea(QWidget):
         # 重置滚动条位置
         self.v_scroll.setValue(0)
 
-    # 创建文件标签
+    # 创建文件对象
     def createFileItem(self, file_paths: list=None):
+        '''
+        创建文件对象
+        :param file_paths: 新的文件路径列表
+        '''
         if file_paths is None:
             file_paths = self.file_paths
         # 使用多线程添加文件属性
@@ -348,8 +348,12 @@ class FileShowArea(QWidget):
         self.file_items[file_path] = file_item
         self.file_items_cache[file_path] = file_item
 
+    # 创建文件标签
     def createFileLabel(self):
-        # 创建标签
+        '''
+        创建文件标签
+        :return: 文件标签
+        '''
         label = QLabel()
         label.setObjectName("file_label")
 
@@ -384,8 +388,14 @@ class FileShowArea(QWidget):
         label.hide()
         return label
 
-    # 开始加载文件缩略图
+    # 加载文件缩略图
     def startLoadingImages(self, threadpool:QThreadPool, file_paths:list=None, use_cache=True):
+        '''
+        开始加载输入文件缩略图
+        :param threadpool: 线程池
+        :param file_paths: 文件路径列表, None时加载所有文件
+        :param use_cache: 是否使用缓存
+        '''
         if file_paths is None:
             file_paths = self.file_paths.copy()
         if threadpool is self.threadpool:
@@ -402,7 +412,15 @@ class FileShowArea(QWidget):
                 starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
                 self.startLoadingImagesThreadpool.start(starImageLoader)
 
+    # 设置文件标签
     def setFileQLabel(self, file_path: str):
+        '''
+        设置文件标签
+        :param file_path: 文件路径
+        '''
+        if file_path not in self.file_items:
+            return
+
         if not self.label_pool:
             label = self.createFileLabel()
             self.label_pool.append(label)
@@ -435,6 +453,9 @@ class FileShowArea(QWidget):
 
     # 更新布局
     def updateLayout(self):
+        '''
+        更新布局
+        '''
         total_files = len(self.file_items)  # 获取标签数量
 
         fixed_width = 4*self.LABEL_SPACING + self.v_scroll.width() # 保证左端至少有4倍间距的空白
@@ -535,6 +556,8 @@ class FileShowArea(QWidget):
         self.h_scroll.raise_()
         self.corner.raise_()
 
+
+    # 框选文件功能
     def mousePressEvent(self, event):
         if event.button() != Qt.LeftButton:
             return
@@ -577,8 +600,7 @@ class FileShowArea(QWidget):
         self.MousePress = False
         self.ctrl_select_labels_keys.clear()
 
-    # 选中区域内的label
-    def selectLabelsInRect(self, rubber_rect, modifiers):
+    def selectLabelsInRect(self, rubber_rect: QRect, modifiers):
         select_labels_keys = self.get_rect_label(rubber_rect)
         # 如果没按ctrl
         if not modifiers & Qt.ControlModifier:
@@ -626,6 +648,8 @@ class FileShowArea(QWidget):
 
         self.set_file_css(file_item)
 
+
+    # 滚动条实现
     def on_v_scroll(self, value):
         self._offset.setY(value)
         self.on_scroll(value)
@@ -633,6 +657,33 @@ class FileShowArea(QWidget):
     def on_h_scroll(self, value):
         self._offset.setX(value)
         self.on_scroll(value)
+
+    def on_scroll(self, value):
+        self.lazy_load()
+        global_pos = QCursor.pos()
+        local_pos = self.mapFromGlobal(global_pos)
+        if self.MousePress: # 如果鼠标按下，手动处理橡皮框
+            # 将pos修正到widget内
+            x = max(1, min(local_pos.x(), self.width() - 1))
+            y = max(1, min(local_pos.y(), self.height() - 1))
+            widget_pos = self.mapFrom(self, QPoint(x, y))
+            self.rubber_band.setGeometry(QRect(self.origin - self._offset, widget_pos).normalized())
+            self.rubber_band.show()
+            self.selectLabelsInRect(QRect(self.origin, widget_pos + self._offset).normalized(), QApplication.keyboardModifiers())
+        else: # 否则，手动处理标签进入和离开事件
+            # widget_pos = self.mapFrom(self, local_pos)
+            label = self.childAt(local_pos)
+            if isinstance(label, QLabel):
+                file_path = label.file_path
+                label = self.labels[file_path]
+            else:
+                file_path = None
+            if file_path != self.now_hang_file:
+                if self.now_hang_file:
+                    self.resetBackgroundColorOnLeave(value)
+                if isinstance(label, QLabel):
+                    self.setBackgroundColorOnEnter(value, label)
+        self.update()
 
     def update_scrollbars(self):
         w, h = self.width(), self.height()
@@ -651,8 +702,13 @@ class FileShowArea(QWidget):
         self.h_scroll.setValue(self._offset.x())
         self.corner.setGeometry(w - 15, h - 15, 15, 15)
 
-    #自动滚动
-    def autoScroll(self, mouse_pos, auto=False):
+    # 自动滚动
+    def autoScroll(self, mouse_pos: QPoint, auto=False):
+        '''
+        自动滚动
+        :param mouse_pos: 鼠标位置
+        :param auto: 是否启动自动滚动定时器
+        '''
         scroll_area_rect = self.rect()
         # 检查边缘位置和移动方向来决定是否滚动
         if mouse_pos.y() < scroll_area_rect.top():
@@ -682,37 +738,11 @@ class FileShowArea(QWidget):
             if not self.auto_scroll_timer.isActive():
                 self.auto_scroll_timer.start()
 
-    def on_scroll(self, value):
-        self.lazy_load()
-        global_pos = QCursor.pos()
-        local_pos = self.mapFromGlobal(global_pos)
-        if self.MousePress:
-            # 将pos修正到widget内
-            x = max(1, min(local_pos.x(), self.width() - 1))
-            y = max(1, min(local_pos.y(), self.height() - 1))
-            widget_pos = self.mapFrom(self, QPoint(x, y))
-            self.rubber_band.setGeometry(QRect(self.origin - self._offset, widget_pos).normalized())
-            self.rubber_band.show()
-            self.selectLabelsInRect(QRect(self.origin, widget_pos + self._offset).normalized(), QApplication.keyboardModifiers())
-        else:
-            # widget_pos = self.mapFrom(self, local_pos)
-            label = self.childAt(local_pos)
-            if isinstance(label, QLabel):
-                file_path = label.file_path
-                label = self.labels[file_path]
-            else:
-                file_path = None
-            if file_path != self.now_hang_file:
-                if self.now_hang_file:
-                    self.resetBackgroundColorOnLeave(value)
-                if isinstance(label, QLabel):
-                    self.setBackgroundColorOnEnter(value, label)
-        self.update()
-
 
     #————————————————————右键菜单显示——————————————————————
 
-    def showContextMenu(self, pos):
+    def showContextMenu(self, pos: QPoint):
+
         for select_label_key in self.select_labels_keys:
             file_item = self.file_items[select_label_key]
             file_item.selected = 0
@@ -729,7 +759,7 @@ class FileShowArea(QWidget):
         global_pos = scroll_area_global_pos + pos
         context_menu.exec_(global_pos)
 
-    def addViewMenu(self, context_menu):
+    def addViewMenu(self, context_menu: QMenu):
         view_menu = context_menu.addMenu("查看")
 
         small_action = QAction("小图标", self)  
@@ -751,7 +781,7 @@ class FileShowArea(QWidget):
         view_menu.addAction(medium_action)  
         view_menu.addAction(large_action) 
 
-    def addSortMenu(self, context_menu):
+    def addSortMenu(self, context_menu: QMenu):
         # 添加排序选项
         sort_menu = context_menu.addMenu("排序")
         name_action = QAction("按文件名", self)
@@ -790,18 +820,11 @@ class FileShowArea(QWidget):
         sort_menu.addAction(asc_action)
         sort_menu.addAction(desc_action)
 
-    # 全选
-    def select_all_file(self):
-        self.select_labels_keys = set(self.file_paths)
-        for file_item in self.file_items.values():
-            file_item.selected = 1
-            self.set_file_css(file_item)
-
 
     #————————————————————右键菜单功能——————————————————————
 
-    #改变缩略图大小
-    def changeThumbnailSize(self, size, level=None):
+    # 改变缩略图大小
+    def changeThumbnailSize(self, size: int, level=None):
         if level is not None:
             self.current_image_size = level
             config.set('FileShowArea', 'current_image_size', level)  # 更新config对象
@@ -835,8 +858,26 @@ class FileShowArea(QWidget):
         while self.threadpool.activeThreadCount() > 0:
             time.sleep(0.1)        
         self.startLoadingImages(self.threadpool)  # 重新加载当前文件夹中的图片
-    
-    def _sort_files(self, file_paths=None):
+  
+    # 改变排序方式
+    def setSortKeyAndOrder(self, action: str, value: str, refresh=True):
+        if action == "key":
+            self.current_sort_key = value
+            config.set('FileShowArea', 'current_sort_key', value)  # 更新config对象
+            self._sort_files()
+        if action == "order":
+            if value != self.current_sort_order:
+                self.current_sort_order = value  # 更新当前排序顺序
+                self.file_paths.reverse()  # 反转文件路径列表
+                config.set('FileShowArea', 'current_sort_order', value)  # 更新config对象
+            save_config()  # 保存配置
+
+        if refresh:
+            self.updateLayout()  # 更新布局以反映新的顺序
+            self.threadpool.clear()
+            self.startLoadingImages(self.threadpool)
+
+    def _sort_files(self, file_paths: list=None):
         if file_paths is None:
             file_paths = self.file_paths
         if self.current_sort_key == "name":
@@ -866,23 +907,12 @@ class FileShowArea(QWidget):
         elif self.current_sort_key == "date":
             file_paths.sort(key=lambda path: self.file_items[path].file_date, reverse=(self.current_sort_order == "desc"))
 
-    #改变排序方式
-    def setSortKeyAndOrder(self, action, value, refresh=True):
-        if action == "key":
-            self.current_sort_key = value
-            config.set('FileShowArea', 'current_sort_key', value)  # 更新config对象
-            self._sort_files()
-        if action == "order":
-            if value != self.current_sort_order:
-                self.current_sort_order = value  # 更新当前排序顺序
-                self.file_paths.reverse()  # 反转文件路径列表
-                config.set('FileShowArea', 'current_sort_order', value)  # 更新config对象
-            save_config()  # 保存配置
-
-        if refresh:
-            self.updateLayout()  # 更新布局以反映新的顺序
-            self.threadpool.clear()
-            self.startLoadingImages(self.threadpool)
+    # 全选
+    def select_all_file(self):
+        self.select_labels_keys = set(self.file_paths)
+        for file_item in self.file_items.values():
+            file_item.selected = 1
+            self.set_file_css(file_item)
 
 
     #————————————————————文件相关功能——————————————————————
@@ -895,7 +925,8 @@ class FileShowArea(QWidget):
         file_path = label.file_path
         if event.modifiers() & Qt.ControlModifier:
             self.select_labels_keys_snapshot = self.select_labels_keys.copy() # 快照
-            self.change_label_select_status(label)
+            should_select = not (file_path in self.select_labels_keys)
+            self.update_label_select_status(file_path, should_select)
         else:
             for select_label_key in self.select_labels_keys:
                 if select_label_key == file_path:
@@ -1333,7 +1364,7 @@ class FileShowArea(QWidget):
     #——————————————————————辅助方法————————————————————————
 
     #绘制黑点
-    def create_black_dot(self, size):
+    def create_black_dot(self, size: int):
         # 创建一个正方形的 QPixmap
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.transparent)  # 填充透明背景
@@ -1347,7 +1378,7 @@ class FileShowArea(QWidget):
         return pixmap
 
     #判断鼠标是否点击在缩略图上
-    def isMouseOnThumbnail(self, mouse_pos, label):
+    def isMouseOnThumbnail(self, mouse_pos: QPoint, label: QLabel):
         # 获取缩略图和标签的尺寸
         icon_label = label.findChild(QLabel, "icon_label")
         pixmap = icon_label.pixmap()
@@ -1366,7 +1397,7 @@ class FileShowArea(QWidget):
         return thumbnail_rect.contains(mouse_pos)
 
     # 获取区域内label
-    def get_rect_label(self, rect):
+    def get_rect_label(self, rect: QRect):
         file_paths: set[str] = set()
         if len(self.labels_rect) == 0:
             return file_paths
@@ -1417,67 +1448,8 @@ class FileShowArea(QWidget):
                 if label:
                     file_paths.add(label[2])
         return file_paths
-
-
-    # # 获取区域内label
-    # def get_rect_label(self, rect):
-    #     file_paths: set[str] = set()
-    #     if len(self.labels_rect) == 0:
-    #         return file_paths
-    #     begin_pos = rect.topLeft()
-    #     end_pos = rect.bottomRight()
-    #     # 计算开始行
-    #     begin_row = begin_pos.y() // (self.label_width + self.LABEL_SPACING)
-    #     begin_row = max(0, min(begin_row, self.max_row-1))
-    #         # 寻找鼠标下方离鼠标最近的底部所在行
-    #     while begin_row != 0 and self.labels_rect.get((begin_row-1, 0))[0].bottomRight().y() > begin_pos.y():
-    #         begin_row -= 1
-    #         # 当处在最后一行之外，越过
-    #     if self.labels_rect.get((begin_row, 0))[0].bottomRight().y() < begin_pos.y():
-    #         begin_row += 1
-    #     # 计算结束行
-    #     end_row = end_pos.y() // (self.label_width + self.LABEL_SPACING)
-    #     end_row = max(0, min(end_row, self.max_row-1))
-    #         # 寻找鼠标下方离鼠标最近的顶部所在行 
-    #     while end_row != 0 and self.labels_rect.get((end_row-1, 0))[0].topLeft().y() > end_pos.y():
-    #         end_row -= 1
-    #         # 当没处在最后一行之外时上移一行
-    #     if self.labels_rect.get((end_row, 0))[0].topLeft().y() > end_pos.y():
-    #         end_row -= 1
-
-    #     # 计算开始列
-    #     begin_col = begin_pos.x() // (self.label_width + self.LABEL_SPACING)
-    #     begin_col = max(0, min(begin_col, self.max_col-1))
-    #         # 寻找鼠标右方离鼠标最近的右边所在列
-    #     while begin_col != 0 and self.labels_rect.get((0, begin_col-1))[0].bottomRight().x() > begin_pos.x():
-    #         begin_col -= 1
-    #         # 当处在最后一列之外，越过
-    #     if self.labels_rect.get((0, begin_col))[0].bottomRight().x() < begin_pos.x():
-    #         begin_col += 1
-    #     # 计算结束列
-    #     end_col = end_pos.x() // (self.label_width + self.LABEL_SPACING)
-    #     end_col = max(0, min(end_col, self.max_col-1))
-    #         # 寻找鼠标右方离鼠标最近的左边所在行列
-    #     while end_col != 0 and self.labels_rect.get((0, end_col-1))[0].topLeft().x() > end_pos.x():
-    #         end_col -= 1
-    #         # 当没处在最后一列之外时左移一列
-    #     if self.labels_rect.get((0, end_col))[0].topLeft().x() > end_pos.x():
-    #         end_col -= 1
-
-    #     # 选择标签
-    #     for row in range(begin_row,end_row+1):
-    #         for col in range(begin_col,end_col+1):
-    #             label = self.labels_rect.get((row, col))
-    #             if label:
-    #                 file_paths.add(label[1])
-    #     return file_paths
-
-    # 获取缓存文件路径
-    def get_cache_path(self, file_path):
-        # 使用文件路径的哈希作为缓存文件名，以避免文件名冲突
-        file_hash = hashlib.md5(file_path.encode()).hexdigest()
-        return os.path.join(self.cache_dir, f"{file_hash}_{self.image_size}.png").replace('\\', '/')
     
+    # 设置文件css
     def set_file_css(self, file_item: FileItem):
         border, background = self.file_status_map.get((file_item.specifid, file_item.selected, file_item.hover))
         label = self.labels.get(file_item.file_path)

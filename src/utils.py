@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import hashlib
 import configparser
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QApplication
@@ -15,6 +16,16 @@ def get_root():
     return root.replace('\\', '/')
 
 root = get_root()
+
+cache_dir = os.path.join(root, 'data', 'cache', 'image').replace('\\', '/')
+if not os.path.exists(cache_dir):
+    os.makedirs(cache_dir)
+# 获取缓存文件路径
+def get_cache_path(file_path: str, image_size: int):
+    # 使用文件路径的哈希作为缓存文件名，以避免文件名冲突
+    file_hash = hashlib.md5(file_path.encode()).hexdigest()
+    return os.path.join(cache_dir, f"{file_hash}_{image_size}.png").replace('\\', '/')
+
 config = configparser.ConfigParser()
 config_path = os.path.join(root, 'config', 'config.ini')
 
