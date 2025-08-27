@@ -1487,11 +1487,11 @@ class FileShowArea(QWidget):
 
 
 class MainFileShowArea(FileShowArea):
-    def __init__(self, MainWindow, file_paths=None):
+    def __init__(self, MainWindow, file_paths: list=None):
         super().__init__(file_paths)
         self.MainWindow = MainWindow
 
-    def showLabelMenu(self, pos, label):
+    def showLabelMenu(self, pos: QPoint, label: QLabel):
         result = super().showLabelMenu(pos, label)
         if result is None:
             return
@@ -1508,8 +1508,7 @@ class MainFileShowArea(FileShowArea):
         self.MainWindow.showTagView(None, list(self.select_labels_keys))
 
 class TagFileShowArea(FileShowArea):
-    def __init__(self, file_paths=None):
-
+    def __init__(self, file_paths: list=None):
         self.prompt_label = QLabel("请拖入文件或文件夹")
         self.prompt_label.setAlignment(Qt.AlignCenter)
         self.prompt_label.setStyleSheet("""
@@ -1525,7 +1524,7 @@ class TagFileShowArea(FileShowArea):
         self.setAcceptDrops(True)
         self.acceptFloder = config.getboolean('TagFileShowArea', 'acceptFloder', fallback=False)
 
-    def showLabelMenu(self, pos, label):
+    def showLabelMenu(self, pos: QPoint, label: QLabel):
         result = super().showLabelMenu(pos, label)
         # 检查返回值是否为 None，只有在不是 None 时才进行赋值
         if result is None:

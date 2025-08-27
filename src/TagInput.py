@@ -156,10 +156,10 @@ class TagInputWidget(QWidget, Observer):
         self.relation_graph = self.DictManage.relation_graph
         self.tag_library = self.relation_graph['tag'].keys()
         # 操作符列表  
-        self.operators = [' ∩ ', ' ∪ ', "'", '(', ')']  
+        self.operators = ['∩', '∪', "'", '(', ')']  
         
         # 标签和操作符列表
-        self.elements = []
+        self.elements: list[EnhancedInputTagLabel] = []
         
         # 当前输入框位置
         self.current_insert_position = -1  # -1表示在末尾
@@ -170,7 +170,7 @@ class TagInputWidget(QWidget, Observer):
         self.update_input_state()
         
     def init_ui(self):  
-        self.setFixedHeight(70)
+        self.setFixedHeight(80)
         self.layout = QVBoxLayout(self)  
         self.layout.setContentsMargins(0, 0, 0, 0)
         
@@ -183,7 +183,8 @@ class TagInputWidget(QWidget, Observer):
                 padding: 0px;  
             }  
         """)
-        
+        self.input_container.setFixedHeight(40)
+
         # 输入区域的流式布局
         self.tag_scroll_area = HScrollArea()
         self.tag_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -205,10 +206,10 @@ class TagInputWidget(QWidget, Observer):
                 padding: 0px;  
                 background-color: transparent;  
             }  
-        """) 
+        """)
         self.tag_scroll_area.setWidget(self.content_widget)
         self.tag_layout = QHBoxLayout(self.content_widget)  
-        self.tag_layout.setContentsMargins(5, 5, 5, 5)  
+        self.tag_layout.setContentsMargins(0, 0, 0, 0)  
         self.tag_layout.setSpacing(0)  # 标签之间没有间距
         self.tag_layout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         
@@ -235,7 +236,7 @@ class TagInputWidget(QWidget, Observer):
         for op in self.operators:  
             op_text = op.strip()  # 去除空格  
             btn = QPushButton(op_text)  
-            btn.clicked.connect(lambda _, o=op: self.add_operator(o))  
+            btn.clicked.connect(lambda _, o=op: self.add_element(o))  
             btn.setStyleSheet("""  
                 QPushButton {  
                     background-color: #95a5a6;  
@@ -424,26 +425,35 @@ class TagInputWidget(QWidget, Observer):
         text = self.input_edit.text().strip()  
         
         # 检查是否是有效标签  
-        if text in self.tag_library:  
-            self.add_tag(text)  
-            self.input_edit.clear()  
-        elif text in [op.strip() for op in self.operators]:  
-            self.add_operator(' ' + text + ' ' if text in ['∩', '∪'] else text)  
-            self.input_edit.clear()  
+        if text in self.tag_library or text in self.operators:  
+            self.add_element(text)  
+            self.input_edit.clear() 
     
     def add_tag_from_completer(self, text):  
         """当从自动完成下拉框中选择标签时调用"""  
         if text in self.tag_library:
-            self.add_tag(text)
+            self.add_element(text)
             QTimer.singleShot(0, self.input_edit.clear)
     
-    def add_tag(self, text):  
-        """添加标签到当前输入框位置"""  
+    def add_element(self, text):  
+        """添加元素到当前输入框位置"""  
         try:
-            category = list(self.relation_graph['tag'][text]['category'])[0]
-            color = self.relation_graph['category'][category]['tagColor']
+            if text == "'":
+                if len(self.elements) == 0 or self.current_insert_position == 0:
+                    color = 'gray'
+                if self.current_insert_position != -1:
+                    element_index = self.current_insert_position - 1
+                else:
+                    element_index = -1
+                element = self.elements[element_index]
+                color = element.color
+            elif text in self.operators:
+                color = 'gray'
+            else:
+                category = list(self.relation_graph['tag'][text]['category'])[0]
+                color = self.relation_graph['category'][category]['tagColor']
         except:
-            color = None
+            color = 'gray'
         
         # 创建标签
         tag = self.create_enhanced_tag(text, color)
@@ -475,47 +485,6 @@ class TagInputWidget(QWidget, Observer):
             
         # 添加弹簧
         self.tag_layout.addStretch(1)
-
-        # 清空输入框（保持收缩状态）
-        self.input_edit.clear()
-        self.input_edit.setFocus()
-        self.ensure_input_visible()
-        self.update_input_state()
-    
-    def add_operator(self, op_text):  
-        """添加操作符到当前输入框位置"""
-        # 创建操作符标签
-        stripped_text = op_text.strip()
-        op = self.create_enhanced_tag(stripped_text, color='gray')
-        
-        # 临时移除输入框
-        self.tag_layout.removeWidget(self.input_edit)
-
-        # 移除原有弹簧
-        item = self.tag_layout.itemAt(self.tag_layout.count() - 1)
-        if item and item.spacerItem():
-            self.tag_layout.removeItem(item)
-        
-        # 在当前位置添加操作符
-        if self.current_insert_position == -1:
-            # 在末尾添加
-            self.tag_layout.addWidget(op)
-            self.elements.append(op)
-        else:
-            # 在指定位置添加
-            self.tag_layout.insertWidget(self.current_insert_position, op)
-            self.elements.insert(self.current_insert_position, op)
-            # 更新插入位置
-            self.current_insert_position += 1
-            
-        # 重新添加输入框在当前位置
-        if self.current_insert_position == -1:
-            self.tag_layout.addWidget(self.input_edit)
-        else:
-            self.tag_layout.insertWidget(self.current_insert_position, self.input_edit)
-        
-        # 添加弹簧
-        self.tag_layout.addStretch(1)    
 
         # 清空输入框（保持收缩状态）
         self.input_edit.clear()

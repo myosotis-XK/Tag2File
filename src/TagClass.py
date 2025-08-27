@@ -13,6 +13,7 @@ class CategoryTreeWidget(QTreeWidget):
             QTreeWidget::item {
                 border: none;
                 padding: 2px;
+                height: 25px;
             }
             QTreeWidget::item:hover {
                 background-color: transparent;
@@ -132,9 +133,10 @@ class TagLabel(QLabel):
             painter.setPen(self.color)
         
         # 绘制标签文本
-        y = self.height() // 2 + painter.fontMetrics().ascent() // 2
+        fm = painter.fontMetrics()
+        y = (self.height() + fm.ascent() - fm.descent()) // 2
         painter.drawText(0, y, self.tag)
-        
+
         # 绘制文件数量
         painter.setPen(QColor(140, 140, 140))
         count_text = f" {self.count}"
@@ -187,7 +189,7 @@ class TagLabel(QLabel):
 
     def sizeHint(self):
         fm = self.fontMetrics()
-        width = fm.width(self.tag + f" ({self.count})")
+        width = fm.width(self.tag + f" {self.count}") + 25
         height = fm.height()
         return QRect(0, 0, width, height).size()
 
@@ -222,7 +224,8 @@ class SpecialTagLabel(TagLabel):
         
         # 绘制标签文本，考虑勾选框的宽度
         checkbox_width = self.checkbox_size + 5  # 额外的5像素作为间距
-        y = self.height() // 2 + painter.fontMetrics().ascent() // 2
+        fm = painter.fontMetrics()
+        y = (self.height() + fm.ascent() - fm.descent()) // 2
         painter.drawText(checkbox_width, y, self.tag)
         
         # 绘制文件数量（始终为黑色）
@@ -257,6 +260,12 @@ class SpecialTagLabel(TagLabel):
         
         if was_hovered != self.hovered:
             self.update()
+
+    def sizeHint(self):
+        fm = self.fontMetrics()
+        width = fm.width(self.tag) + self.checkbox_size + 30
+        height = fm.height()
+        return QRect(0, 0, width, height).size()
 
 class InputTagLabel(QLabel):
     def __init__(self, text, color, parent=None, ):  

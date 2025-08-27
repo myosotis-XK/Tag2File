@@ -109,6 +109,7 @@ class Tag2File(QMainWindow, Observer):
 
     def create_tag_widget(self):
         tree = CategoryTreeWidget(self)
+        tree.setIndentation(10)
 
         # 创建固定文件类型项
         category_item = QTreeWidgetItem(tree)
@@ -294,26 +295,10 @@ class Tag2File(QMainWindow, Observer):
 
     def clearInput(self):  
         self.tag_input.clear()
-    
-    # #集合操作输入文本框
-    # def SetButtenClick(self, char):
-    #     cursor_position = self.tag_input.cursorPosition()
-    #     current_text = self.tag_input.text()
-    #     new_text = current_text[:cursor_position] + char + current_text[cursor_position:]
-    #     self.tag_input.setText(new_text)
-    #     self.tag_input.setCursorPosition(cursor_position + len(char))  # 更新游标位置到新字符后
-
-    # #点击tag输入文本框
-    # def onTagClick(self, tag):
-    #     cursor_position = self.tag_input.cursorPosition()  # 获取当前游标位置
-    #     current_text = self.tag_input.text()  # 获取当前文本
-    #     new_text = current_text[:cursor_position] + tag + current_text[cursor_position:]  # 在游标位置插入标签
-    #     self.tag_input.setText(new_text)  # 设置新的文本
-    #     self.tag_input.setCursorPosition(cursor_position + len(tag))  # 更新游标位置到标签后
 
     #点击tag输入文本框
     def onTagClick(self, tag):
-        self.tag_input.add_tag(tag)
+        self.tag_input.add_element(tag)
 
 
 if __name__ == '__main__':  
