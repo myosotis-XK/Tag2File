@@ -1540,6 +1540,7 @@ class TagFileShowArea(FileShowArea):
             self.labels[select_label_key].setParent(None)
             self.labels.pop(select_label_key)
             self.file_paths.remove(select_label_key)
+            self.file_items.pop(select_label_key)
             self.visible_labels_keys.discard(select_label_key)
         self.select_labels_keys.clear()
         if len(self.file_paths) == 0:
