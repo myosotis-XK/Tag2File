@@ -2,6 +2,7 @@ from PyQt5.QtCore import QRunnable, Qt, QPointF, QThreadPool
 from PyQt5.QtGui import QPixmap, QPainterPath, QPen, QFont, QColor, QPainter, QImage
 from PyQt5.QtWidgets import QLabel
 from PIL import Image, UnidentifiedImageError
+import pillow_avif
 from io import BytesIO
 import os
 from mutagen.mp3 import MP3  
@@ -9,6 +10,7 @@ from mutagen.id3 import ID3
 from mutagen.mp4 import MP4, MP4Cover
 import cv2
 import mimetypes
+mimetypes.add_type("image/webp", ".webp")
 from .utils import get_cache_path
 
 class StarImageLoader(QRunnable):

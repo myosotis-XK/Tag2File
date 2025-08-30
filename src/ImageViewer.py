@@ -807,7 +807,7 @@ class MultiImageViewer(QMainWindow):
 
     def _filter_file(self, file_path):
         """过滤文件列表，仅保留图片文件"""
-        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']
+        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp', '.avif']
 
         if not os.path.exists(file_path):  
             with self.filter_lock:
@@ -848,7 +848,7 @@ class MultiImageViewer(QMainWindow):
             self.update_status_info()
 
     # 修改load_image_files方法
-    def load_image_files(self, file_paths, show_file_path=None):  
+    def load_image_files(self, file_paths: list, show_file_path=None):  
         """加载图片文件列表，过滤非图片文件"""
         if self.current_index != -1 and show_file_path is None:
             show_file_path = self.image_files[self.current_index]
