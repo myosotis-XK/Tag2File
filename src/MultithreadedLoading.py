@@ -81,6 +81,9 @@ class StarImageLoader(QRunnable):
         file_item.icon = True
         file_item.pixmap[self.father.image_size] = pixmap
         if not os.path.exists(file_path):
+            if not pixmap:
+                pixmap = QPixmap(self.father.image_size, self.father.image_size)
+                pixmap.fill(Qt.transparent)
             pixmap = self.draw_text_on_pixmap(pixmap, "文件不存在")
         if pixmap:
             file_item.pixmap['current'] = pixmap

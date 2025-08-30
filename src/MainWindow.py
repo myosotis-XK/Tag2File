@@ -193,7 +193,7 @@ class Tag2File(QMainWindow, Observer):
 
     def observer_update(self):
         self.update_tag_widget()
-        self.changeFile(self.tag_expression)
+        self.changeFile(self.tag_expression, True)
 
     def closeEvent(self, event):
         self.MainFileShowArea.closeEvent(event)
@@ -279,7 +279,7 @@ class Tag2File(QMainWindow, Observer):
         self.tagbaseManager.show()
 
     # 改变显示文件
-    def changeFile(self, tag_expression = None):
+    def changeFile(self, tag_expression = None, recover=False):
         if tag_expression == None:
             self.tag_expression = self.tag_input.get_query()
         else:
@@ -291,7 +291,7 @@ class Tag2File(QMainWindow, Observer):
             file_paths = self.get_tag_files(self.tag_expression)
             if file_paths is False:
                 return
-            self.MainFileShowArea.changeFile(file_paths)
+            self.MainFileShowArea.changeFile(file_paths, recover)
 
     def clearInput(self):  
         self.tag_input.clear()

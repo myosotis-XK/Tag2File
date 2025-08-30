@@ -262,7 +262,7 @@ class FileShowArea(QWidget):
     #——————————————————————基础功能————————————————————————
 
     # 改变显示文件
-    def changeFile(self, file_paths: list=None):
+    def changeFile(self, file_paths: list=None, recover=False):
         '''
         改变显示文件
         :param file_paths: 新的文件路径列表
@@ -304,7 +304,9 @@ class FileShowArea(QWidget):
         self.setSortKeyAndOrder('key', self.current_sort_key, False)
         self.changeThumbnailSize(self.image_size)
         # 重置滚动条位置
-        self.v_scroll.setValue(0)
+        if not recover:
+            self.v_scroll.setValue(0)
+
 
     # 创建文件对象
     def createFileItem(self, file_paths: list=None):
