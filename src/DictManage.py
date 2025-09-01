@@ -352,6 +352,7 @@ class DictManage():
     def create_category(self, category):
         if category not in self.relation_graph['category']:  
             self.relation_graph['category'][category] = {'tag': set(), 'tagColor': QColor(200, 200, 200).name(), 'tagOrder': []}
+            self.relation_graph['category']['未分类'] = self.relation_graph['category'].pop('未分类') # 置底
         self.save_notify()
 
     def delete_category(self, category):

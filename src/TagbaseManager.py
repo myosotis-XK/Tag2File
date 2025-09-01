@@ -419,6 +419,7 @@ class TagbaseManager(QDialog):
                     os.rename(src, dest)
             
             QMessageBox.information(self, "成功", "恢复完成")
+            self.DictManage.load_tagbase()
             self.DictManage.notify_observers()
             
         except Exception as e:

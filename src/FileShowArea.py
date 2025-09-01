@@ -327,6 +327,7 @@ class FileShowArea(QWidget):
             file_item.specifid = 0
             file_item.selected = 0
             file_item.hover = 0
+            self.set_file_css(file_item)
             if file_item.label_width != self.label_width:
                 file_item.update_label_size(self.label_width)
             self.file_items[file_path] = file_item
@@ -925,11 +926,13 @@ class FileShowArea(QWidget):
             return
 
         file_path = label.file_path
+        event_file_item = self.file_items[file_path]
         if event.modifiers() & Qt.ControlModifier:
             self.select_labels_keys_snapshot = self.select_labels_keys.copy() # 快照
-            should_select = not (file_path in self.select_labels_keys)
+            should_select = not (file_path in self.select_labels_keys_snapshot)
             self.update_label_select_status(file_path, should_select)
         else:
+            event_file_item.selected = 1
             for select_label_key in self.select_labels_keys:
                 if select_label_key == file_path:
                     continue
@@ -943,10 +946,8 @@ class FileShowArea(QWidget):
             file_item.specifid = 0
             self.set_file_css(file_item)
         self.now_select_label_key = file_path
-        file_item = self.file_items[file_path]
-        file_item.specifid = 1
-        file_item.selected = 1
-        self.set_file_css(file_item)
+        event_file_item.specifid = 1
+        self.set_file_css(event_file_item)
         # if not self.isMouseOnThumbnail(event.pos(), label): # 如果鼠标不在缩略图上
         self.MousePress = True
         parent_pos = label.mapTo(self, event.pos())
@@ -1188,8 +1189,12 @@ class FileShowArea(QWidget):
     # 刷新
     def refresh(self):
         # 不使用缓存加载
+        for file in self.select_labels_keys:
+            self.file_items.pop(file)
+            self.file_items_cache.pop(file)
         self.createFileItem(list(self.select_labels_keys))
         self.startLoadingImages(self.threadpool0, list(self.select_labels_keys), use_cache=False)
+        self.select_labels_keys.clear()
         self.updateLayout()
 
 
