@@ -6,6 +6,7 @@ from .FileSelectionComponent import FileSelectionComponent
 import os
 import subprocess
 import shutil
+import random
 from PyQt5.QtWidgets import QWidget, QScrollBar, QLabel, QMenu, QAction, QVBoxLayout, QRubberBand, \
 QApplication, QTextEdit, QPushButton, QFileIconProvider, QMessageBox, QStyleOptionSlider
 from PyQt5.QtGui import QPixmap, QFont, QIcon, QPainter, QCursor, QDragEnterEvent, QDropEvent, \
@@ -95,6 +96,7 @@ class FileItem():
         total_lines = min(num_lines, max_lines)  # 限制最大行数
         name_height = total_lines * self.single_line_height  # 总高度
         return name_height + int(label_width*self.SPACING_RATE)
+
 
 class FileShowArea(QWidget):
     file_status_map = {  # 指定, 选中, 悬停  specifid, selected, hover
@@ -802,9 +804,15 @@ class FileShowArea(QWidget):
         if self.current_sort_key == "date":
             date_action.setIcon(QIcon(self.create_black_dot(6)))
 
+        random_action = QAction("随机排序", self)
+        random_action.triggered.connect(lambda: self.setSortKeyAndOrder("key","random"))
+        if self.current_sort_key == "random":
+            random_action.setIcon(QIcon(self.create_black_dot(6)))
+
         sort_menu.addAction(name_action)
         sort_menu.addAction(size_action)
         sort_menu.addAction(date_action)
+        sort_menu.addAction(random_action)
 
         #添加分割线
         sort_menu.addSeparator()
@@ -909,6 +917,8 @@ class FileShowArea(QWidget):
             file_paths.sort(key=lambda path: self.file_items[path].file_size_bytes, reverse=(self.current_sort_order == "desc"))
         elif self.current_sort_key == "date":
             file_paths.sort(key=lambda path: self.file_items[path].file_date, reverse=(self.current_sort_order == "desc"))
+        elif self.current_sort_key == "random":
+            random.shuffle(file_paths)
 
     # 全选
     def select_all_file(self):
@@ -960,7 +970,7 @@ class FileShowArea(QWidget):
             QMessageBox.warning(self, "文件不存在", f"无法打开文件：\n{file_path}\n文件已不存在。")
             return
         # 支持的图片格式  
-        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']  
+        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']  
         
         # 检查文件扩展名  
         ext = os.path.splitext(file_path)[1].lower()  

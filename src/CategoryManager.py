@@ -151,7 +151,7 @@ class CategoryManager(QDialog, Observer):
     def onCategoryOrderChanged(self):
         # 当用户拖动完成后更新数据模型
         categories = [self.categoryList.item(i).text() for i in range(self.categoryList.count())]
-        self.DictManage.reorder_tags(categories)
+        self.DictManage.reorder_categories(categories)
     
     def onTagOrderChanged(self):
         if not self.current_category:
