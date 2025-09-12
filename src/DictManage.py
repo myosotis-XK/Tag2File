@@ -98,12 +98,13 @@ class DictManage():
         for observer in self._observers:
             observer.thread_safe_update()
 
-    def load_tagbase(self):
+    def load_tagbase(self, tagbase_name:str=None):
         floder_path = config.get('DictManage', 'tagbase_folder', fallback='default_folder')
         if floder_path == 'default_folder':
             floder_path = self.default_folder
         os.makedirs(floder_path, exist_ok=True)
-        tagbase_name = config.get('DictManage', 'tagbase_name', fallback='tagbase')
+        if tagbase_name is None:
+            tagbase_name = config.get('DictManage', 'tagbase_name', fallback='tagbase')
         self.tag_dict_path = os.path.join(floder_path, tagbase_name).replace('\\', '/')
 
         if not os.path.exists(self.tag_dict_path+".dir"):

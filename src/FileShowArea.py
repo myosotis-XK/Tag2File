@@ -182,7 +182,7 @@ class FileShowArea(QWidget):
         self.initFileView()
         self.update_scrollbars()
         self.createFileItem()
-        self.setSortKeyAndOrder(self.current_sort_key, self.current_sort_order)
+        self._sort_files()
 
     def initFileView(self):
         # 创建一个滚动区域
@@ -303,7 +303,7 @@ class FileShowArea(QWidget):
         self.file_paths = file_paths
         if len(new_file_paths) != 0:
             self.createFileItem(new_file_paths)
-        self.setSortKeyAndOrder('key', self.current_sort_key, False)
+        self._sort_files()
         self.changeThumbnailSize(self.image_size)
         # 重置滚动条位置
         if not recover:
@@ -871,7 +871,7 @@ class FileShowArea(QWidget):
         self.startLoadingImages(self.threadpool)  # 重新加载当前文件夹中的图片
   
     # 改变排序方式
-    def setSortKeyAndOrder(self, action: str, value: str, refresh=True):
+    def setSortKeyAndOrder(self, action: str, value: str):
         if action == "key":
             self.current_sort_key = value
             config.set('FileShowArea', 'current_sort_key', value)  # 更新config对象
@@ -883,10 +883,9 @@ class FileShowArea(QWidget):
                 config.set('FileShowArea', 'current_sort_order', value)  # 更新config对象
             save_config()  # 保存配置
 
-        if refresh:
-            self.updateLayout()  # 更新布局以反映新的顺序
-            self.threadpool.clear()
-            self.startLoadingImages(self.threadpool)
+        self.updateLayout()  # 更新布局以反映新的顺序
+        self.threadpool.clear()
+        self.startLoadingImages(self.threadpool)
 
     def _sort_files(self, file_paths: list=None):
         if file_paths is None:
@@ -1606,4 +1605,5 @@ class TagFileShowArea(FileShowArea):
         file_paths = list(set(file_paths) - set(self.file_paths))
         self.file_paths += file_paths
         self.createFileItem(file_paths)
+        self._sort_files()
         self.updateLayout()

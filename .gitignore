@@ -1,6 +1,7 @@
 # 代码初始化相关
 __pycache__/
 *.code-workspace
+.vscode/
 
 # 数据文件夹
 log/
