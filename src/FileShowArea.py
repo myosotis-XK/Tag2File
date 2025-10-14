@@ -717,7 +717,7 @@ class FileShowArea(QWidget):
         scroll_area_rect = self.rect()
         # 检查边缘位置和移动方向来决定是否滚动
         if mouse_pos.y() < scroll_area_rect.top():
-            movement_scale = max(0.5, (mouse_pos.y() - scroll_area_rect.top())/50) # 计算滚动倍率
+            movement_scale = max(0.5, -(mouse_pos.y() - scroll_area_rect.top())/50) # 计算滚动倍率
             move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME) # 计算移动距离
             self.v_scroll.setValue(self.v_scroll.value() - move_value)  # 向上滚动
         elif mouse_pos.y() > scroll_area_rect.bottom():
@@ -725,14 +725,14 @@ class FileShowArea(QWidget):
             move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
             self.v_scroll.setValue(self.v_scroll.value() + move_value)  # 向下滚动
 
-        if mouse_pos.x() < scroll_area_rect.left():
-            movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.left())/50)
-            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
-            self.h_scroll.setValue(self.h_scroll.value() - move_value)  # 向左滚动
-        elif mouse_pos.x() > scroll_area_rect.right():
-            movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.right())/50)
-            move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
-            self.h_scroll.setValue(self.h_scroll.value() + move_value)  # 向右滚动
+        # if mouse_pos.x() < scroll_area_rect.left():
+        #     movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.left())/50)
+        #     move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
+        #     self.h_scroll.setValue(self.h_scroll.value() - move_value)  # 向左滚动
+        # elif mouse_pos.x() > scroll_area_rect.right():
+        #     movement_scale = max(0.5, (mouse_pos.x() - scroll_area_rect.right())/50)
+        #     move_value = round(movement_scale * self.SCROLL_DISTANCE_PER_FRAME)
+        #     self.h_scroll.setValue(self.h_scroll.value() + move_value)  # 向右滚动
 
         if not auto:
             try:
