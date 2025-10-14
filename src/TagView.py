@@ -299,16 +299,7 @@ class TagView(QMainWindow, Observer):
         tag = self.tag_input.text()
         if self.model == 'batch':
             self.DictManage.delete_tag(tag, self.TagFileShowArea.file_paths)
-        
-            message_box = QMessageBox(self)
-            message_box.setIcon(QMessageBox.Information)
-            message_box.setWindowTitle("提示")
-            message_box.setText("删除成功！")
-            message_box.setStandardButtons(QMessageBox.Ok)
-            # 让消息框在0.5秒后自动关闭
-            QTimer.singleShot(500, message_box.close)
-            # 显示消息框
-            message_box.exec_()
+            self._show_toast("删除成功！")
         else:
             self.SingleFileTagView.delete_tag_current_file(tag)
 
