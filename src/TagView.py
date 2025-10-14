@@ -247,6 +247,41 @@ class TagView(QMainWindow, Observer):
                 return False
             self.DictManage.change_tag_category(tag, category)
 
+    def _show_toast(self, text, duration=500):
+        toast = QLabel(text, self)
+        toast.setStyleSheet("""
+            QLabel {
+                background-color: rgba(50, 50, 50, 180);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 8px;
+            }
+        """)
+        toast.setAlignment(Qt.AlignCenter)
+        toast.adjustSize()
+        toast.move(
+            (self.width() - toast.width()) // 2,
+            (self.height() - toast.height()) // 2
+        )
+        toast.setWindowOpacity(1)
+        toast.show()
+
+        # 创建淡出动画（0.2s 淡出）
+        fade = QPropertyAnimation(toast, b"windowOpacity", self)
+        fade.setDuration(200)
+        fade.setStartValue(1)
+        fade.setEndValue(0)
+        fade.finished.connect(toast.deleteLater)
+
+        # 必须保存引用，否则动画会被回收
+        if not hasattr(self, "_toasts"):
+            self._toasts = []
+        self._toasts.append(fade)
+        fade.finished.connect(lambda: self._toasts.remove(fade))
+
+        # 延迟一段时间后开始淡出
+        QTimer.singleShot(max(0, duration - 200), fade.start)
+
     def addTag(self):
         tag = self.tag_input.text()
         # 判断违规字符
@@ -254,21 +289,10 @@ class TagView(QMainWindow, Observer):
             return
         if self.model == 'batch':
             self.DictManage.add_tag(tag, self.TagFileShowArea.file_paths)
-
-            # 显示“添加成功”的消息框
-            message_box = QMessageBox(self)
-            message_box.setIcon(QMessageBox.Information)
-            message_box.setWindowTitle("提示")
-            message_box.setText("添加成功！")
-            message_box.setStandardButtons(QMessageBox.Ok)
-            # 让消息框在0.5秒后自动关闭
-            QTimer.singleShot(500, message_box.close)
-            # 显示消息框
-            message_box.exec_()
+            self._show_toast("添加成功！")
         else:
             self.SingleFileTagView.add_tag_current_file(tag)
 
-        # 清空输入框
         self.tag_input.clear()
 
     def deleteTag(self):
