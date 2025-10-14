@@ -1,5 +1,6 @@
 from .utils import *
 import os
+import time
 import shelve
 import shutil
 import threading
@@ -232,12 +233,39 @@ class DictManage():
                             if entity not in self.relation_graph[target_group][target_entity][group]:  
                                 self.relation_graph[target_group][target_entity][entity].add(entity)
 
+    # def save_dict(self):
+    #     with self._lock:
+    #         with shelve.open(self.tag_dict_path) as shelf:
+    #             shelf['category_dict'] = self.relation_graph['category']
+    #             shelf['tag_dict'] = self.relation_graph['tag']
+    #             shelf['file_dict'] = self.relation_graph['file']
+
     def save_dict(self):
         with self._lock:
-            with shelve.open(self.tag_dict_path) as shelf:
-                shelf['category_dict'] = self.relation_graph['category']
-                shelf['tag_dict'] = self.relation_graph['tag']
-                shelf['file_dict'] = self.relation_graph['file']
+            # 压缩临时目录
+            temp_compact_dir = os.path.join(os.path.dirname(self.tag_dict_path), 'tagbase_compact_temp')
+            if os.path.exists(temp_compact_dir):
+                shutil.rmtree(temp_compact_dir)
+            os.makedirs(temp_compact_dir, exist_ok=True)
+            compact_path = os.path.join(temp_compact_dir, os.path.basename(self.tag_dict_path))
+
+            with shelve.open(compact_path, flag='n') as compact_shelf:
+                compact_shelf['category_dict'] = self.relation_graph['category']
+                compact_shelf['tag_dict'] = self.relation_graph['tag']
+                compact_shelf['file_dict'] = self.relation_graph['file']
+                compact_shelf['special_categories'] = self.special_categories
+                compact_shelf['special_tags_status'] = self.special_tags_status
+
+            # 替换原始 shelve 文件，先删除原文件再移动（减小损坏概率）
+            for ext in ('.bak', '.dat', '.dir'):
+                src = compact_path + ext
+                dst = self.tag_dict_path + ext
+                if os.path.exists(dst):
+                    os.remove(dst)
+                if os.path.exists(src):
+                    shutil.move(src, dst)
+
+            shutil.rmtree(temp_compact_dir)
 
     def compact_tagbase(self):
         with self._lock:

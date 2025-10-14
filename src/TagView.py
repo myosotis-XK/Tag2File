@@ -113,6 +113,8 @@ class TagView(QMainWindow, Observer):
     def closeEvent(self, event):
         self.TagFileShowArea.closeEvent(event)
         self.MainWindow.tag_view = None
+        self.DictManage.remove_observer(self)
+        self.SingleFileTagView.closeEvent(event)
         super().closeEvent(event)
 
     def create_tag_widget(self):

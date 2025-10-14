@@ -95,6 +95,10 @@ class CategoryManager(QDialog, Observer):
         self.downTagButton.clicked.connect(self.downMoveTag)
         self.tagList.currentItemChanged.connect(self.onTagChanged)  
 
+    def closeEvent(self, event):
+        self.DictManage.remove_observer(self)
+        super().closeEvent(event)
+
     def showCategoryContextMenu(self, position):
         # 检查点击位置是否有项目
         item = self.categoryList.itemAt(position)

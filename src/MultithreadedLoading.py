@@ -2,6 +2,7 @@ from PyQt5.QtCore import QRunnable, Qt, QPointF, QThreadPool
 from PyQt5.QtGui import QPixmap, QPainterPath, QPen, QFont, QColor, QPainter, QImage
 from PyQt5.QtWidgets import QLabel
 from PIL import Image, UnidentifiedImageError
+Image.MAX_IMAGE_PIXELS = 1_000_000_000
 import pillow_avif
 from io import BytesIO
 import os

@@ -88,6 +88,10 @@ class SingleFileTagView(QScrollArea, Observer):
         self.setWidgetResizable(True)
         self.show_current_file()
 
+    def closeEvent(self, event):
+        self.DictManage.remove_observer(self)
+        super().closeEvent(event)
+
     def observer_update(self):
         self.update_tags()
 
