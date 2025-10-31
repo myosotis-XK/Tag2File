@@ -8,7 +8,7 @@ import subprocess
 import shutil
 import random
 from PyQt5.QtWidgets import QWidget, QScrollBar, QLabel, QMenu, QAction, QVBoxLayout, QRubberBand, \
-QApplication, QTextEdit, QPushButton, QFileIconProvider, QMessageBox, QStyleOptionSlider
+QApplication, QTextEdit, QPushButton, QFileIconProvider, QMessageBox, QStyleOptionSlider, QInputDialog
 from PyQt5.QtGui import QPixmap, QFont, QIcon, QPainter, QCursor, QDragEnterEvent, QDropEvent, \
     QMouseEvent, QFontMetrics, QPalette, QColor
 from PyQt5.QtCore import Qt, QThreadPool, QPoint, QRect, QSize, QTimer, QFileInfo
@@ -269,6 +269,7 @@ class FileShowArea(QWidget):
         '''
         改变显示文件
         :param file_paths: 新的文件路径列表
+        :param recover: 是否恢复滚动条位置
         '''
         if file_paths is None:
             file_paths = []
@@ -1039,6 +1040,10 @@ class FileShowArea(QWidget):
             move_file_action.triggered.connect(lambda: self.changeFilePathMessageBox(label, "剪切"))
             file_menu.addAction(move_file_action)
 
+            rename_file_action = QAction("重命名", self)
+            rename_file_action.triggered.connect(lambda: self.renameFile(label))
+            file_menu.addAction(rename_file_action)
+
             delete_file_action = QAction("删除", self)
             delete_file_action.triggered.connect(lambda: self.confirmDelete(os_delete=True))
             file_menu.addAction(delete_file_action)
@@ -1109,8 +1114,6 @@ class FileShowArea(QWidget):
             # 显示消息框
             message_box.exec_()
             self.DictManage.save_notify()
-            self.visible_labels_keys.clear()
-            self.updateLayout()
 
     # 修改文件位置
     def changeFilePath(self, target_folder, file_action, move_tags):
@@ -1166,6 +1169,20 @@ class FileShowArea(QWidget):
             # 修改文件路径
             self.DictManage.rename_entity('file', old_file_path, file_path)
 
+
+    # 重命名文件函数
+    def renameFile(self,  label: QLabel):
+        file_path = label.file_path
+        new_name = QInputDialog.getText(self, '重命名文件', '请输入新文件名:', text=os.path.basename(file_path))[0]
+        if not new_name:
+            return
+        new_file_path = os.path.join(os.path.dirname(file_path), new_name).replace('\\', '/')
+        if os.path.exists(new_file_path):
+            QMessageBox.warning(self, '重命名失败', f'目标路径 {new_file_path} 已存在！')
+            return
+        os.rename(file_path, new_file_path)
+        self.DictManage.rename_entity('file', file_path, new_file_path)
+        self.DictManage.save_notify()
 
     # 确认删除文件函数
     def confirmDelete(self, os_delete=False):
