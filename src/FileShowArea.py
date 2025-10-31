@@ -295,10 +295,8 @@ class FileShowArea(QWidget):
             self.now_select_label_key = None
 
         # 初始化变量
-        while self.labels:
-            _, label = self.labels.popitem()
-            label.hide()
-            self.label_pool.append(label)
+        for file_path in list(self.labels.keys()):
+            self.recycleFileLabel(file_path)
         self.ctrl_select_labels_keys.clear()
         self.visible_labels_keys.clear()
         new_file_paths = list(set(file_paths) - set(self.file_paths))
@@ -545,9 +543,7 @@ class FileShowArea(QWidget):
         no_visible_labels_keys = self.visible_labels_keys - visible_labels_keys
         for no_visible_label_key in no_visible_labels_keys:
             if no_visible_label_key in self.labels:
-                label = self.labels.pop(no_visible_label_key)
-                label.hide()
-                self.label_pool.append(label)
+                self.recycleFileLabel(no_visible_label_key)
         # 移动并显示可见label
         for visible_label_key in visible_labels_keys:
             if visible_label_key not in self.labels:
@@ -850,10 +846,8 @@ class FileShowArea(QWidget):
             time.sleep(0.1)
         self.threadpool.clear()  # 清空当前线程池中的任务
 
-        while self.labels:
-            _, label = self.labels.popitem()
-            label.hide()
-            self.label_pool.append(label)
+        for file_path in list(self.labels.keys()):
+            self.recycleFileLabel(file_path)
 
         for label in self.label_pool:
             icon_label = label.findChild(QLabel, "icon_label")
@@ -1215,9 +1209,11 @@ class FileShowArea(QWidget):
     # 刷新
     def refresh(self):
         # 不使用缓存加载
-        for file in self.select_labels_keys:
-            self.file_items.pop(file)
-            self.file_items_cache.pop(file)
+        for file_path in self.select_labels_keys:
+            self.file_items.pop(file_path)
+            self.file_items_cache.pop(file_path)
+            if file_path in self.labels:
+                self.recycleFileLabel(file_path)
         self.createFileItem(list(self.select_labels_keys))
         self.startLoadingImages(self.threadpool0, list(self.select_labels_keys), use_cache=False)
         self.select_labels_keys.clear()
@@ -1396,6 +1392,12 @@ class FileShowArea(QWidget):
 
     #——————————————————————辅助方法————————————————————————
 
+    def recycleFileLabel(self, file_path):
+        """将单个文件标签从显示中移除并放回标签池"""
+        label = self.labels.pop(file_path)
+        label.hide()
+        self.label_pool.append(label)
+
     #绘制黑点
     def create_black_dot(self, size: int):
         # 创建一个正方形的 QPixmap
@@ -1570,8 +1572,8 @@ class TagFileShowArea(FileShowArea):
 
     def removeFile(self):
         for select_label_key in self.select_labels_keys:
-            self.labels[select_label_key].setParent(None)
-            self.labels.pop(select_label_key)
+            if select_label_key in self.labels:
+                self.recycleFileLabel(select_label_key)
             self.file_paths.remove(select_label_key)
             self.file_items.pop(select_label_key)
             self.visible_labels_keys.discard(select_label_key)
