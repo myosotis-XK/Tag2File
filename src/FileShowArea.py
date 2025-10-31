@@ -562,6 +562,7 @@ class FileShowArea(QWidget):
 
     # 框选文件功能
     def mousePressEvent(self, event):
+        self.setFocus()
         if event.button() != Qt.LeftButton:
             return
 
