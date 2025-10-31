@@ -5,3 +5,4 @@ Pillow==12.0.0
 pillow_avif_plugin==1.5.2
 PyQt5==5.15.11
 pyqt5_sip==12.17.1
+natsort==8.4.0
