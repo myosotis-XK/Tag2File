@@ -7,6 +7,7 @@ import threading
 import copy
 from PyQt5.QtCore import QObject, QThread, Qt, QMetaObject
 from PyQt5.QtGui import QColor
+from collections.abc import Callable
 
 default_value = {
     'tagbase_folder': 'default_folder',
@@ -84,14 +85,14 @@ class DictManage():
             self.special_tags_status = {}
             self._lock = threading.Lock()
             self.load_tagbase()
-            self._observers = []
+            self._observers: list[Observer] = []
 
     # 观察者模式
-    def add_observer(self, observer):
+    def add_observer(self, observer: Observer):
         if observer not in self._observers:
             self._observers.append(observer)
 
-    def remove_observer(self, observer):
+    def remove_observer(self, observer: Observer):
         if observer in self._observers:
             self._observers.remove(observer)
 
@@ -119,7 +120,7 @@ class DictManage():
             self.special_tags_status.clear()
             self.special_tags_status.update(shelf.get('special_tags_status', {}))
 
-    def create_tagbase(self, tag_dict_path):
+    def create_tagbase(self, tag_dict_path: str):
         with shelve.open(tag_dict_path) as shelf:
             shelf['category_dict'] = {"未分类":{"tagColor":QColor(200, 200, 200).name(), "tags": set(), "tagOrder": []}}
             shelf['tag_dict'] = {}
@@ -129,7 +130,7 @@ class DictManage():
 
     # ——————————————————————————————————————————————————字典基础操作————————————————————————————————————————————————————
 
-    def add_relation(self, source_group, source_entity, target_group, target_entity, double_mode=True):
+    def add_relation(self, source_group: str, source_entity: str, target_group: str, target_entity: str, double_mode=True):
         """  
         添加一个关系：source_group:source_entity -> target_group:target_entity  
         """  
@@ -153,7 +154,7 @@ class DictManage():
                 self.relation_graph[target_group][target_entity][source_group] = set()  
             self.relation_graph[target_group][target_entity][source_group].add(source_entity)
 
-    def remove_relation(self, source_group, source_entity, target_group, target_entity, double_mode=True):
+    def remove_relation(self, source_group: str, source_entity: str, target_group: str, target_entity: str, double_mode=True):
         """
         删除一个关系：source_group:source_entity -> target_group:target_entity
         """
@@ -167,7 +168,7 @@ class DictManage():
             except:
                 pass
 
-    def delete_entity(self, group, entity):
+    def delete_entity(self, group: str, entity: str):
         """
         删除一个实体：group:entity 以及相关关系
         """
@@ -182,7 +183,7 @@ class DictManage():
         del self.relation_graph[group][entity]
         return True
     
-    def rename_entity(self, group, old_entity, new_entity, conflict_handler=None):
+    def rename_entity(self, group: str, old_entity: str, new_entity: str, conflict_handler: Callable[[str, str, str], None]=None):
         """
         重命名一个实体：group:old_entity -> group:new_entity，保持字典顺序
         
@@ -338,7 +339,7 @@ class DictManage():
             self.save_notify()
 
     # 删除tag实体及相关关系
-    def destroy_tag(self, tag):
+    def destroy_tag(self, tag: str):
         file_paths = self.relation_graph['tag'].get(tag, {}).get('file', set())
         category = list(self.relation_graph['tag'][tag]['category'])[0]
         self.delete_entity("tag", tag)
@@ -348,8 +349,8 @@ class DictManage():
                 del self.relation_graph['file'][file_path]
         self.save_notify()
 
-    def rename_tag(self, tag, new_name):
-        def tag_duplicate_handler(_, old_name, new_name):
+    def rename_tag(self, tag: str, new_name: str):
+        def tag_duplicate_handler(_, old_name: str, new_name: str):
             self.relation_graph['tag'][new_name]['file'] |= self.relation_graph['tag'][old_name]['file']
         old_category = list(self.relation_graph['tag'][tag]['category'])[0]
         self.rename_entity('tag', tag, new_name, tag_duplicate_handler)
@@ -361,7 +362,7 @@ class DictManage():
             self.relation_graph['category'][old_category]['tagOrder'].remove(tag)
         self.save_notify()
 
-    def change_tag_category(self, tag, category):
+    def change_tag_category(self, tag: str, category: str):
         old_category = list(self.relation_graph['tag'][tag]['category'])[0]
         if old_category == category:
             return
@@ -373,18 +374,18 @@ class DictManage():
         self.relation_graph['category'][category]['tagOrder'].append(tag)
         self.save_notify()
 
-    def change_special_tags_status(self, tag, status):
+    def change_special_tags_status(self, tag: str, status: bool):
         self.special_tags_status[tag] = status
         with shelve.open(self.tag_dict_path, writeback=True) as shelf:
             shelf['special_tags_status'] = self.special_tags_status
 
-    def create_category(self, category):
+    def create_category(self, category: str):
         if category not in self.relation_graph['category']:  
             self.relation_graph['category'][category] = {'tag': set(), 'tagColor': QColor(200, 200, 200).name(), 'tagOrder': []}
             self.relation_graph['category']['未分类'] = self.relation_graph['category'].pop('未分类') # 置底
         self.save_notify()
 
-    def delete_category(self, category):
+    def delete_category(self, category: str):
         if category not in self.relation_graph['category']:
             return
         tags = self.relation_graph['category'][category]['tag']
@@ -394,7 +395,7 @@ class DictManage():
         self.delete_entity('category', category)
         self.save_notify()
 
-    def reorder_categories(self, new_order):
+    def reorder_categories(self, new_order: list):
         """重新排序类别，根据拖放后的新顺序"""
         new_categories = {}
         for category in new_order:
@@ -402,7 +403,7 @@ class DictManage():
         self.relation_graph['category'] = new_categories
         self.save_notify()
 
-    def reorder_tags(self, category, new_order):
+    def reorder_tags(self, category: str, new_order: list):
         """重新排序指定类别中的标签"""
         if category in self.relation_graph['category']:
             self.relation_graph['category'][category]['tagOrder'] = new_order
@@ -415,11 +416,4 @@ class DictManage():
         self.notify_observers()
 
 if __name__ == '__main__':
-    from PyQt5.QtWidgets import QApplication
-    from PyQt5.QtGui import QColor
-    import sys
-    app = QApplication(sys.argv)
-    dictmange = DictManage()
-    # move_key单测
-    dictionary = {'a': 1, 'b': [1,'2',5], 'c': 'dwa', 'd': 4}
-    print(dictmange.move_key(dictionary, 'b', 'down'))  # 输出: {'a': 1, 'b': 2, 'c': 3, 'd': 4}
+    pass
