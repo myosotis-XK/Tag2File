@@ -155,4 +155,15 @@ def updateStyle(label, new_style_property:str):
             label.setObjectName("")
     except Exception as e:
         print(e)
-    
+
+import mimetypes
+def get_file_type(file_path):
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if mime_type:
+        if mime_type.startswith('image'):
+            return "图片"
+        elif mime_type.startswith('video'):
+            return "视频"
+        elif mime_type.startswith('audio'):
+            return "音频"
+    return "其他"

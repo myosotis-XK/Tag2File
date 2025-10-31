@@ -7,7 +7,6 @@ from .CategoryManager import *
 from .TagbaseManager import *
 from .TagInput import TagInputWidget
 import sys  
-import os  
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QPushButton, QTreeWidgetItem, QApplication
 from PyQt5.QtGui import QColor
 
@@ -216,44 +215,18 @@ class Tag2File(QMainWindow, Observer):
 
     # 获取tag对应文件路径
     def get_tag_files(self, tag_expression: str):
-        result_tag = parse_set_expression(tag_expression)
-        if not result_tag:
+        file_paths = get_tag_files(tag_expression, self.special_tags_status)
+        if file_paths is False:
             message_box = QMessageBox(self)
             message_box.setIcon(QMessageBox.Information)
             message_box.setWindowTitle("错误！")
             message_box.setText(f"错误的表达式：{tag_expression}")
             message_box.exec_()
             return False
-        result_files = eval(str(result_tag))
-        if result_tag.Complement: # 如果结果是补集，则取所有文件的补集
-            all_files = set(self.relation_graph['file'].keys())
-            result_files = all_files - result_files
-        # 处理特殊tag
-        for spcial_tag, ischecked in self.special_tags_status.items():
-            if not ischecked and spcial_tag not in ["图片","视频","音频","其他"]:
-                result_files = result_files - self.relation_graph['tag'].get(spcial_tag, {}).get('file', set())
-            
-        for file_type in ["图片","视频","音频","其他"]:
-            if not self.special_tags_status[file_type]:
-                result_files = {file for file in result_files if self.get_file_type(file) != file_type}
 
-        # 将结果转换为列表并规范化路径
-        file_paths = list(result_files)
-        for i in range(len(file_paths)):
-            file_paths[i] = file_paths[i].replace('\\', '/')
-        
         return file_paths
 
-    def get_file_type(self, file_path):
-        mime_type, _ = mimetypes.guess_type(file_path)
-        if mime_type:
-            if mime_type.startswith('image'):
-                return "图片"
-            elif mime_type.startswith('video'):
-                return "视频"
-            elif mime_type.startswith('audio'):
-                return "音频"
-        return "其他"
+
 
 
     #————————————————————菜单栏功能——————————————————————
