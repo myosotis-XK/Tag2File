@@ -13,7 +13,6 @@ class SingleFileTagView(QScrollArea, Observer):
         self.DictManage.add_observer(self)
         self.TagFileShowArea = TagFileShowArea
         self.relation_graph = self.DictManage.relation_graph
-        self.special_tags_status = self.DictManage.special_tags_status
         self.file_paths = file_paths
         self.current_index = 0
         if len(file_paths) > 0:

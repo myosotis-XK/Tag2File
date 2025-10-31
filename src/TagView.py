@@ -17,7 +17,6 @@ class TagView(QMainWindow, Observer):
 
         self.DictManage = DictManage()
         self.DictManage.add_observer(self)
-        self.special_tags_status = self.DictManage.special_tags_status
         self.file_paths = file_paths
 
         self.MainWindow = MainWindow

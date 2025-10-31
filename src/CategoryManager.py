@@ -11,7 +11,6 @@ class CategoryManager(QDialog, Observer):
         self.DictManage = DictManage()  
         self.DictManage.add_observer(self)
         self.relation_graph = self.DictManage.relation_graph
-        self.special_tags_status = self.DictManage.special_tags_status  
         
         # 记住当前选择的类别和标签  
         self.current_category = None  

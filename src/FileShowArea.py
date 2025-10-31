@@ -18,6 +18,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 import concurrent.futures
+from natsort import natsort_keygen
 
 default_value = {
     'SMALL_SIZE': 50,  # 小图标大小
@@ -892,7 +893,6 @@ class FileShowArea(QWidget):
             file_paths = self.file_paths
         if self.current_sort_key == "name":
             # 自然排序
-            from natsort import natsort_keygen
             nkey = natsort_keygen(key=lambda path: self.file_items[path].file_name)
             file_paths.sort(
                 key=nkey,
