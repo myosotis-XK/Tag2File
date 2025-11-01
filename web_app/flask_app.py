@@ -275,7 +275,7 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
 
     return thumb_data, thumb_mime
 
-WEB_APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web_app')
+WEB_APP_DIR = os.path.dirname(os.path.abspath(__file__))
 @app.route('/tag2file')
 def serve_tag2file_web():
     response = make_response(send_from_directory(WEB_APP_DIR, 'tag2file.html'))
