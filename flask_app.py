@@ -284,7 +284,7 @@ def get_category():
     
     # 创建一个新的字典，用于存储转换后的数据
     serializable_categories = {}
-    
+    category_order = []
     # 遍历每个类别
     for category_name, category_info in categories.items():
         # 创建一个新的字典来存储该类别的信息
@@ -300,9 +300,20 @@ def get_category():
         
         # 添加到结果字典中
         serializable_categories[category_name] = serializable_category
-    
-    # 返回可序列化的数据
-    return jsonify(serializable_categories) # {'质量': {'tag': {'低质量', '高质量', '中质量'}, 'tagColor': '#24b024', 'tagOrder': ['高质量', '中质量', '低质量']}, '主题': {'tag': {'风景', '人物', '动物'}, 'tagColor': '#ff55ff', 'tagOrder': ['风景', '人物', '动物']}, '一般': {'tag': {'初音未来', 'ACG', '花', '云'}, 'tagColor': '#315eff', 'tagOrder': ['花', '云', 'ACG', '初音未来']}, '未分类': {'tagColor': '#c8c8c8', 'tags': set(), 'tagOrder': ['example'], 'tag': {'example'}}}'''
+        category_order.append(category_name)
+
+    return jsonify({
+        'categories': serializable_categories,
+        'category_order': category_order 
+    })
+
+@app.route('/get_special_categories', methods=['GET'])
+def get_special_categories():
+    return jsonify(dictManage.special_categories) # 特殊标签列表
+
+@app.route('/get_special_tags_status', methods=['GET'])
+def get_special_tags_status():
+    return jsonify(dictManage.special_tags_status) # 特殊标签状态列表
 
 @app.route('/get_tags', methods=['GET'])
 def get_tags():

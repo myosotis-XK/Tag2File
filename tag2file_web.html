@@ -54,6 +54,49 @@
             background-color: #007bff;
             color: white;
         }
+        /* 特殊标签样式 */
+        .special-tag {
+            display: flex;
+            align-items: center;
+            padding: 6px 10px;
+            margin: 3px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 0.95em;
+        }
+        
+        .special-tag:hover {
+            background-color: #e9ecef;
+        }
+        
+        .special-tag.checked {
+            background-color: #d4edda;
+            border-left: 3px solid #28a745;
+        }
+        
+        .check-box {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            text-align: center;
+            line-height: 20px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .special-tag.checked .check-box {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .tag-text {
+            flex: 1;
+        }
         .file-type-filter {
             display: flex;
             flex-wrap: wrap;
@@ -270,26 +313,6 @@
                     <button class="btn btn-secondary operator-btn">)</button>
                 </div>
                 
-                <div class="mb-4">
-                    <h5 class="mb-2">文件类型</h5>
-                    <div class="file-type-filter">
-                        <button class="file-type-btn btn btn-outline-primary active" data-type="图片">
-                            <i class="fa fa-image mr-1"></i>图片
-                        </button>
-                        <button class="file-type-btn btn btn-outline-primary active" data-type="视频">
-                            <i class="fa fa-film mr-1"></i>视频
-                        </button>
-                    </div>
-                    <div class="file-type-filter">
-                        <button class="file-type-btn btn btn-outline-primary active" data-type="音频">
-                            <i class="fa fa-music mr-1"></i>音频
-                        </button>
-                        <button class="file-type-btn btn btn-outline-primary active" data-type="其他">
-                            <i class="fa fa-file-o mr-1"></i>其他
-                        </button>
-                    </div>
-                </div>
-                
                 <div>
                     <h5 class="mb-2">标签库</h5>
                     <div id="tag-tree" class="tag-tree">
@@ -368,6 +391,9 @@
             "其他": true
         };
         
+        // 添加特殊类别状态存储
+        let specialTagsStatus = {};
+        
         // 加载可用标签
         function insertAtCursor(input, text) {
             const start = input.selectionStart;
@@ -384,17 +410,41 @@
             // 修改：先获取标签类别，再获取标签列表
             Promise.all([
                 axios.get(`${API_BASE_URL}/get_category`),
-                axios.get(`${API_BASE_URL}/get_tags`)
+                axios.get(`${API_BASE_URL}/get_tags`),
+                axios.get(`${API_BASE_URL}/get_special_categories`), // 获取特殊类别
+                axios.get(`${API_BASE_URL}/get_special_tags_status`) // 获取特殊标签状态
             ])
-            .then(([categoryResponse, tagsResponse]) => {
+            .then(([categoryResponse, tagsResponse, specialCatResponse, specialTagsResponse]) => {
                 const tagTreeContainer = document.getElementById('tag-tree');
                 tagTreeContainer.innerHTML = '';
                 
-                const categories = categoryResponse.data;
-                // const allTags = tagsResponse.data; // 标签列表未直接使用，保留原逻辑
+                // ⬇️ 【修改 1：解构新的响应结构】
+                const categories = categoryResponse.data.categories; // 类别详情字典
+                const backendCategoryOrder = categoryResponse.data.category_order; // 后端返回的类别顺序列表
                 
-                // 按类别渲染标签树
-                for (const [category, categoryInfo] of Object.entries(categories)) {
+                const specialCategories = specialCatResponse.data || [];
+                specialTagsStatus = specialTagsResponse.data || {};
+                
+                // --- 【新增代码：模拟“文件类型”特殊类别及其标签】 ---
+                const fileTypeCategory = {
+                    'tag': ['图片', '视频', '音频', '其他']
+                };
+                const fileTypeTags = fileTypeCategory.tag;
+                // ... (fileTypeIconMap 保持不变)
+                const fileTypeIconMap = { '图片': 'fa-image', '视频': 'fa-film', '音频': 'fa-music', '其他': 'fa-file-o' };
+
+                // 确保文件类型标签的初始状态存在于 specialTagsStatus 中，默认为 true
+                fileTypeTags.forEach(tag => {
+                    if (specialTagsStatus[tag] === undefined) {
+                        specialTagsStatus[tag] = true;
+                    }
+                });
+                const allCategories = { '文件类型': fileTypeCategory, ...categories };
+                const allCategoryOrder = ['文件类型', ...backendCategoryOrder];
+                const allSpecialCategories = ['文件类型', ...specialCategories];
+                
+                for (const category of allCategoryOrder) { // <-- 关键修改：遍历顺序列表
+                    const categoryInfo = allCategories[category]; // <-- 从合并后的字典中获取数据
                     // 创建类别标题
                     const categoryHeader = document.createElement('div');
                     categoryHeader.className = 'category-header';
@@ -402,19 +452,70 @@
                     tagTreeContainer.appendChild(categoryHeader);
                     
                     // 获取该类别的标签
-                    const categoryTags = categoryInfo.tag ? Array.from(categoryInfo.tag) : [];
+                    const categoryTags = categoryInfo.tagOrder ? Array.from(categoryInfo.tagOrder) : [];
                     
                     // 创建标签列表
                     categoryTags.forEach(tag => {
                         const tagItem = document.createElement('div');
-                        tagItem.className = 'tag-item';
-                        tagItem.textContent = tag;
                         
-                        // 添加点击事件
-                        tagItem.addEventListener('click', () => {
-                            const searchInput = document.getElementById('search-input');
-                            insertAtCursor(searchInput, tag);
-                        });
+                        // 检查是否为特殊类别 (使用 allSpecialCategories)
+                        if (allSpecialCategories.includes(category)) { // <-- 注意：使用 allSpecialCategories
+                            // 特殊类别标签，添加勾选功能
+                            tagItem.className = 'tag-item special-tag';
+                            
+                            // 检查标签的当前状态
+                            const isChecked = specialTagsStatus[tag] !== false; // 默认为true
+                            if (isChecked) {
+                                tagItem.classList.add('checked');
+                            }
+                            
+                            // --- 【修改：添加文件类型图标】 ---
+                            let iconHtml = '';
+                            if (category === '文件类型' && fileTypeIconMap[tag]) {
+                                iconHtml = `<i class="fa ${fileTypeIconMap[tag]} me-2"></i>`; // me-2 是 Bootstrap 5 的 margin-right: 2
+                            }
+                            
+                            // 添加勾选框
+                            tagItem.innerHTML = `
+                                <span class="check-box">${isChecked ? '✓' : ''}</span>
+                                <span class="tag-text">${iconHtml}${tag}</span>
+                            `;
+                            // --- 【修改结束】 ---
+                            
+                            // 添加点击事件 - 切换勾选状态
+                            tagItem.addEventListener('click', (e) => {
+                                // 阻止冒泡，避免触发标签添加到搜索框的行为
+                                e.stopPropagation();
+                                
+                                // 切换勾选状态
+                                const isCurrentlyChecked = tagItem.classList.contains('checked');
+                                if (isCurrentlyChecked) {
+                                    tagItem.classList.remove('checked');
+                                    tagItem.querySelector('.check-box').textContent = '';
+                                    specialTagsStatus[tag] = false;
+                                } else {
+                                    tagItem.classList.add('checked');
+                                    tagItem.querySelector('.check-box').textContent = '✓';
+                                    specialTagsStatus[tag] = true;
+                                }
+                                
+                                // 如果当前有搜索结果，重新搜索
+                                const currentQuery = document.getElementById('search-input').value;
+                                if (currentQuery.trim()) {
+                                    searchFiles();
+                                }
+                            });
+                        } else {
+                            // 普通标签 (保持不变)
+                            tagItem.className = 'tag-item';
+                            tagItem.textContent = tag;
+                            
+                            // 添加点击事件
+                            tagItem.addEventListener('click', () => {
+                                const searchInput = document.getElementById('search-input');
+                                insertAtCursor(searchInput, tag);
+                            });
+                        }
                         
                         tagTreeContainer.appendChild(tagItem);
                     });
@@ -432,21 +533,6 @@
             });
         }
         
-        // 从活动标签重新构建表达式 (此函数在您的代码中未被调用，但保留)
-        function rebuildExpressionFromActiveTags() {
-            expressionBuilder.clear();
-            const activeTags = document.querySelectorAll('.tag-item.active');
-            activeTags.forEach(tagElement => {
-                expressionBuilder.addTag(tagElement.textContent);
-            });
-        }
-        
-        // 更新搜索输入框 (此函数在您的代码中未被调用，但保留)
-        function updateSearchInput() {
-            const searchInput = document.getElementById('search-input');
-            searchInput.value = expressionBuilder.toString();
-        }
-        
         // 搜索文件
         function searchFiles() {
             const query = document.getElementById('search-input').value;
@@ -458,10 +544,10 @@
             // 显示加载状态
             showLoadingState();
             
-            // 修改：调整请求参数以匹配后端接口
+            // 修改：调整请求参数以匹配后端接口，包含特殊标签状态
             axios.post(`${API_BASE_URL}/search_files`, {
                 tag_expression: query,
-                special_tags_status: fileTypeFilters
+                special_tags_status: specialTagsStatus
             })
             .then(response => {
                 displayResults(response.data);
@@ -811,30 +897,6 @@
             
             // 清空搜索按钮点击事件
             document.getElementById('clear-search').addEventListener('click', clearSearch);
-            
-            // 文件类型过滤按钮点击事件
-            const fileTypeButtons = document.querySelectorAll('.file-type-btn');
-            fileTypeButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const fileType = this.getAttribute('data-type');
-                    fileTypeFilters[fileType] = !fileTypeFilters[fileType];
-                    
-                    // 更新按钮样式
-                    if (fileTypeFilters[fileType]) {
-                        this.classList.remove('btn-outline-secondary');
-                        this.classList.add('btn-outline-primary', 'active');
-                    } else {
-                        this.classList.remove('btn-outline-primary', 'active');
-                        this.classList.add('btn-outline-secondary');
-                    }
-                    
-                    // 如果当前有搜索结果，重新搜索
-                    const currentQuery = document.getElementById('search-input').value;
-                    if (currentQuery.trim()) {
-                        searchFiles();
-                    }
-                });
-            });
         }
         
         // 页面加载完成后初始化
