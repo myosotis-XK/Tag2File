@@ -26,6 +26,48 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         /* 1. 确保侧边栏容器能正确支撑子元素伸展 */
+        @media (max-width: 767.98px) {
+            .sidebar {
+                /* 默认隐藏，固定在左侧 */
+                position: fixed;
+                top: 60px; /* 导航栏高度 */
+                left: 0;
+                bottom: 0;
+                z-index: 1050; /* 确保在内容之上 */
+                width: 85%; /* 侧边栏宽度 */
+                max-width: 300px;
+                transform: translateX(-100%); /* 默认移出屏幕 */
+                transition: transform 0.3s ease-in-out; /* 添加过渡动画 */
+                padding-top: 20px;
+                border-radius: 0 8px 8px 0; /* 仅右侧圆角 */
+                box-shadow: 0 0 10px rgba(0,0,0,0.5);
+                margin-bottom: 0;
+                /* 确保内容区域能滚动 */
+                height: calc(100vh - 60px); 
+                display: flex; 
+                flex-direction: column;
+            }
+
+            /* 侧边栏显示时的样式 */
+            .sidebar.show {
+                transform: translateX(0); /* 移入屏幕 */
+            }
+
+            /* 遮罩层样式 */
+            .sidebar-backdrop {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 1040; /* 侧边栏之下 */
+                display: none;
+            }
+            .sidebar-backdrop.show {
+                display: block;
+            }
+        }
         @media (min-width: 768px) {
             .layout {
                 display: flex;
@@ -42,6 +84,7 @@
                 height: calc(100vh - 80px - 20px); /* 100vh - top - 底部留白 */
                 display: flex; /* 启用 flex 布局 */
                 flex-direction: column; /* 垂直方向排列子元素 */
+                transform: none;
             }
             .content {
                 flex: 1;
@@ -343,6 +386,9 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
         <div class="container-fluid">
+            <button class="btn btn-primary d-md-none" type="button" id="sidebar-toggle" aria-label="Toggle sidebar">
+                <i class="fa fa-bars"></i>
+            </button>
             <a class="navbar-brand" href="#">
                 <i class="fa fa-tags mr-2"></i>Tag2File
             </a>
@@ -981,6 +1027,33 @@
             
             // 清空搜索按钮点击事件
             document.getElementById('clear-search').addEventListener('click', clearSearch);
+            
+            const sidebarToggle = document.getElementById('sidebar-toggle');
+            const sidebar = document.querySelector('.sidebar');
+            let backdrop = document.querySelector('.sidebar-backdrop');
+
+            // 如果遮罩层不存在，则创建它
+            if (!backdrop) {
+                backdrop = document.createElement('div');
+                backdrop.className = 'sidebar-backdrop';
+                document.body.appendChild(backdrop);
+            }
+
+            // 切换侧边栏状态
+            function toggleSidebar() {
+                sidebar.classList.toggle('show');
+                backdrop.classList.toggle('show');
+            }
+
+            // 绑定按钮点击事件
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', toggleSidebar);
+            }
+            
+            // 绑定遮罩层点击事件（点击遮罩层关闭侧边栏）
+            if (backdrop) {
+                backdrop.addEventListener('click', toggleSidebar);
+            }
         }
         
         // 页面加载完成后初始化
