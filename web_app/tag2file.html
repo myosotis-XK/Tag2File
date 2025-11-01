@@ -416,7 +416,7 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
         // 后端服务地址 - 请替换为您的Windows电脑IP
-        const API_BASE_URL = 'http://127.0.0.1:10252';
+        const API_BASE_URL = 'http://192.168.0.102:10252';
         
         // 标签表达式生成器
         class TagExpressionBuilder {
@@ -845,8 +845,9 @@
                         
                         // 绑定点击事件
                         item.addEventListener('click', () => {
-                            const fixedPath = file.filePath.replace(/\\/g, '/');
-                            window.open(encodeURI(`file:///${fixedPath}`));
+                            // 使用后端服务地址 + 新的接口，将文件路径作为参数传递
+                            const targetUrl = `${API_BASE_URL}/open_file?path=${encodeURIComponent(file.filePath)}`;
+                            window.open(targetUrl);
                         });
                         
                         grid.appendChild(item);

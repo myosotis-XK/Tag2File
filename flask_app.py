@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file, Response, jsonify
+from flask import Flask, Response, request, send_file, send_from_directory, jsonify, make_response
 import urllib.parse
 from flask_cors import CORS
 import warnings
@@ -275,7 +275,18 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
 
     return thumb_data, thumb_mime
 
+WEB_APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web_app')
+@app.route('/tag2file')
+def serve_tag2file_web():
+    response = make_response(send_from_directory(WEB_APP_DIR, 'tag2file.html'))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(WEB_APP_DIR, 'icon'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 @app.route('/get_category', methods=['GET'])
 def get_category():
@@ -358,6 +369,56 @@ def get_thumbnails():
         # 如果 data_source 是 BytesIO 对象，需要指定 as_attachment=False
         as_attachment=False 
     )
+
+@app.route('/open_file', methods=['GET'])
+def open_file():
+    # 1. 获取并解码文件路径
+    # 前端通过 encodeURIComponent 编码，后端需要解码
+    file_path = request.args.get('path')
+    if not file_path:
+        return jsonify({'error': '缺少文件路径参数'}), 400
+
+    # URL解码，处理路径中的特殊字符
+    # file_path = unquote(file_path_encoded)
+    
+    # 替换前端可能带来的 /，确保在 Windows 上路径分隔符正确
+    # 注意：Flask的send_file在Windows上通常能处理正斜杠，但为安全和兼容性，最好确保路径是操作系统原生格式。
+    # 在Windows上，以下这步通常不是必须的，但可以增加兼容性
+    # file_path = file_path.replace('/', os.sep) 
+
+    # 2. 安全检查
+    if not os.path.exists(file_path):
+        print(f"File not found: {file_path}")
+        return jsonify({'error': '文件不存在或路径无效'}), 404
+        
+    # **关键安全检查：限制文件访问范围**
+    # ⚠️ 强烈建议添加逻辑确保 file_path 不会超出应用配置的根目录。
+    # 否则，恶意用户可以通过 ../ 访问服务器上的任何文件。
+    # 示例 (需要您配置一个根目录): 
+    # ROOT_DIR = "D:\\MyFileLibrary\\"
+    # if not file_path.startswith(ROOT_DIR):
+    #     return jsonify({'error': '访问权限不足'}), 403
+
+
+    # 3. 推断 MIME Type 并准备发送
+    # 推断文件的MIME类型，以便浏览器正确处理（如图片直接显示，文档提示下载）
+    mime_type, encoding = mimetypes.guess_type(file_path)
+    if mime_type is None:
+        mime_type = 'application/octet-stream' # 默认二进制流
+
+    try:
+        # Flask的 send_file 函数负责高效地发送文件
+        # as_attachment=False：浏览器尝试在页面内显示文件（如图片、PDF）
+        # download_name：设置下载时的文件名
+        return send_file(
+            file_path,
+            mimetype=mime_type,
+            as_attachment=False,
+            download_name=os.path.basename(file_path)
+        )
+    except Exception as e:
+        print(f"Error sending file: {e}")
+        return jsonify({'error': f'无法打开文件: {str(e)}'}), 500
 
 
 
