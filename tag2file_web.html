@@ -48,6 +48,20 @@
             }
         }
 
+        .operator-buttons-container {
+            display: flex; /* 启用 Flex 布局 */
+            flex-wrap: wrap; /* 允许换行 */
+            gap: 8px; /* 按钮之间的基础间距 */
+            margin-top: 10px; /* 调整或新增上部间距 */
+            margin-bottom: 15px; /* 增加与 tag-tree 之间的间距 */
+        }
+
+        /* 让每个按钮平均分配宽度 */
+        .operator-buttons-container .operator-btn {
+            flex-grow: 1; /* 允许按钮占用更多空间 */
+            flex-basis: 0; /* 允许按钮在分配空间前缩小 */
+            min-width: 0; /* 避免在窄屏时溢出 */
+}
         /* 2. 让标签树占据侧边栏剩余的空间，并允许内部滚动 */
         .tag-tree {
             /* 关键：flex-grow: 1 使其占据所有剩余空间 */
@@ -338,7 +352,7 @@
     <div class="container mt-4">
         <div class="layout">
             <div class="sidebar">
-                <div class="mb-4">
+                <div class="mb-1">
                     <h5 class="mb-2">标签查询</h5>
                     <div class="search-box">
                         <input 
@@ -358,8 +372,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="mt-2 d-flex flex-wrap gap-2">
-                    <button class="btn btn-secondary operator-btn">∩</button>
+                <div class="operator-buttons-container"> <button class="btn btn-secondary operator-btn">∩</button>
                     <button class="btn btn-secondary operator-btn">∪</button>
                     <button class="btn btn-secondary operator-btn">'</button>
                     <button class="btn btn-secondary operator-btn">(</button>
