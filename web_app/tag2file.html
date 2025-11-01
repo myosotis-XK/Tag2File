@@ -14,8 +14,8 @@
         }
         .container {
             max-width: 100%;
-            padding-left: 20px;
-            padding-right: 20px;
+            padding-left: 5px;
+            padding-right: 5px;
         }
         /* 侧边栏样式 */
         .sidebar {
@@ -30,7 +30,7 @@
             .sidebar {
                 /* 默认隐藏，固定在左侧 */
                 position: fixed;
-                top: 60px; /* 导航栏高度 */
+                top: 0px;
                 left: 0;
                 bottom: 0;
                 z-index: 1050; /* 确保在内容之上 */
@@ -228,15 +228,12 @@
         /* 文件列表样式 */
         .file-list {
             background-color: #ffffff;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 0px;
         }
         .file-item {
-            padding: 10px;
-            margin-bottom: 10px;
+            padding: 0px;
+            margin-bottom: 5px;
             border: 1px solid #eee;
-            border-radius: 6px;
             transition: all 0.2s;
         }
         .file-item:hover {
@@ -325,11 +322,24 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* 文件列表内容区容器优化 */
+        .container.mt-4 {
+            /* 优化：减少顶部外边距 */
+            margin-top: 0.1rem !important; /* 原为 mt-4 (1.5rem)，改为 mt-2 (0.5rem) 或 mt-3 (1rem) */
+        }
+
+        /* 缩略图切换按钮组的优化 */
+        .content .mb-3 {
+            /* 优化：减少底部外边距 */
+            margin-bottom: 5px !important; /* 从 mb-3 (1rem) 减少 */
+        }
+
         /* 缩略图视图样式 */
         .thumbnail-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size), 1fr));
-            gap: 15px;
+            gap: 2px;
         }
 
         .thumb-item {
@@ -339,7 +349,7 @@
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
             overflow: hidden;
-            padding: 8px;
+            padding: 4px;
         }
 
         .thumb-img {
@@ -369,17 +379,17 @@
         /* 三种尺寸 */
         .thumb-item.small .thumb-img,
         .thumb-item.small .thumb-icon {
-            height: 50px;
+            height: 56px;
         }
 
         .thumb-item.medium .thumb-img,
         .thumb-item.medium .thumb-icon {
-            height: 100px;
+            height: 85px;
         }
 
         .thumb-item.large .thumb-img,
         .thumb-item.large .thumb-icon {
-            height: 250px;
+            height: 170px;
         }
     </style>
 </head>
@@ -399,7 +409,6 @@
         <div class="layout">
             <div class="sidebar">
                 <div class="mb-1">
-                    <h5 class="mb-2">标签查询</h5>
                     <div class="search-box">
                         <input 
                             type="text" 
@@ -755,7 +764,7 @@
         // 当前缩略图尺寸状态
         let currentIconSize = 'medium'; // small, medium, large
         let virtualFiles = []; // 缓存所有文件信息
-        const sizeMap = { small: 50, medium: 100, large: 250 }; // 尺寸映射表
+        const sizeMap = { small: 56, medium: 85, large: 170}; // 尺寸映射表
 
         // 核心渲染函数：设置和渲染虚拟网格
         function setupVirtualGrid() {
@@ -813,10 +822,12 @@
             // --- 虚拟滚动参数计算 ---
             const itemHeight = sizeMap[currentIconSize] + 40; // 图片 + 名称 + margin
             const gridWidth = container.clientWidth;
+            console.log('Grid Container ClientWidth:', gridWidth);
             if (gridWidth === 0) return; 
 
-            // 计算列数 (缩略图宽度 + gap 15px)
-            const columns = Math.floor(gridWidth / (sizeMap[currentIconSize] + 15)); 
+            // 计算列数 (缩略图宽度 + gap 5px)
+            const columns = Math.floor(gridWidth / (sizeMap[currentIconSize] + 2)); 
+            console.log('Grid Container columns:', columns);
             if (columns === 0) return;
             
             const rowHeight = itemHeight;
@@ -836,7 +847,6 @@
             renderVisibleItems(true); 
         }
 
-        // 新增：追踪当前已渲染的索引范围 (需要移到 setupVirtualGrid 外部)
         let renderedIndexes = new Set();
         let lastScrollTop = 0; // 用于判断滚动方向
 
@@ -852,7 +862,7 @@
             const gridWidth = container.clientWidth;
             if (gridWidth === 0) return;
 
-            const columns = Math.floor(gridWidth / (sizeMap[currentIconSize] + 15));
+            const columns = Math.floor(gridWidth / (sizeMap[currentIconSize] + 2));
             if (columns === 0) return; 
 
             const rowHeight = itemHeight;
@@ -879,13 +889,15 @@
                 
                 if (!item || forceRefresh) { // 如果项目不存在 或 强制刷新 (如切换尺寸)
                     // 如果项目不存在，则创建并添加
+                    const file = virtualFiles[index];
+                    const currentThumbSize = sizeMap[currentIconSize];
+                    const thumbSrc = `${API_BASE_URL}/get_thumb?path=${encodeURIComponent(file.filePath)}&size=${currentThumbSize}`;
                     if (!item) {
-                        const file = virtualFiles[index];
                         item = document.createElement('div');
                         item.id = `item-${index}`; // 设置ID以便追踪
                         
                         item.innerHTML = `
-                            <div class="thumb-img" style="background-image: url('${file.thumbSrc}')"></div>
+                            <div class="thumb-img" style="background-image: url('${thumbSrc}')"></div>
                             <div class="thumb-name" title="${file.fileName}">${file.fileName}</div>
                         `;
                         
@@ -897,6 +909,8 @@
                         });
                         
                         grid.appendChild(item);
+                    } else {
+                        item.querySelector('.thumb-img').style.backgroundImage = `url('${thumbSrc}')`;
                     }
                     
                     // 刷新样式和位置
@@ -947,12 +961,9 @@
             // 1. 转换并缓存文件数据
             virtualFiles = filePaths.map(filePath => {
                 const fileName = filePath.split('\\').pop().split('/').pop();
-                const thumbSrc = `${API_BASE_URL}/get_thumb?path=${encodeURIComponent(filePath)}&size=${sizeMap[currentIconSize]}`;
-                
                 return { 
                     filePath, 
-                    fileName, 
-                    thumbSrc 
+                    fileName
                 };
             });
             
