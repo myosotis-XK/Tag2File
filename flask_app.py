@@ -315,10 +315,6 @@ def get_special_categories():
 def get_special_tags_status():
     return jsonify(dictManage.special_tags_status) # 特殊标签状态列表
 
-@app.route('/get_tags', methods=['GET'])
-def get_tags():
-    return jsonify(list(dictManage.relation_graph['tag'].keys())) # 所有标签列表
-
 @app.route('/search_files', methods=['POST'])
 def search_files():
     data = request.json

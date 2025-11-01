@@ -473,11 +473,10 @@
             // ... (保持 Promise.all 部分不变)
             Promise.all([
                 axios.get(`${API_BASE_URL}/get_category`),
-                axios.get(`${API_BASE_URL}/get_tags`),
                 axios.get(`${API_BASE_URL}/get_special_categories`),
                 axios.get(`${API_BASE_URL}/get_special_tags_status`)
             ])
-            .then(([categoryResponse, tagsResponse, specialCatResponse, specialTagsResponse]) => {
+            .then(([categoryResponse, specialCatResponse, specialTagsResponse]) => {
                 const tagTreeContainer = document.getElementById('tag-tree');
                 tagTreeContainer.innerHTML = '';
                 
