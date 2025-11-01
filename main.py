@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QApplication
 import sys
 import multiprocessing
 # 导入Flask应用
-from flask_app import app as flask_app
+from web_app.flask_app import app as flask_app
 import threading
 def start_flask_server_thread():
     flask_thread = threading.Thread(
