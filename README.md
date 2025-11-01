@@ -165,3 +165,4 @@ Web界面提供了文件类型过滤功能，通过勾选/取消勾选可快速�
 ```bash
 PyInstaller --name Tag2File --windowed --onefile main.py
 ```
+打包完成后将dist文件夹下的Tag2File.exe应用程序移动根目录下，然后运行即可。
