@@ -25,11 +25,51 @@
             margin-bottom: 20px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        /* 标签树样式 */
+        /* 1. 确保侧边栏容器能正确支撑子元素伸展 */
+        @media (min-width: 768px) {
+            .layout {
+                display: flex;
+                gap: 20px;
+                /* 关键：允许 .layout 占据视口所有可用高度 */
+                min-height: calc(100vh - 60px - 2rem); /* 100vh - 顶部导航栏高度 - 上下边距 */
+            }
+            .sidebar {
+                flex: 0 0 280px;
+                position: sticky;
+                top: 80px;
+                align-self: flex-start;
+                /* 关键：允许 .sidebar 占据父容器的可用高度 */
+                height: calc(100vh - 80px - 20px); /* 100vh - top - 底部留白 */
+                display: flex; /* 启用 flex 布局 */
+                flex-direction: column; /* 垂直方向排列子元素 */
+            }
+            .content {
+                flex: 1;
+            }
+        }
+
+        /* 2. 让标签树占据侧边栏剩余的空间，并允许内部滚动 */
         .tag-tree {
-            max-height: 400px;
+            /* 关键：flex-grow: 1 使其占据所有剩余空间 */
+            flex-grow: 1; 
+            /* 关键：设置最小高度为 0，防止内容过多时溢出 */
+            min-height: 0; 
+            /* 关键：设置内部滚动 */
             overflow-y: auto;
         }
+
+        /* 3. 调整加载状态的高度，以便居中 */
+        .loading {
+            /* 让 loading 区域填满 tag-tree 容器，以便居中 */
+            display: flex; 
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            text-align: center;
+            padding: 0; /* 移除原来的 padding */
+        }
+
         .category-header {
             font-weight: bold;
             font-size: 1.1em;
@@ -215,12 +255,6 @@
             cursor: pointer;
             color: #6c757d;
         }
-        /* 加载状态 */
-        .loading {
-            text-align: center;
-            padding: 40px 20px;
-            color: #6c757d;
-        }
         .spinner {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #007bff;
@@ -332,12 +366,10 @@
                     <button class="btn btn-secondary operator-btn">)</button>
                 </div>
                 
-                <div>
-                    <div id="tag-tree" class="tag-tree">
-                        <div class="loading">
-                            <div class="spinner"></div>
-                            <p>加载标签库中...</p>
-                        </div>
+                <div id="tag-tree" class="tag-tree">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>加载标签库中...</p>
                     </div>
                 </div>
             </div>
