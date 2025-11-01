@@ -19,5 +19,4 @@ temp.py
 build/
 dist/
 *.spec
-*.exe
 *.lnk
