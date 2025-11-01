@@ -34,10 +34,29 @@
             font-weight: bold;
             font-size: 1.1em;
             margin-top: 15px;
-            margin-bottom: 8px;
-            padding: 5px 0;
+            margin-bottom: 0px; /* 减少底部间距 */
+            padding: 5px 10px; /* 增加点击区域 */
             color: #333;
             border-bottom: 1px solid #eee;
+            display: flex; /* 确保图标和文字对齐 */
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .category-header:hover {
+            background-color: #f1f1f1; /* 悬停效果 */
+            cursor: pointer;
+        }
+
+        .category-header i.fa {
+            transition: transform 0.2s; /* 为图标添加过渡效果 */
+        }
+
+        /* 标签列表主体，用于折叠 */
+        .tag-list-body {
+            padding-left: 10px; /* 增加一些左边距 */
+            margin-bottom: 8px; /* 增加底部间距 */
         }
         .tag-item {
             padding: 6px 10px;
@@ -314,7 +333,6 @@
                 </div>
                 
                 <div>
-                    <h5 class="mb-2">标签库</h5>
                     <div id="tag-tree" class="tag-tree">
                         <div class="loading">
                             <div class="spinner"></div>
@@ -407,33 +425,30 @@
         }
 
         function loadAvailableTags() {
-            // 修改：先获取标签类别，再获取标签列表
+            // ... (保持 Promise.all 部分不变)
             Promise.all([
                 axios.get(`${API_BASE_URL}/get_category`),
                 axios.get(`${API_BASE_URL}/get_tags`),
-                axios.get(`${API_BASE_URL}/get_special_categories`), // 获取特殊类别
-                axios.get(`${API_BASE_URL}/get_special_tags_status`) // 获取特殊标签状态
+                axios.get(`${API_BASE_URL}/get_special_categories`),
+                axios.get(`${API_BASE_URL}/get_special_tags_status`)
             ])
             .then(([categoryResponse, tagsResponse, specialCatResponse, specialTagsResponse]) => {
                 const tagTreeContainer = document.getElementById('tag-tree');
                 tagTreeContainer.innerHTML = '';
                 
-                // ⬇️ 【修改 1：解构新的响应结构】
-                const categories = categoryResponse.data.categories; // 类别详情字典
-                const backendCategoryOrder = categoryResponse.data.category_order; // 后端返回的类别顺序列表
+                const categories = categoryResponse.data.categories;
+                const backendCategoryOrder = categoryResponse.data.category_order;
                 
                 const specialCategories = specialCatResponse.data || [];
                 specialTagsStatus = specialTagsResponse.data || {};
                 
                 // --- 【新增代码：模拟“文件类型”特殊类别及其标签】 ---
                 const fileTypeCategory = {
-                    'tag': ['图片', '视频', '音频', '其他']
+                    'tag': ['图片', '视频', '音频', '其他'], 'tagOrder': ['图片', '视频', '音频', '其他']
                 };
                 const fileTypeTags = fileTypeCategory.tag;
-                // ... (fileTypeIconMap 保持不变)
                 const fileTypeIconMap = { '图片': 'fa-image', '视频': 'fa-film', '音频': 'fa-music', '其他': 'fa-file-o' };
 
-                // 确保文件类型标签的初始状态存在于 specialTagsStatus 中，默认为 true
                 fileTypeTags.forEach(tag => {
                     if (specialTagsStatus[tag] === undefined) {
                         specialTagsStatus[tag] = true;
@@ -443,51 +458,71 @@
                 const allCategoryOrder = ['文件类型', ...backendCategoryOrder];
                 const allSpecialCategories = ['文件类型', ...specialCategories];
                 
-                for (const category of allCategoryOrder) { // <-- 关键修改：遍历顺序列表
-                    const categoryInfo = allCategories[category]; // <-- 从合并后的字典中获取数据
-                    // 创建类别标题
-                    const categoryHeader = document.createElement('div');
-                    categoryHeader.className = 'category-header';
-                    categoryHeader.textContent = category;
-                    tagTreeContainer.appendChild(categoryHeader);
+                // --- 核心修改部分开始 ---
+                for (const category of allCategoryOrder) {
+                    const categoryInfo = allCategories[category];
+
+                    // 1. 创建类别标题容器，添加折叠图标和点击样式
+                    const categoryHeaderContainer = document.createElement('div');
+                    categoryHeaderContainer.className = 'category-header d-flex justify-content-between align-items-center'; // 使用 d-flex 布局
+                    categoryHeaderContainer.style.cursor = 'pointer'; // 添加手型光标
+
+                    const categoryText = document.createElement('span');
+                    categoryText.textContent = category;
+                    categoryHeaderContainer.appendChild(categoryText);
+
+                    // 折叠图标 (默认为展开状态)
+                    const collapseIcon = document.createElement('i');
+                    collapseIcon.className = 'fa fa-caret-down'; // 初始为向下箭头
+                    categoryHeaderContainer.appendChild(collapseIcon);
+
+                    tagTreeContainer.appendChild(categoryHeaderContainer);
+                    
+                    // 2. 创建标签列表容器 (可折叠部分)
+                    const tagListContainer = document.createElement('div');
+                    tagListContainer.className = 'tag-list-body'; // 标签列表主体，默认为展开状态
                     
                     // 获取该类别的标签
                     const categoryTags = categoryInfo.tagOrder ? Array.from(categoryInfo.tagOrder) : [];
                     
-                    // 创建标签列表
+                    // 3. 为类别标题添加折叠事件
+                    categoryHeaderContainer.addEventListener('click', () => {
+                        // 切换显示状态
+                        const isCollapsed = tagListContainer.style.display === 'none';
+                        if (isCollapsed) {
+                            tagListContainer.style.display = 'block';
+                            collapseIcon.className = 'fa fa-caret-down'; // 展开时向下箭头
+                        } else {
+                            tagListContainer.style.display = 'none';
+                            collapseIcon.className = 'fa fa-caret-right'; // 折叠时向右箭头
+                        }
+                    });
+
+                    // 4. 将标签项添加到新的 tagListContainer 中
                     categoryTags.forEach(tag => {
                         const tagItem = document.createElement('div');
                         
-                        // 检查是否为特殊类别 (使用 allSpecialCategories)
-                        if (allSpecialCategories.includes(category)) { // <-- 注意：使用 allSpecialCategories
-                            // 特殊类别标签，添加勾选功能
+                        if (allSpecialCategories.includes(category)) {
+                            // 特殊类别标签
                             tagItem.className = 'tag-item special-tag';
-                            
-                            // 检查标签的当前状态
-                            const isChecked = specialTagsStatus[tag] !== false; // 默认为true
+                            const isChecked = specialTagsStatus[tag] !== false;
                             if (isChecked) {
                                 tagItem.classList.add('checked');
                             }
                             
-                            // --- 【修改：添加文件类型图标】 ---
                             let iconHtml = '';
                             if (category === '文件类型' && fileTypeIconMap[tag]) {
-                                iconHtml = `<i class="fa ${fileTypeIconMap[tag]} me-2"></i>`; // me-2 是 Bootstrap 5 的 margin-right: 2
+                                iconHtml = `<i class="fa ${fileTypeIconMap[tag]} me-2"></i>`;
                             }
                             
-                            // 添加勾选框
                             tagItem.innerHTML = `
                                 <span class="check-box">${isChecked ? '✓' : ''}</span>
                                 <span class="tag-text">${iconHtml}${tag}</span>
                             `;
-                            // --- 【修改结束】 ---
                             
-                            // 添加点击事件 - 切换勾选状态
                             tagItem.addEventListener('click', (e) => {
-                                // 阻止冒泡，避免触发标签添加到搜索框的行为
                                 e.stopPropagation();
                                 
-                                // 切换勾选状态
                                 const isCurrentlyChecked = tagItem.classList.contains('checked');
                                 if (isCurrentlyChecked) {
                                     tagItem.classList.remove('checked');
@@ -499,27 +534,31 @@
                                     specialTagsStatus[tag] = true;
                                 }
                                 
-                                // 如果当前有搜索结果，重新搜索
                                 const currentQuery = document.getElementById('search-input').value;
                                 if (currentQuery.trim()) {
                                     searchFiles();
                                 }
                             });
                         } else {
-                            // 普通标签 (保持不变)
+                            // 普通标签
                             tagItem.className = 'tag-item';
                             tagItem.textContent = tag;
                             
-                            // 添加点击事件
                             tagItem.addEventListener('click', () => {
                                 const searchInput = document.getElementById('search-input');
                                 insertAtCursor(searchInput, tag);
                             });
                         }
                         
-                        tagTreeContainer.appendChild(tagItem);
+                        // 将标签添加到列表容器
+                        tagListContainer.appendChild(tagItem); 
                     });
+                    
+                    // 5. 将标签列表容器添加到总容器中
+                    tagTreeContainer.appendChild(tagListContainer);
                 }
+                // --- 核心修改部分结束 ---
+
             })
             .catch(error => {
                 console.error('Failed to load tags:', error);
