@@ -31,7 +31,7 @@ def handle_global_exception(e):
 
 from src.DictManage import DictManage
 from src.TagClass import get_tag_files
-from src.utils import get_cache_path
+from src.utils import get_cache_path, root
 dictManage = DictManage()
 
 
@@ -275,7 +275,7 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
 
     return thumb_data, thumb_mime
 
-WEB_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+WEB_APP_DIR = os.path.join(root, 'web_app')
 @app.route('/tag2file')
 def serve_tag2file_web():
     response = make_response(send_from_directory(WEB_APP_DIR, 'tag2file.html'))
