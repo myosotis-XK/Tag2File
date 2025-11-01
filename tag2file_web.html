@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tag2File Mobile</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding-top: 60px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 100%;
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+        /* 侧边栏样式 */
+        .sidebar {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        /* 标签树样式 */
+        .tag-tree {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .category-header {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            color: #333;
+            border-bottom: 1px solid #eee;
+        }
+        .tag-item {
+            padding: 6px 10px;
+            margin: 3px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 0.95em;
+        }
+        .tag-item:hover {
+            background-color: #e9ecef;
+        }
+        .tag-item.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .file-type-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        .file-type-btn {
+            flex: 1;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 文件列表样式 */
+        .file-list {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .file-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .file-item:hover {
+            border-color: #007bff;
+            box-shadow: 0 2px 8px rgba(0,123,255,0.15);
+        }
+        .file-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .file-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .file-meta {
+            font-size: 0.85em;
+            color: #6c757d;
+        }
+        /* 响应式设计 */
+        @media (min-width: 768px) {
+            .layout {
+                display: flex;
+                gap: 20px;
+            }
+            .sidebar {
+                flex: 0 0 280px;
+                position: sticky;
+                top: 80px;
+                align-self: flex-start;
+            }
+            .content {
+                flex: 1;
+            }
+        }
+        /* 滚动条样式 */
+        .tag-tree::-webkit-scrollbar {
+            width: 6px;
+        }
+        .tag-tree::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        .tag-tree::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        .tag-tree::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        /* 动画效果 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        /* 查询输入框样式 */
+        .search-box {
+            position: relative;
+            margin-bottom: 15px;
+        }
+        .search-box input {
+            padding-right: 40px;
+        }
+        .search-box .clear-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #6c757d;
+        }
+        /* 加载状态 */
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c757d;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* 缩略图视图样式 */
+        .thumbnail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size), 1fr));
+            gap: 15px;
+        }
+
+        .thumb-item {
+            background: #fff;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
+            padding: 8px;
+        }
+
+        .thumb-img {
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            width: 100%;
+            aspect-ratio: 1/1;
+        }
+
+        .thumb-icon {
+            font-size: 3em;
+            color: #6c757d;
+            margin: 20px 0;
+        }
+
+        .thumb-name {
+            font-size: 0.85em;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 三种尺寸 */
+        .thumb-item.small .thumb-img,
+        .thumb-item.small .thumb-icon {
+            height: 50px;
+        }
+
+        .thumb-item.medium .thumb-img,
+        .thumb-item.medium .thumb-icon {
+            height: 100px;
+        }
+
+        .thumb-item.large .thumb-img,
+        .thumb-item.large .thumb-icon {
+            height: 250px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fa fa-tags mr-2"></i>Tag2File
+            </a>
+        </div>
+    </nav>
+    
+    <div class="container mt-4">
+        <div class="layout">
+            <div class="sidebar">
+                <div class="mb-4">
+                    <h5 class="mb-2">标签查询</h5>
+                    <div class="search-box">
+                        <input 
+                            type="text" 
+                            id="search-input" 
+                            class="form-control" 
+                            placeholder="输入标签表达式，如：风景 & 人物"
+                            autocomplete="off"
+                        >
+                        <span id="clear-search" class="clear-btn" title="清空">
+                            <i class="fa fa-times"></i>
+                        </span>
+                    </div>
+                    <div class="d-grid gap-2 mt-2">
+                        <button id="search-btn" class="btn btn-primary">
+                            <i class="fa fa-search mr-1"></i>查询
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-2 d-flex flex-wrap gap-2">
+                    <button class="btn btn-secondary operator-btn">∩</button>
+                    <button class="btn btn-secondary operator-btn">∪</button>
+                    <button class="btn btn-secondary operator-btn">'</button>
+                    <button class="btn btn-secondary operator-btn">(</button>
+                    <button class="btn btn-secondary operator-btn">)</button>
+                </div>
+                
+                <div class="mb-4">
+                    <h5 class="mb-2">文件类型</h5>
+                    <div class="file-type-filter">
+                        <button class="file-type-btn btn btn-outline-primary active" data-type="图片">
+                            <i class="fa fa-image mr-1"></i>图片
+                        </button>
+                        <button class="file-type-btn btn btn-outline-primary active" data-type="视频">
+                            <i class="fa fa-film mr-1"></i>视频
+                        </button>
+                    </div>
+                    <div class="file-type-filter">
+                        <button class="file-type-btn btn btn-outline-primary active" data-type="音频">
+                            <i class="fa fa-music mr-1"></i>音频
+                        </button>
+                        <button class="file-type-btn btn btn-outline-primary active" data-type="其他">
+                            <i class="fa fa-file-o mr-1"></i>其他
+                        </button>
+                    </div>
+                </div>
+                
+                <div>
+                    <h5 class="mb-2">标签库</h5>
+                    <div id="tag-tree" class="tag-tree">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>加载标签库中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="content">
+                <div class="mb-3 d-flex justify-content-end">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Thumbnail size">
+                        <button type="button" class="btn btn-outline-secondary size-btn" data-size="small" title="小尺寸">
+                            <i class="fa fa-th-list"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-primary active size-btn" data-size="medium" title="中尺寸">
+                            <i class="fa fa-th"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary size-btn" data-size="large" title="大尺寸">
+                            <i class="fa fa-th-large"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="file-list">
+                    <div id="results-container">
+                        <div class="text-center text-muted py-5">
+                            <i class="fa fa-search fa-3x mb-3"></i>
+                            <p>输入标签表达式并点击查询按钮开始搜索</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        // 后端服务地址 - 请替换为您的Windows电脑IP
+        const API_BASE_URL = 'http://127.0.0.1:10252';
+        
+        // 标签表达式生成器
+        class TagExpressionBuilder {
+            constructor() {
+                this.expression = '';
+            }
+            
+            addTag(tag) {
+                if (this.expression) {
+                    this.expression += ' & ' + tag;
+                } else {
+                    this.expression = tag;
+                }
+                return this;
+            }
+            
+            clear() {
+                this.expression = '';
+                return this;
+            }
+            
+            toString() {
+                return this.expression;
+            }
+        }
+        
+        // 标签表达式生成器实例
+        const expressionBuilder = new TagExpressionBuilder();
+        
+        // 文件类型过滤器状态
+        const fileTypeFilters = {
+            "图片": true,
+            "视频": true,
+            "音频": true,
+            "其他": true
+        };
+        
+        // 加载可用标签
+        function insertAtCursor(input, text) {
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            const before = input.value.substring(0, start);
+            const after = input.value.substring(end, input.value.length);
+            input.value = before + text + after;
+            const newPos = start + text.length;
+            input.setSelectionRange(newPos, newPos);
+            input.focus();
+        }
+
+        function loadAvailableTags() {
+            // 修改：先获取标签类别，再获取标签列表
+            Promise.all([
+                axios.get(`${API_BASE_URL}/get_category`),
+                axios.get(`${API_BASE_URL}/get_tags`)
+            ])
+            .then(([categoryResponse, tagsResponse]) => {
+                const tagTreeContainer = document.getElementById('tag-tree');
+                tagTreeContainer.innerHTML = '';
+                
+                const categories = categoryResponse.data;
+                // const allTags = tagsResponse.data; // 标签列表未直接使用，保留原逻辑
+                
+                // 按类别渲染标签树
+                for (const [category, categoryInfo] of Object.entries(categories)) {
+                    // 创建类别标题
+                    const categoryHeader = document.createElement('div');
+                    categoryHeader.className = 'category-header';
+                    categoryHeader.textContent = category;
+                    tagTreeContainer.appendChild(categoryHeader);
+                    
+                    // 获取该类别的标签
+                    const categoryTags = categoryInfo.tag ? Array.from(categoryInfo.tag) : [];
+                    
+                    // 创建标签列表
+                    categoryTags.forEach(tag => {
+                        const tagItem = document.createElement('div');
+                        tagItem.className = 'tag-item';
+                        tagItem.textContent = tag;
+                        
+                        // 添加点击事件
+                        tagItem.addEventListener('click', () => {
+                            const searchInput = document.getElementById('search-input');
+                            insertAtCursor(searchInput, tag);
+                        });
+                        
+                        tagTreeContainer.appendChild(tagItem);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Failed to load tags:', error);
+                const tagTreeContainer = document.getElementById('tag-tree');
+                tagTreeContainer.innerHTML = `
+                    <div class="text-center text-danger py-4">
+                        <i class="fa fa-exclamation-circle fa-2x mb-2"></i>
+                        <p>加载标签库失败，请检查服务器连接</p>
+                    </div>
+                `;
+            });
+        }
+        
+        // 从活动标签重新构建表达式 (此函数在您的代码中未被调用，但保留)
+        function rebuildExpressionFromActiveTags() {
+            expressionBuilder.clear();
+            const activeTags = document.querySelectorAll('.tag-item.active');
+            activeTags.forEach(tagElement => {
+                expressionBuilder.addTag(tagElement.textContent);
+            });
+        }
+        
+        // 更新搜索输入框 (此函数在您的代码中未被调用，但保留)
+        function updateSearchInput() {
+            const searchInput = document.getElementById('search-input');
+            searchInput.value = expressionBuilder.toString();
+        }
+        
+        // 搜索文件
+        function searchFiles() {
+            const query = document.getElementById('search-input').value;
+            if (!query.trim()) {
+                showEmptyResults();
+                return;
+            }
+            
+            // 显示加载状态
+            showLoadingState();
+            
+            // 修改：调整请求参数以匹配后端接口
+            axios.post(`${API_BASE_URL}/search_files`, {
+                tag_expression: query,
+                special_tags_status: fileTypeFilters
+            })
+            .then(response => {
+                displayResults(response.data);
+            })
+            .catch(error => {
+                console.error('Search failed:', error);
+                showErrorState();
+            });
+        }
+        
+        // 显示加载状态
+        function showLoadingState() {
+            const resultsContainer = document.getElementById('results-container');
+            resultsContainer.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>搜索中...</p>
+                </div>
+            `;
+        }
+        
+        // 显示错误状态
+        function showErrorState() {
+            const resultsContainer = document.getElementById('results-container');
+            resultsContainer.innerHTML = `
+                <div class="text-center text-danger py-5">
+                    <i class="fa fa-exclamation-circle fa-3x mb-3"></i>
+                    <p>搜索失败，请检查服务器连接</p>
+                </div>
+            `;
+        }
+        
+        // 显示空结果状态
+        function showEmptyResults() {
+            const resultsContainer = document.getElementById('results-container');
+            resultsContainer.innerHTML = `
+                <div class="text-center text-muted py-5">
+                    <i class="fa fa-search fa-3x mb-3"></i>
+                    <p>请输入标签表达式进行搜索</p>
+                </div>
+            `;
+            // 清空全局文件列表
+            virtualFiles = [];
+        }
+        
+        function throttle(func, limit) {
+            let timeoutId;
+            let lastExecuted = 0;
+
+            return function(...args) {
+                const context = this;
+                const now = Date.now();
+
+                // 计算距离下次可执行的时间
+                const remaining = limit - (now - lastExecuted);
+
+                // 确保清除上一个尾部调用
+                clearTimeout(timeoutId);
+
+                if (remaining <= 0 || remaining > limit) {
+                    // 立即执行 (Leading Edge): 冷却期已过
+                    lastExecuted = now;
+                    func.apply(context, args);
+                } else {
+                    // 设置延迟执行 (Trailing Edge): 在剩余时间内执行一次
+                    timeoutId = setTimeout(() => {
+                        lastExecuted = Date.now();
+                        func.apply(context, args);
+                    }, remaining);
+                }
+            };
+        }
+
+        // --- (*** 虚拟滚动和缩略图逻辑 ***) ---
+        
+        // 当前缩略图尺寸状态
+        let currentIconSize = 'medium'; // small, medium, large
+        let virtualFiles = []; // 缓存所有文件信息
+        const sizeMap = { small: 50, medium: 100, large: 250 }; // 尺寸映射表
+
+        // 核心渲染函数：设置和渲染虚拟网格
+        function setupVirtualGrid() {
+            const resultsContainer = document.getElementById('results-container');
+            let container = document.getElementById('virtual-container');
+            let grid = document.getElementById('virtual-grid');
+            
+            // 如果文件列表为空
+            if (virtualFiles.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="fa fa-folder-open-o fa-3x mb-3"></i>
+                        <p>未找到匹配的文件</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 首次渲染或切换尺寸时重建容器
+            if (!container || !grid) {
+                resultsContainer.innerHTML = '';
+                
+                // 动态高度容器
+                container = document.createElement('div');
+                container.id = 'virtual-container';
+                container.style.overflowY = 'auto';
+                container.style.position = 'relative';
+                resultsContainer.appendChild(container);
+                
+                // 网格容器
+                grid = document.createElement('div');
+                grid.id = 'virtual-grid';
+                grid.style.position = 'relative';
+                grid.style.width = '100%';
+                container.appendChild(grid);
+                
+                // 绑定滚动事件
+                const SCROLL_THROTTLE_LIMIT = 200; // 200ms 节流
+
+                if (!container._throttledRender) {
+                    // 创建一个节流后的渲染函数
+                    container._throttledRender = throttle(renderVisibleItems, SCROLL_THROTTLE_LIMIT);
+
+                    // 绑定事件
+                    container.addEventListener('scroll', container._throttledRender);
+                }
+            }
+            
+            // --- 动态高度计算和 CSS 变量更新 ---
+            const topOffset = container.getBoundingClientRect().top;
+            const availableHeight = window.innerHeight - topOffset - 20; // 减去 20px 作为底部间距
+            container.style.height = Math.max(400, availableHeight) + 'px'; // 设置最小高度 400px
+            document.documentElement.style.setProperty('--thumb-size', sizeMap[currentIconSize] + 'px'); // 更新 CSS 变量
+            
+            // --- 虚拟滚动参数计算 ---
+            const itemHeight = sizeMap[currentIconSize] + 40; // 图片 + 名称 + margin
+            const gridWidth = container.clientWidth;
+            if (gridWidth === 0) return; 
+
+            // 计算列数 (缩略图宽度 + gap 15px)
+            const columns = Math.floor(gridWidth / (sizeMap[currentIconSize] + 15)); 
+            if (columns === 0) return;
+            
+            const rowHeight = itemHeight;
+            const totalRows = Math.ceil(virtualFiles.length / columns);
+            
+            // 设置虚拟高度
+            grid.style.height = totalRows * rowHeight + 'px';
+
+            // 清除所有子元素以进行全量刷新（用于尺寸切换）
+            if (grid.children.length > 0) {
+                while(grid.firstChild) {
+                    grid.removeChild(grid.firstChild);
+                }
+            }
+
+            // 重新渲染当前可见项目
+            renderVisibleItems(true); 
+        }
+
+        // 新增：追踪当前已渲染的索引范围 (需要移到 setupVirtualGrid 外部)
+        let renderedIndexes = new Set();
+        let lastScrollTop = 0; // 用于判断滚动方向
+
+        function renderVisibleItems(forceRefresh = false) {
+            const container = document.getElementById('virtual-container');
+            const grid = document.getElementById('virtual-grid');
+            if (!container || !grid) return;
+
+            const scrollTop = container.scrollTop;
+            const clientHeight = container.clientHeight;
+            
+            const itemHeight = sizeMap[currentIconSize] + 40;
+            const gridWidth = container.clientWidth;
+            if (gridWidth === 0) return;
+
+            const columns = Math.floor(gridWidth / (sizeMap[currentIconSize] + 15));
+            if (columns === 0) return; 
+
+            const rowHeight = itemHeight;
+            const totalRows = Math.ceil(virtualFiles.length / columns);
+            
+            // 缓冲设置：增加可视区域上下的缓冲行数
+            const BUFFER_ROWS = 4; 
+            
+            const startRow = Math.floor(scrollTop / rowHeight);
+            const endRow = Math.min(startRow + Math.ceil(clientHeight / rowHeight) + BUFFER_ROWS, totalRows); 
+            const startIndex = Math.max(0, (startRow - BUFFER_ROWS) * columns);
+            const endIndex = Math.min(virtualFiles.length, endRow * columns);
+
+            const newRenderedIndexes = new Set();
+            const itemsToKeep = new Set();
+
+            // 1. 渲染/更新新的可见项目
+            for (let index = startIndex; index < endIndex; index++) {
+                if (index >= virtualFiles.length) break;
+                newRenderedIndexes.add(index);
+                itemsToKeep.add(`item-${index}`); 
+
+                let item = document.getElementById(`item-${index}`);
+                
+                if (!item || forceRefresh) { // 如果项目不存在 或 强制刷新 (如切换尺寸)
+                    // 如果项目不存在，则创建并添加
+                    if (!item) {
+                        const file = virtualFiles[index];
+                        item = document.createElement('div');
+                        item.id = `item-${index}`; // 设置ID以便追踪
+                        
+                        item.innerHTML = `
+                            <div class="thumb-img" style="background-image: url('${file.thumbSrc}')"></div>
+                            <div class="thumb-name" title="${file.fileName}">${file.fileName}</div>
+                        `;
+                        
+                        // 绑定点击事件
+                        item.addEventListener('click', () => {
+                            const fixedPath = file.filePath.replace(/\\/g, '/');
+                            window.open(encodeURI(`file:///${fixedPath}`));
+                        });
+                        
+                        grid.appendChild(item);
+                    }
+                    
+                    // 刷新样式和位置
+                    const row = Math.floor(index / columns);
+                    const col = index % columns;
+                    
+                    item.className = `thumb-item fade-in ${currentIconSize}`; // 确保应用当前尺寸
+                    item.style.position = 'absolute';
+                    item.style.top = row * rowHeight + 'px';
+                    // 计算列位置，考虑 gap
+                    const itemWidth = sizeMap[currentIconSize];
+                    const gap = (gridWidth - columns * itemWidth) / (columns - 1);
+                    const calculatedGap = isFinite(gap) && gap > 0 ? gap : 15; // 确保 gap 有效
+                    item.style.left = col * (itemWidth + calculatedGap) + 'px';
+                    item.style.width = itemWidth + 'px';
+
+                } else {
+                    // 如果项目已存在，仅更新位置 (可选，优化性能)
+                    const row = Math.floor(index / columns);
+                    const col = index % columns;
+                    const itemWidth = sizeMap[currentIconSize];
+                    const gap = (gridWidth - columns * itemWidth) / (columns - 1);
+                    const calculatedGap = isFinite(gap) && gap > 0 ? gap : 15;
+                    item.style.top = row * rowHeight + 'px';
+                    item.style.left = col * (itemWidth + calculatedGap) + 'px';
+                }
+            }
+
+            // 2. 移除不再可见的项目 (除非是强制刷新，通常在尺寸切换时不移除)
+            if (!forceRefresh) {
+                const itemsToRemove = Array.from(renderedIndexes).filter(index => !newRenderedIndexes.has(index));
+                
+                itemsToRemove.forEach(index => {
+                    const item = document.getElementById(`item-${index}`);
+                    if (item) {
+                        grid.removeChild(item);
+                    }
+                });
+            }
+
+
+            // 3. 更新已渲染索引
+            renderedIndexes = newRenderedIndexes;
+            lastScrollTop = scrollTop;
+        }
+
+        function displayResults(filePaths) {
+            // 1. 转换并缓存文件数据
+            virtualFiles = filePaths.map(filePath => {
+                const fileName = filePath.split('\\').pop().split('/').pop();
+                const thumbSrc = `${API_BASE_URL}/get_thumb?path=${encodeURIComponent(filePath)}&size=${sizeMap[currentIconSize]}`;
+                
+                return { 
+                    filePath, 
+                    fileName, 
+                    thumbSrc 
+                };
+            });
+            
+            // 2. 设置和渲染网格
+            renderedIndexes = new Set(); // 重置索引
+            setupVirtualGrid();
+        }
+        
+        // --- (*** 虚拟滚动和缩略图逻辑结束 ***) ---
+
+        // 清空搜索输入
+        function clearSearch() {
+            const searchInput = document.getElementById('search-input');
+            searchInput.value = '';
+            expressionBuilder.clear();
+            
+            // 移除所有标签的激活状态
+            const activeTags = document.querySelectorAll('.tag-item.active');
+            activeTags.forEach(tag => {
+                tag.classList.remove('active');
+            });
+            
+            // 重置结果显示
+            showEmptyResults();
+        }
+
+        // 操作符按钮点击时插入符号
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.operator-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const searchInput = document.getElementById('search-input');
+                    insertAtCursor(searchInput, btn.textContent);
+                });
+            });
+
+            document.querySelectorAll('.size-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const newSize = this.getAttribute('data-size');
+                    if (newSize !== currentIconSize) {
+                        // 1. 更新全局状态
+                        currentIconSize = newSize;
+                        
+                        // 2. 更新按钮样式
+                        document.querySelectorAll('.size-btn').forEach(b => {
+                            b.classList.remove('btn-outline-primary', 'active');
+                            b.classList.add('btn-outline-secondary');
+                        });
+                        this.classList.remove('btn-outline-secondary');
+                        this.classList.add('btn-outline-primary', 'active');
+                        
+                        // 3. 重新渲染网格
+                        if (virtualFiles.length > 0) {
+                            // 重新设置网格（将强制刷新）
+                            setupVirtualGrid();
+                        }
+                    }
+                });
+            });
+        });
+    
+        // 初始化事件监听
+        function initEventListeners() {
+            // 搜索按钮点击事件
+            document.getElementById('search-btn').addEventListener('click', searchFiles);
+            
+            // 搜索输入框回车事件
+            document.getElementById('search-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchFiles();
+                }
+            });
+            
+            // 清空搜索按钮点击事件
+            document.getElementById('clear-search').addEventListener('click', clearSearch);
+            
+            // 文件类型过滤按钮点击事件
+            const fileTypeButtons = document.querySelectorAll('.file-type-btn');
+            fileTypeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const fileType = this.getAttribute('data-type');
+                    fileTypeFilters[fileType] = !fileTypeFilters[fileType];
+                    
+                    // 更新按钮样式
+                    if (fileTypeFilters[fileType]) {
+                        this.classList.remove('btn-outline-secondary');
+                        this.classList.add('btn-outline-primary', 'active');
+                    } else {
+                        this.classList.remove('btn-outline-primary', 'active');
+                        this.classList.add('btn-outline-secondary');
+                    }
+                    
+                    // 如果当前有搜索结果，重新搜索
+                    const currentQuery = document.getElementById('search-input').value;
+                    if (currentQuery.trim()) {
+                        searchFiles();
+                    }
+                });
+            });
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 1️⃣ 初始化 CSS 变量，确保第一次渲染生效
+            document.documentElement.style.setProperty('--thumb-size', sizeMap[currentIconSize] + 'px');
+            
+            initEventListeners();
+            loadAvailableTags();
+
+            // 防抖 (debounce) 函数，防止 resize 事件过于频繁
+            function debounce(func, wait) {
+                let timeout;
+                return function(...args) {
+                    const context = this;
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(context, args), wait);
+                };
+            }
+
+            // 监听窗口大小变化
+            window.addEventListener('resize', debounce(() => {
+                // 只有在有文件（即虚拟列表已初始化）时才重新渲染
+                if (virtualFiles && virtualFiles.length > 0) {
+                    setupVirtualGrid();
+                }
+            }, 150)); // 150ms 防抖
+        });
+    </script>
+</body>
+</html>
