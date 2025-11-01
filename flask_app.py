@@ -149,7 +149,7 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
     mime_type, _ = mimetypes.guess_type(file_path)
     thumb_data = None
     thumb_mime = None
-    
+    size = size*4
     if not mime_type:
         # 尝试获取系统图标
         pil_img = get_file_icon(file_path, size)

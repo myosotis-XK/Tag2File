@@ -4,6 +4,15 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
 import sys
 import multiprocessing
+# 导入Flask应用
+from flask_app import app as flask_app
+import threading
+def start_flask_server_thread():
+    flask_thread = threading.Thread(
+        target=lambda: flask_app.run(host='0.0.0.0', port=10252, threaded=True, debug=False, use_reloader=False)
+    )
+    flask_thread.daemon = True
+    flask_thread.start()
 
 def start_task_processing():  
     """启动缓存管理进程"""  
@@ -26,5 +35,6 @@ if __name__ == '__main__':
     from src import MainWindow
     viewer = MainWindow.Tag2File()
     start_task_processing()
+    start_flask_server_thread()
 
     sys.exit(app.exec_())
