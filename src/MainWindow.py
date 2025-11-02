@@ -26,12 +26,14 @@ class Tag2File(QMainWindow, Observer):
         self.image_paths = []
         self.tag_expression = ''
 
+        self.icon = QIcon(os.path.join(root, 'data', 'icon', 'app', 'favicon.ico'))
         self.setWindowTitle("Tag2File") 
+        self.setWindowIcon(self.icon)
         self.resize(1200, 700)
 
         # 托盘设置
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(QIcon(os.path.join(root, 'data', 'icon', 'app', 'favicon.ico')))
+        self.tray_icon.setIcon(self.icon)
         self.tray_icon.setToolTip("Tag2File")     
 
         # 托盘菜单

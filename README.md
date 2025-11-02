@@ -157,6 +157,6 @@ Tag2File 最强大的功能是支持复杂的标签表达式搜索，让你能�
 ## 关于打包
 在根目录下执行以下命令打包：
 ```bash
-PyInstaller --name Tag2File --windowed --onefile main.py
+pyinstaller --name Tag2File --windowed --onefile --icon=data/icon/app/favicon.ico main.py
 ```
 打包完成后将dist文件夹下的Tag2File.exe应用程序移动根目录下，然后运行即可。
