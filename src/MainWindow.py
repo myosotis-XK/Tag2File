@@ -7,7 +7,7 @@ from .CategoryManager import *
 from .TagbaseManager import *
 from .TagInput import TagInputWidget
 import sys  
-from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QPushButton, QTreeWidgetItem, QApplication
+from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QPushButton, QTreeWidgetItem, QApplication, QSystemTrayIcon
 from PyQt5.QtGui import QColor
 
 class Tag2File(QMainWindow, Observer):
@@ -26,8 +26,28 @@ class Tag2File(QMainWindow, Observer):
         self.image_paths = []
         self.tag_expression = ''
 
-        self.setWindowTitle("Tag2File")
+        self.setWindowTitle("Tag2File") 
         self.resize(1200, 700)
+
+        # 托盘设置
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(QIcon(os.path.join(root, 'data', 'icon', 'app', 'favicon.ico')))
+        self.tray_icon.setToolTip("Tag2File")     
+
+        # 托盘菜单
+        tray_menu = QMenu()
+        show_action = QAction("显示窗口", self)
+        quit_action = QAction("退出", self)
+        tray_menu.addAction(show_action)
+        tray_menu.addAction(quit_action)
+
+        self.tray_icon.setContextMenu(tray_menu)
+
+        # 连接信号
+        show_action.triggered.connect(self.show_normal)
+        quit_action.triggered.connect(self.exit_app)
+        self.tray_icon.activated.connect(self.on_tray_activated)
+
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
         self.layout = QVBoxLayout(central_widget)
@@ -38,6 +58,7 @@ class Tag2File(QMainWindow, Observer):
         # 创建设置菜单
         file_menu = menubar.addMenu("开始")
         file_menu.addAction("标签库", self.showTagbaseManager)
+        file_menu.addAction("最小化到托盘", self.minimize_to_tray)
 
         # 创建界面
         self.file_view = QWidget()
@@ -105,6 +126,27 @@ class Tag2File(QMainWindow, Observer):
         self.main_layout.addWidget(menu_widget)
         self.main_layout.addWidget(self.MainFileShowArea)
         self.main_layout.setContentsMargins(0, 0, 0, 0) 
+
+    def on_tray_activated(self, reason):
+        """托盘图标点击事件"""
+        if reason == QSystemTrayIcon.Trigger:
+            self.show_normal()
+
+    def show_normal(self):
+        """恢复窗口"""
+        self.show()
+        self.tray_icon.hide()
+        self.setWindowState(Qt.WindowActive)
+
+    def minimize_to_tray(self):
+        """最小化到托盘"""
+        self.hide()
+        self.tray_icon.show()
+
+    def exit_app(self):
+        """退出程序"""
+        self.tray_icon.hide()
+        self.close()
 
     def create_tag_widget(self):
         tree = CategoryTreeWidget(self)

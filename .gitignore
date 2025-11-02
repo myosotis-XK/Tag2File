@@ -5,7 +5,8 @@ __pycache__/
 
 # 数据文件夹
 log/
-data/
+data/tagbase
+data/cache
 config/
 
 # 自定义其他文件

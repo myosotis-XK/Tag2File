@@ -275,10 +275,9 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
 
     return thumb_data, thumb_mime
 
-WEB_APP_DIR = os.path.join(root, 'web_app')
 @app.route('/tag2file')
 def serve_tag2file_web():
-    response = make_response(send_from_directory(WEB_APP_DIR, 'tag2file.html'))
+    response = make_response(send_from_directory(os.path.join(root, 'web_app'), 'tag2file.html'))
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
@@ -286,7 +285,7 @@ def serve_tag2file_web():
 
 @app.route('/favicon.ico')
 def favicon():
-    return send_from_directory(os.path.join(WEB_APP_DIR, 'icon'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+    return send_from_directory(os.path.join(root, 'data', 'icon', 'app'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 @app.route('/get_category', methods=['GET'])
 def get_category():
