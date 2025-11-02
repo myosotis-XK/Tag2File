@@ -6,7 +6,81 @@ import traceback
 warnings.filterwarnings('ignore')
 
 app = Flask(__name__)
-CORS(app)  # 🔥 允许所有前端访问（包括 file://）
+CORS(app, 
+     supports_credentials=True, 
+     origins=[
+         "http://tag2file.online",
+         "http://192.168.0.102:10252/tag2file",
+    ]
+)
+
+from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session
+from functools import wraps
+
+app.secret_key = 'a_very_secret_key_change_this'  # 用于加密 session cookie
+
+USERS = {
+    "admin": "123456",
+}
+
+# ---------------- 登录保护装饰器 ----------------
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        print(session)
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# ---------------- 登录页 ----------------
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username in USERS and password == USERS[username]:
+            session['logged_in'] = True
+            session['username'] = username
+            print(f"User {username} logged in")
+            return redirect(url_for('serve_root'))
+        return render_template_string(LOGIN_HTML, error="用户名或密码错误")
+    return render_template_string(LOGIN_HTML)
+
+# ---------------- 登出 ----------------
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+# 登录页 HTML 模板
+LOGIN_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>登录</title>
+  <style>
+    body {font-family: sans-serif; display:flex; height:100vh; align-items:center; justify-content:center; background:#f2f2f2;}
+    .login-box {background:white; padding:30px; border-radius:12px; box-shadow:0 0 12px rgba(0,0,0,0.1);}
+    input {display:block; width:200px; margin:10px 0; padding:8px;}
+    button {padding:8px 16px;}
+    .error {color:red;}
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h3>登录 tag2file</h3>
+    {% if error %}<p class="error">{{error}}</p>{% endif %}
+    <form method="post">
+      <input type="text" name="username" placeholder="用户名" required>
+      <input type="password" name="password" placeholder="密码" required>
+      <button type="submit">登录</button>
+    </form>
+  </div>
+</body>
+</html>
+"""
 
 @app.errorhandler(Exception)  
 def handle_global_exception(e):  
@@ -42,26 +116,14 @@ import mimetypes
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3
 import cv2
-from PyQt5.QtWidgets import QFileIconProvider, QApplication
+from PyQt5.QtWidgets import QFileIconProvider
 from PyQt5.QtCore import QFileInfo, QSize, QBuffer, QByteArray, QIODevice
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon
 from PIL import Image
 from io import BytesIO
-import sys
 import os
 
-# 初始化 QApplication
-# 必须在创建任何 QWidget 或相关对象（如 QFileIconProvider）之前完成
-# 使用 try-except 来避免重复创建 QApplication 实例（在某些环境中可能不需要）
-if not QApplication.instance():
-    qt_app = QApplication(sys.argv)
-else:
-    qt_app = QApplication.instance()
-
-# 创建一个全局的 QIconProvider 实例，因为它创建起来可能比较耗时
-# 并且 QIconProvider.icon() 方法通常是线程安全的（如果只用于读取图标）
 _icon_provider = QFileIconProvider()
-
 
 def qicon_to_pil_image(qicon: QIcon, size: int) -> Image.Image | None:
     """
@@ -72,8 +134,6 @@ def qicon_to_pil_image(qicon: QIcon, size: int) -> Image.Image | None:
     pixmap = qicon.pixmap(qsize)
 
     if pixmap.isNull():
-        # 如果指定大小没有有效的 pixmap，尝试获取最大可用尺寸并缩放
-        # 或者直接返回 None
         return None
 
     # 将 QPixmap 转换为 QByteArray (PNG格式)
@@ -111,10 +171,7 @@ def get_file_icon(file_path: str, size: int) -> Image.Image | None:
     :return: PIL Image 对象或 None
     """
     if not os.path.exists(file_path):
-        # 如果文件不存在，QFileInfo 仍能工作并根据扩展名提供图标（在某些系统上）
-        # 但最好还是检查一下，或者根据需求决定是否处理不存在的文件。
-        # 对于不存在的文件，QFileIconProvider 可能会返回通用文件图标。
-        pass
+        return None
 
     file_info = QFileInfo(file_path)
     
@@ -144,7 +201,6 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
             如果文件不存在或处理失败，返回 (None, None)。
     """
     if not os.path.exists(file_path):
-        # 文件不存在，无法生成或查找缓存
         return None, None
     mime_type, _ = mimetypes.guess_type(file_path)
     thumb_data = None
@@ -156,7 +212,6 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
         
         if pil_img:
             img_byte_array = BytesIO()
-            # 统一将系统图标保存为 PNG 格式
             pil_img.save(img_byte_array, format='PNG') 
             img_byte_array.seek(0)
             
@@ -164,7 +219,6 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
             thumb_mime = 'image/png'
             return thumb_data, thumb_mime
         else:
-            # 如果无法获取系统图标，返回默认的文件图标
             return None, None
 
     if mime_type == 'image/gif':
@@ -190,7 +244,6 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
                 os.remove(cache_path) # 删除损坏的缓存文件
             except Exception as del_err:
                 print(f"无法删除损坏的缓存: {del_err}")
-            # 继续尝试重新生成
 
     # 2. 生成缩略图
     try:
@@ -201,7 +254,6 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
                 if 'icc_profile' in img.info:
                     del img.info['icc_profile']
                 img_byte_array = BytesIO()
-                # 统一将缩略图保存为 PNG 格式
                 img.save(img_byte_array, format='PNG') 
                 img_byte_array.seek(0)
                 thumb_data = img_byte_array
@@ -218,7 +270,7 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
                         with Image.open(img_byte_array) as img:
                             img.thumbnail((size, size))
                             final_byte_array = BytesIO()
-                            img.save(final_byte_array, format='PNG') # 统一保存为 PNG
+                            img.save(final_byte_array, format='PNG')
                             final_byte_array.seek(0)
                             thumb_data = final_byte_array
                             thumb_mime = 'image/png'
@@ -237,19 +289,16 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
                     img.thumbnail((size, size))
                     
                     img_byte_array = BytesIO()
-                    # 视频帧使用 JPEG 编码，然后保存为 PNG
                     img.save(img_byte_array, format='PNG')
                     img_byte_array.seek(0)
                     thumb_data = img_byte_array
                     thumb_mime = 'image/png'
 
         else:
-            # 尝试获取系统图标
             pil_img = get_file_icon(file_path, size)
             
             if pil_img:
                 img_byte_array = BytesIO()
-                # 统一将系统图标保存为 PNG 格式
                 pil_img.save(img_byte_array, format='PNG') 
                 img_byte_array.seek(0)
                 
@@ -258,30 +307,35 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
                     
     except Exception as e:
         print(f"❌ 生成文件 {file_path} 的缩略图失败: {e}")
-        return None, None # 生成失败
+        return None, None
 
-    
-    # 3. 写入磁盘缓存
     if thumb_data and use_cache:
         try:
-            # 将 BytesIO 对象的内容写入文件
             with open(cache_path, 'wb') as f:
                 f.write(thumb_data.getvalue())
             # 重置 BytesIO 对象的指针到开头，以便调用者读取
             thumb_data.seek(0)
         except Exception as e:
             print(f"❌ 写入缓存文件 {cache_path} 失败: {e}")
-            # 即使写入失败，我们仍然返回已生成的缩略图数据
 
     return thumb_data, thumb_mime
 
-@app.route('/tag2file')
-def serve_tag2file_web():
-    response = make_response(send_from_directory(os.path.join(root, 'web_app'), 'tag2file.html'))
+def serve_tag2file_html(html_path):
+    response = make_response(send_from_directory(os.path.join(root, 'web_app'), html_path))
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
+
+@app.route('/tag2file')
+@login_required
+def serve_tag2file_web():
+    return serve_tag2file_html('tag2file.html')
+
+@app.route('/')
+@login_required
+def serve_root():
+    return serve_tag2file_html('tag2file_frp.html')
 
 @app.route('/favicon.ico')
 def favicon():
@@ -289,29 +343,22 @@ def favicon():
 
 @app.route('/get_category', methods=['GET'])
 def get_category():
-    # 获取原始的 category 数据
     categories = dictManage.relation_graph['category']
     
-    # 创建一个新的字典，用于存储转换后的数据
     serializable_categories = {}
     category_order = []
-    # 遍历每个类别
+
     for category_name, category_info in categories.items():
-        # 创建一个新的字典来存储该类别的信息
         serializable_category = {}
-        
-        # 遍历该类别的所有属性
+
         for key, value in category_info.items():
-            # 如果属性值是 set 类型，转换为 list
             if isinstance(value, set):
                 serializable_category[key] = list(value)
             else:
                 serializable_category[key] = value
-        
-        # 添加到结果字典中
+
         serializable_categories[category_name] = serializable_category
         category_order.append(category_name)
-
     return jsonify({
         'categories': serializable_categories,
         'category_order': category_order 
@@ -319,11 +366,13 @@ def get_category():
 
 @app.route('/get_special_categories', methods=['GET'])
 def get_special_categories():
-    return jsonify(dictManage.special_categories) # 特殊标签列表
+    return jsonify(dictManage.special_categories)
 
 @app.route('/get_special_tags_status', methods=['GET'])
 def get_special_tags_status():
-    return jsonify(dictManage.special_tags_status) # 特殊标签状态列表
+    print("Session cookie received:", request.cookies)
+    print("Session contents:", session)
+    return jsonify(dictManage.special_tags_status)
 
 @app.route('/search_files', methods=['POST'])
 def search_files():
@@ -334,7 +383,7 @@ def search_files():
     if file_paths is False:
         return jsonify({"error": f"错误的表达式：{tag_expression}"}), 400
 
-    return jsonify(file_paths) # 文件路径列表
+    return jsonify(file_paths)
 
 @app.route('/get_thumb', methods=['GET'])
 def get_thumbnails():
@@ -344,71 +393,43 @@ def get_thumbnails():
     
     if not encoded_path:
         return Response("Missing 'path' parameter.", status=400)
-    
-    # URL解码以获取真实路径 (如 C:\Users\file.jpg)
+
     try:
         file_path = urllib.parse.unquote(encoded_path)
     except Exception:
         return Response("Invalid URL encoding.", status=400)
 
-    # 2. 调用缩略图生成函数
     try:
         data_source, mime_type = get_file_thumb(file_path, size)
     except Exception as e:
-        # 实际项目中应记录错误日志
         print(f"Error generating thumbnail for {file_path}: {e}")
-        # 如果文件不存在，或者处理失败，返回 404
         return Response("Thumbnail generation failed or file not found.", status=404) 
 
-    # 3. 发送文件流给前端
-    # send_file 会自动处理响应头，如 Content-Type
     return send_file(
         data_source,
         mimetype=mime_type,
-        # 如果 data_source 是 BytesIO 对象，需要指定 as_attachment=False
         as_attachment=False 
     )
 
 @app.route('/open_file', methods=['GET'])
 def open_file():
-    # 1. 获取并解码文件路径
-    # 前端通过 encodeURIComponent 编码，后端需要解码
     file_path = request.args.get('path')
     if not file_path:
         return jsonify({'error': '缺少文件路径参数'}), 400
 
-    # URL解码，处理路径中的特殊字符
-    # file_path = unquote(file_path_encoded)
-    
-    # 替换前端可能带来的 /，确保在 Windows 上路径分隔符正确
-    # 注意：Flask的send_file在Windows上通常能处理正斜杠，但为安全和兼容性，最好确保路径是操作系统原生格式。
-    # 在Windows上，以下这步通常不是必须的，但可以增加兼容性
-    # file_path = file_path.replace('/', os.sep) 
-
-    # 2. 安全检查
     if not os.path.exists(file_path):
         print(f"File not found: {file_path}")
         return jsonify({'error': '文件不存在或路径无效'}), 404
-        
-    # **关键安全检查：限制文件访问范围**
-    # ⚠️ 强烈建议添加逻辑确保 file_path 不会超出应用配置的根目录。
-    # 否则，恶意用户可以通过 ../ 访问服务器上的任何文件。
-    # 示例 (需要您配置一个根目录): 
-    # ROOT_DIR = "D:\\MyFileLibrary\\"
-    # if not file_path.startswith(ROOT_DIR):
-    #     return jsonify({'error': '访问权限不足'}), 403
+    
+    if file_path not in dictManage.relation_graph['file']:
+        print(f'访问权限不足：{file_path}')
+        return jsonify({'error': '访问权限不足'}), 403
 
-
-    # 3. 推断 MIME Type 并准备发送
-    # 推断文件的MIME类型，以便浏览器正确处理（如图片直接显示，文档提示下载）
     mime_type, encoding = mimetypes.guess_type(file_path)
     if mime_type is None:
         mime_type = 'application/octet-stream' # 默认二进制流
 
     try:
-        # Flask的 send_file 函数负责高效地发送文件
-        # as_attachment=False：浏览器尝试在页面内显示文件（如图片、PDF）
-        # download_name：设置下载时的文件名
         return send_file(
             file_path,
             mimetype=mime_type,
@@ -425,4 +446,3 @@ def open_file():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10252, threaded=True)
-    # print(dictManage.relation_graph['category'])

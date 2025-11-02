@@ -471,7 +471,7 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
         // 后端服务地址 - 请替换为您的Windows电脑IP
-        const API_BASE_URL = 'http://192.168.0.102:10252';
+        const API_BASE_URL = 'http://tag2file.online';
         axios.defaults.withCredentials = true;
         
         // 标签表达式生成器
@@ -526,7 +526,6 @@
         }
 
         function loadAvailableTags() {
-            // ... (保持 Promise.all 部分不变)
             Promise.all([
                 axios.get(`${API_BASE_URL}/get_category`),
                 axios.get(`${API_BASE_URL}/get_special_categories`),
@@ -683,7 +682,6 @@
             // 显示加载状态
             showLoadingState();
             
-            // 修改：调整请求参数以匹配后端接口，包含特殊标签状态
             axios.post(`${API_BASE_URL}/search_files`, {
                 tag_expression: query,
                 special_tags_status: specialTagsStatus
