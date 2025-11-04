@@ -512,6 +512,7 @@
         
         // 添加特殊类别状态存储
         let specialTagsStatus = {};
+        let categoryTreeStatus = {};
         
         // 加载可用标签
         function insertAtCursor(input, text) {
@@ -530,17 +531,19 @@
             Promise.all([
                 axios.get(`${API_BASE_URL}/get_category`),
                 axios.get(`${API_BASE_URL}/get_special_categories`),
-                axios.get(`${API_BASE_URL}/get_special_tags_status`)
+                axios.get(`${API_BASE_URL}/get_special_tags_status`),
+                axios.get(`${API_BASE_URL}/get_category_tree_status`)
             ])
-            .then(([categoryResponse, specialCatResponse, specialTagsResponse]) => {
+            .then(([categoryResponse, specialCatResponse, specialTagsResponse, categoryTreeResponse]) => {
                 const tagTreeContainer = document.getElementById('tag-tree');
                 tagTreeContainer.innerHTML = '';
                 
                 const categories = categoryResponse.data.categories;
                 const backendCategoryOrder = categoryResponse.data.category_order;
-                
                 const specialCategories = specialCatResponse.data || [];
+
                 specialTagsStatus = specialTagsResponse.data || {};
+                categoryTreeStatus = categoryTreeResponse.data  || {};
                 
                 // --- 【新增代码：模拟“文件类型”特殊类别及其标签】 ---
                 const fileTypeCategory = {
@@ -558,7 +561,6 @@
                 const allCategoryOrder = ['文件类型', ...backendCategoryOrder];
                 const allSpecialCategories = ['文件类型', ...specialCategories];
                 
-                // --- 核心修改部分开始 ---
                 for (const category of allCategoryOrder) {
                     const categoryInfo = allCategories[category];
 
@@ -571,16 +573,18 @@
                     categoryText.textContent = category;
                     categoryHeaderContainer.appendChild(categoryText);
 
-                    // 折叠图标 (默认为展开状态)
+                    // 折叠图标 - 根据保存的状态设置初始状态
                     const collapseIcon = document.createElement('i');
-                    collapseIcon.className = 'fa fa-caret-down'; // 初始为向下箭头
+                    const isCategoryCollapsed = categoryTreeStatus[category] === false;
+                    collapseIcon.className = isCategoryCollapsed ? 'fa fa-caret-right' : 'fa fa-caret-down';
                     categoryHeaderContainer.appendChild(collapseIcon);
 
                     tagTreeContainer.appendChild(categoryHeaderContainer);
                     
                     // 2. 创建标签列表容器 (可折叠部分)
                     const tagListContainer = document.createElement('div');
-                    tagListContainer.className = 'tag-list-body'; // 标签列表主体，默认为展开状态
+                    tagListContainer.className = 'tag-list-body';
+                    tagListContainer.style.display = isCategoryCollapsed ? 'none' : 'block';
                     
                     // 获取该类别的标签
                     const categoryTags = categoryInfo.tagOrder ? Array.from(categoryInfo.tagOrder) : [];
@@ -592,10 +596,14 @@
                         if (isCollapsed) {
                             tagListContainer.style.display = 'block';
                             collapseIcon.className = 'fa fa-caret-down'; // 展开时向下箭头
+                            categoryTreeStatus[category] = true
                         } else {
                             tagListContainer.style.display = 'none';
                             collapseIcon.className = 'fa fa-caret-right'; // 折叠时向右箭头
+                            categoryTreeStatus[category] = false
                         }
+
+                        updateCategoryTreeStatusToBackend();
                     });
 
                     // 4. 将标签项添加到新的 tagListContainer 中
@@ -634,6 +642,8 @@
                                     specialTagsStatus[tag] = true;
                                 }
                                 
+                                updateSpecialTagsStatusToBackend();
+                                
                                 const currentQuery = document.getElementById('search-input').value;
                                 if (currentQuery.trim()) {
                                     searchFiles();
@@ -671,7 +681,31 @@
                 `;
             });
         }
-        
+
+        function updateSpecialTagsStatusToBackend() {
+            axios.post(`${API_BASE_URL}/update_special_tags_status`, specialTagsStatus)
+            .then(response => {
+                if (!response.data.success) {
+                    console.error('保存特殊标签状态失败:', response.data.message);
+                }
+            })
+            .catch(error => {
+                console.error('保存特殊标签状态失败:', error);
+            });
+        }
+
+        function updateCategoryTreeStatusToBackend() {
+            axios.post(`${API_BASE_URL}/update_category_tree_status`, categoryTreeStatus)
+            .then(response => {
+                if (!response.data.success) {
+                    console.error('保存分类树状态失败:', response.data.message);
+                }
+            })
+            .catch(error => {
+                console.error('保存分类树状态失败:', error);
+            });
+        }
+
         // 搜索文件
         function searchFiles() {
             const query = document.getElementById('search-input').value;

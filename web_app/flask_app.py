@@ -1,9 +1,22 @@
-from flask import Flask, Response, request, send_file, send_from_directory, jsonify, make_response
-import urllib.parse
+from flask import Flask, Response, request, g, send_file, send_from_directory, jsonify, make_response, abort
 from flask_cors import CORS
+import urllib.parse
+from PIL import Image
+from io import BytesIO
+import os
+import json
+import mimetypes
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3
+import cv2
+from PyQt5.QtWidgets import QFileIconProvider
+from PyQt5.QtCore import QFileInfo, QSize, QBuffer, QByteArray, QIODevice
+from PyQt5.QtGui import QIcon
 import warnings
 import traceback
 warnings.filterwarnings('ignore')
+
+from src.utils import get_cache_path, root
 
 app = Flask(__name__)
 CORS(app, 
@@ -19,68 +32,40 @@ from functools import wraps
 
 app.secret_key = 'a_very_secret_key_change_this'  # 用于加密 session cookie
 
-USERS = {
-    "admin": "123456",
-}
+import sqlite3
+db_path = os.path.join(root, 'web_app', 'users.db')
+def get_db():
+    """获取数据库连接，每个请求独立"""
+    if 'db' not in g:
+        g.db = sqlite3.connect(db_path)
+        # 设置行工厂，返回字典形式的结果
+        g.db.row_factory = sqlite3.Row
+    return g.db
 
-# ---------------- 登录保护装饰器 ----------------
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        print(session)
-        if not session.get('logged_in'):
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
+import hashlib
 
-# ---------------- 登录页 ----------------
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        if username in USERS and password == USERS[username]:
-            session['logged_in'] = True
-            session['username'] = username
-            print(f"User {username} logged in")
-            return redirect(url_for('serve_root'))
-        return render_template_string(LOGIN_HTML, error="用户名或密码错误")
-    return render_template_string(LOGIN_HTML)
+def get_password_hash(password: str) -> str:
+    """使用稳定的哈希算法"""
+    return hashlib.sha256(password.encode()).hexdigest()
 
-# ---------------- 登出 ----------------
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('login'))
-
-# 登录页 HTML 模板
-LOGIN_HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>登录</title>
-  <style>
-    body {font-family: sans-serif; display:flex; height:100vh; align-items:center; justify-content:center; background:#f2f2f2;}
-    .login-box {background:white; padding:30px; border-radius:12px; box-shadow:0 0 12px rgba(0,0,0,0.1);}
-    input {display:block; width:200px; margin:10px 0; padding:8px;}
-    button {padding:8px 16px;}
-    .error {color:red;}
-  </style>
-</head>
-<body>
-  <div class="login-box">
-    <h3>登录 tag2file</h3>
-    {% if error %}<p class="error">{{error}}</p>{% endif %}
-    <form method="post">
-      <input type="text" name="username" placeholder="用户名" required>
-      <input type="password" name="password" placeholder="密码" required>
-      <button type="submit">登录</button>
-    </form>
-  </div>
-</body>
-</html>
-"""
+def loogin_check(username: str, password: str):
+    """登录检查函数"""
+    password_hash = get_password_hash(password)
+    db = get_db()
+    cursor = db.cursor()
+    try:
+        cursor.execute(
+            'SELECT user_id FROM users WHERE username = ? AND password = ?', 
+            (username, password_hash)
+        )
+        result = cursor.fetchone()
+        print(f"Login check result: {result}")
+        return result['user_id']
+    except Exception as e:
+        print(f"Database error: {e}")
+        return None
+    finally:
+        cursor.close()
 
 @app.errorhandler(Exception)  
 def handle_global_exception(e):  
@@ -105,23 +90,8 @@ def handle_global_exception(e):
 
 from src.DictManage import DictManage
 from src.TagClass import get_tag_files
-from src.utils import get_cache_path, root
 dictManage = DictManage()
 
-
-from PIL import Image
-from io import BytesIO
-import os
-import mimetypes
-from mutagen.mp3 import MP3
-from mutagen.id3 import ID3
-import cv2
-from PyQt5.QtWidgets import QFileIconProvider
-from PyQt5.QtCore import QFileInfo, QSize, QBuffer, QByteArray, QIODevice
-from PyQt5.QtGui import QIcon
-from PIL import Image
-from io import BytesIO
-import os
 
 _icon_provider = QFileIconProvider()
 
@@ -320,28 +290,113 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
 
     return thumb_data, thumb_mime
 
-def serve_tag2file_html(html_path):
-    response = make_response(send_from_directory(os.path.join(root, 'web_app'), html_path))
+def get_user_setting(user_id, setting_type, default_value=None):
+    """获取用户配置"""
+    if not user_id:
+        return default_value or {}
+    db = get_db()
+    cursor = db.cursor()
+    
+    cursor.execute(
+        'SELECT setting_data FROM user_settings WHERE user_id = ? AND setting_type = ?',
+        (user_id, setting_type)
+    )
+    
+    result = cursor.fetchone()
+    cursor.close()
+    
+    if result:
+        return json.loads(result['setting_data'])
+    else:
+        # 如果没有找到，初始化默认值
+        if default_value is not None:
+            set_user_setting(user_id, setting_type, default_value)
+        return default_value or {}
+
+def set_user_setting(user_id, setting_type, setting_data):
+    """设置用户配置"""
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute(
+        '''INSERT OR REPLACE INTO user_settings 
+           (user_id, setting_type, setting_data) VALUES (?, ?, ?)''',
+        (user_id, setting_type, json.dumps(setting_data, ensure_ascii=False))
+    )
+    
+    db.commit()
+    cursor.close()
+
+def serve_html(html_path, **context):
+    """增强版的 HTML 服务函数，支持模板变量"""
+    html_directory = os.path.join(root, 'web_app')
+    html_file_path = os.path.join(html_directory, html_path)
+    
+    if os.path.exists(html_file_path):
+        with open(html_file_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        
+        # 使用 Flask 的 render_template_string 正确渲染模板
+        rendered_content = render_template_string(html_content, **context)
+        response = make_response(rendered_content)
+    else:
+        abort(404)
+    
+    # 设置无缓存头
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
+    
     return response
+
+# ---------------- 登录保护装饰器 ----------------
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# ---------------- 登录页 ----------------
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user_id = loogin_check(username, password)
+        print(user_id)
+        if user_id:
+            session['logged_in'] = True
+            session['user_id'] = user_id
+            return redirect(url_for('serve_root'))
+        # 登录失败，返回带错误信息的页面
+        return serve_html('login.html', error="用户名或密码错误")
+    
+    # GET 请求
+    return serve_html('login.html')
+
+# ---------------- 登出 ----------------
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 @app.route('/tag2file')
 @login_required
 def serve_tag2file_web():
-    return serve_tag2file_html('tag2file.html')
+    return serve_html('tag2file.html')
 
 @app.route('/')
 @login_required
 def serve_root():
-    return serve_tag2file_html('tag2file_frp.html')
+    return serve_html('tag2file_frp.html')
 
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory(os.path.join(root, 'data', 'icon', 'app'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 @app.route('/get_category', methods=['GET'])
+@login_required
 def get_category():
     categories = dictManage.relation_graph['category']
     
@@ -365,16 +420,93 @@ def get_category():
     })
 
 @app.route('/get_special_categories', methods=['GET'])
+@login_required
 def get_special_categories():
     return jsonify(dictManage.special_categories)
 
+
 @app.route('/get_special_tags_status', methods=['GET'])
+@login_required
 def get_special_tags_status():
-    print("Session cookie received:", request.cookies)
-    print("Session contents:", session)
-    return jsonify(dictManage.special_tags_status)
+    # 假设 current_user.id 可以获取当前用户ID
+    user_id = session.get('user_id')
+    
+    # 从数据库读取，如果没有就使用默认值初始化
+    default_tags = dictManage.special_tags_status
+    tags_status = get_user_setting(user_id, 'special_tags', default_tags)
+    
+    return jsonify(tags_status)
+
+@app.route('/get_category_tree_status', methods=['GET'])
+@login_required
+def get_category_tree_status():
+    user_id = session.get('user_id')
+    
+    # 从数据库读取，如果没有就使用默认值初始化
+    default_categories = {category: True for category in dictManage.relation_graph['category']}
+    default_categories['文件类型'] = True
+
+    category_status = get_user_setting(user_id, 'category_tree', default_categories)
+    
+    return jsonify(category_status)
+
+@app.route('/update_special_tags_status', methods=['POST'])
+@login_required
+def update_special_tags_status():
+    """更新用户的特殊标签状态"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({"success": False, "message": "用户未登录"}), 401
+        
+        # 获取前端发送的JSON数据
+        new_status = request.get_json()
+        
+        if not new_status or not isinstance(new_status, dict):
+            return jsonify({"success": False, "message": "无效的数据格式"}), 400
+        
+        # 保存到数据库
+        set_user_setting(user_id, 'special_tags', new_status)
+        
+        return jsonify({
+            "success": True, 
+            "message": "特殊标签状态更新成功",
+            "data": new_status
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+    
+@app.route('/update_category_tree_status', methods=['POST'])
+@login_required
+def update_category_tree_status():
+    """更新用户的分类树状态"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({"success": False, "message": "用户未登录"}), 401
+        
+        # 获取前端发送的JSON数据
+        new_status = request.get_json()
+        
+        if not new_status or not isinstance(new_status, dict):
+            return jsonify({"success": False, "message": "无效的数据格式"}), 400
+        
+        # 保存到数据库
+        set_user_setting(user_id, 'category_tree', new_status)
+        
+        return jsonify({
+            "success": True, 
+            "message": "分类树状态更新成功",
+            "data": new_status
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+
 
 @app.route('/search_files', methods=['POST'])
+@login_required
 def search_files():
     data = request.json
     tag_expression = data.get('tag_expression')
@@ -386,6 +518,7 @@ def search_files():
     return jsonify(file_paths)
 
 @app.route('/get_thumb', methods=['GET'])
+@login_required
 def get_thumbnails():
     encoded_path = request.args.get('path')
     size_str = request.args.get('size')
@@ -412,6 +545,7 @@ def get_thumbnails():
     )
 
 @app.route('/open_file', methods=['GET'])
+@login_required
 def open_file():
     file_path = request.args.get('path')
     if not file_path:
