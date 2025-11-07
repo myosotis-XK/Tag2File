@@ -164,7 +164,6 @@ class TagbaseManager(QDialog):
         self.current_tagbase_path = path
         self.current_name_label.setText(f"名称: {name}")
         self.current_path_label.setText(f"路径: {path}")
-        self.DictManage.notify_observers()
 
     def switch_tagbase(self):
         """切换当前标签库"""
@@ -420,7 +419,6 @@ class TagbaseManager(QDialog):
             
             QMessageBox.information(self, "成功", "恢复完成")
             self.DictManage.load_tagbase()
-            self.DictManage.notify_observers()
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"恢复失败: {str(e)}")
