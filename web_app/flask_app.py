@@ -456,7 +456,7 @@ def logout():
 
 @app.route('/')
 @login_required
-def serve_tag2file():
+def serve_root():
     # 自动检测来源域名
     host = request.host.lower()
 
