@@ -19,11 +19,16 @@ warnings.filterwarnings('ignore')
 from src.utils import get_cache_path, root
 
 app = Flask(__name__)
+
+domain_name = "tag2file.online"
+LOCAL_IP = "192.168.0.102"
+PORT = 10252
+
 CORS(app, 
      supports_credentials=True, 
      origins=[
-         "http://tag2file.online",
-         "http://192.168.0.102:10252/tag2file",
+         f"http://{domain_name}",
+         f"http://{LOCAL_IP}:{PORT}",
     ]
 )
 
@@ -375,25 +380,28 @@ def login():
     # GET 请求
     return serve_html('login.html')
 
-# ---------------- 登出 ----------------
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login'))
 
-@app.route('/tag2file')
-@login_required
-def serve_tag2file_web():
-    return serve_html('tag2file.html')
-
 @app.route('/')
 @login_required
-def serve_root():
-    return serve_html('tag2file_frp.html')
+def serve_tag2file():
+    # 自动检测来源域名
+    host = request.host.lower()
+
+    if domain_name in host:
+        api_base_url = f"http://{domain_name}"
+    else:
+        api_base_url = f"http://{LOCAL_IP}:{PORT}"
+
+    return serve_html('tag2file.html', api_base_url=api_base_url)
 
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory(os.path.join(root, 'data', 'icon', 'app'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 
 @app.route('/get_category', methods=['GET'])
 @login_required
@@ -579,4 +587,4 @@ def open_file():
 # ————————————————————————————————————————————————————————————————————————启动服务————————————————————————————————————————————————————————
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10252, threaded=True)
+    app.run(host='0.0.0.0', port=PORT, threaded=True)
