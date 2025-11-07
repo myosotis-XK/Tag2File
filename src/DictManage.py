@@ -1,12 +1,10 @@
 from .utils import *
 import os
-import time
 import shelve
 import shutil
 import threading
 import copy
 from PyQt5.QtCore import QObject, QThread, Qt, QMetaObject
-from PyQt5.QtGui import QColor
 from collections.abc import Callable
 
 default_value = {
@@ -80,13 +78,14 @@ class DictManage():
             if self.default_folder == 'default_folder':
                 self.default_folder = os.path.join(root, 'data', 'tagbase').replace('\\', '/')
             self.tag_dict_path = None
+            self.ini_color = "#c8c8c8"
             self.relation_graph = {}
             self.special_categories = []
             self.special_tags_status = {}
             self._lock = threading.Lock()
-            self.load_tagbase()
             self._observers: list[Observer] = []
-
+            self.load_tagbase()
+            
     # 观察者模式
     def add_observer(self, observer: Observer):
         if observer not in self._observers:
@@ -112,7 +111,7 @@ class DictManage():
         if not os.path.exists(self.tag_dict_path+".dir"):
             self.create_tagbase(self.tag_dict_path)
         with shelve.open(self.tag_dict_path) as shelf:
-            self.relation_graph['category'] = shelf.get('category_dict', {"未分类":{"tagColor":QColor(200, 200, 200).name(), "tags": set(), "tagOrder": []}})
+            self.relation_graph['category'] = shelf.get('category_dict', {"未分类":{"tagColor":self.ini_color, "tags": set(), "tagOrder": []}})
             self.relation_graph['tag'] = shelf.get('tag_dict', {})
             self.relation_graph['file'] = shelf.get('file_dict', {})
             self.special_categories.clear()
@@ -120,9 +119,11 @@ class DictManage():
             self.special_tags_status.clear()
             self.special_tags_status.update(shelf.get('special_tags_status', {}))
 
+        self.notify_observers()
+
     def create_tagbase(self, tag_dict_path: str):
         with shelve.open(tag_dict_path) as shelf:
-            shelf['category_dict'] = {"未分类":{"tagColor":QColor(200, 200, 200).name(), "tags": set(), "tagOrder": []}}
+            shelf['category_dict'] = {"未分类":{"tagColor":self.ini_color, "tags": set(), "tagOrder": []}}
             shelf['tag_dict'] = {}
             shelf['file_dict'] = {}
             shelf['special_categories'] = []
@@ -314,7 +315,7 @@ class DictManage():
         # 检查tag是否存在
         if tag not in self.relation_graph['tag']:
             if '未分类' not in self.relation_graph['category']:
-                self.relation_graph['category']['未分类'] = {"tagColor":QColor(200, 200, 200).name(), "tags": set(), "tagOrder": []}
+                self.relation_graph['category']['未分类'] = {"tagColor":self.ini_color, "tags": set(), "tagOrder": []}
             self.add_relation('tag', tag, 'category', '未分类')
             self.relation_graph['category']['未分类']['tagOrder'].append(tag)
         # 检查文件是否存在
@@ -367,7 +368,7 @@ class DictManage():
         if old_category == category:
             return
         if category not in self.relation_graph['category']:
-            self.relation_graph['category'][category] = {"tagColor":QColor(200, 200, 200).name(), "tags":set()}
+            self.relation_graph['category'][category] = {"tagColor":self.ini_color, "tags":set()}
         self.remove_relation('tag', tag, 'category', old_category)
         self.relation_graph['category'][old_category]['tagOrder'].remove(tag)
         self.add_relation('tag', tag, 'category', category)
@@ -381,7 +382,7 @@ class DictManage():
 
     def create_category(self, category: str):
         if category not in self.relation_graph['category']:  
-            self.relation_graph['category'][category] = {'tag': set(), 'tagColor': QColor(200, 200, 200).name(), 'tagOrder': []}
+            self.relation_graph['category'][category] = {'tag': set(), 'tagColor': self.ini_color, 'tagOrder': []}
             self.relation_graph['category']['未分类'] = self.relation_graph['category'].pop('未分类') # 置底
         self.save_notify()
 
