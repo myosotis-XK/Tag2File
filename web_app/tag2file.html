@@ -104,7 +104,7 @@
             flex-grow: 1; /* 允许按钮占用更多空间 */
             flex-basis: 0; /* 允许按钮在分配空间前缩小 */
             min-width: 0; /* 避免在窄屏时溢出 */
-}
+        }
         /* 2. 让标签树占据侧边栏剩余的空间，并允许内部滚动 */
         .tag-tree {
             /* 关键：flex-grow: 1 使其占据所有剩余空间 */
@@ -414,7 +414,7 @@
                             type="text" 
                             id="search-input" 
                             class="form-control" 
-                            placeholder="输入标签表达式，如：风景 & 人物"
+                            placeholder="示例：风景 ∪ 人物"
                             autocomplete="off"
                         >
                         <span id="clear-search" class="clear-btn" title="清空">
@@ -437,13 +437,23 @@
                 <div id="tag-tree" class="tag-tree">
                     <div class="loading">
                         <div class="spinner"></div>
-                        <p>加载标签库中...</p>
+                        <p>加载标签列表中...</p>
                     </div>
                 </div>
             </div>
             
             <div class="content">
-                <div class="mb-3 d-flex justify-content-end">
+                <div class="mb-3 d-flex justify-content-between align-items-center">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="database-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="切换标签库">
+                            <i class="fa fa-database me-1"></i>
+                            <span id="current-db-name">标签库</span>
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="database-dropdown" id="db-list-menu">
+                            <li class="dropdown-item text-muted">加载中...</li>
+                        </ul>
+                    </div>
+
                     <div class="btn-group btn-group-sm" role="group" aria-label="Thumbnail size">
                         <button type="button" class="btn btn-outline-secondary size-btn" data-size="small" title="小尺寸">
                             <i class="fa fa-th-list"></i>
@@ -460,14 +470,14 @@
                     <div id="results-container">
                         <div class="text-center text-muted py-5">
                             <i class="fa fa-search fa-3x mb-3"></i>
-                            <p>输入标签表达式并点击查询按钮开始搜索</p>
+                            <p>输入集合表达式并点击查询按钮开始搜索</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
         // 后端服务地址 - 请替换为您的Windows电脑IP
@@ -759,7 +769,7 @@
             resultsContainer.innerHTML = `
                 <div class="text-center text-muted py-5">
                     <i class="fa fa-search fa-3x mb-3"></i>
-                    <p>请输入标签表达式进行搜索</p>
+                    <p>请输入集合表达式进行搜索</p>
                 </div>
             `;
             // 清空全局文件列表
@@ -1059,6 +1069,95 @@
             });
         });
     
+        let currentDBName = '标签库';
+
+        // 加载可用标签库列表
+        function loadDatabaseList() {
+            const dbListMenu = document.getElementById('db-list-menu');
+            const currentDBNameEl = document.getElementById('current-db-name');
+            
+            // 初始状态
+            dbListMenu.innerHTML = '<li class="dropdown-item text-muted">加载中...</li>';
+
+            axios.get(`${API_BASE_URL}/get_db_list`)
+            .then(response => {
+                const dbList = response.data;
+                if (!dbList || dbList.length === 0) {
+                    dbListMenu.innerHTML = '<li class="dropdown-item text-muted">无可用标签库</li>';
+                    currentDBName = '无标签库';
+                } else {
+                    // 假设第一个是当前选中的，或者根据后端返回的当前状态来确定
+                    // 简单处理：如果当前名称未设置，则设置为列表中的第一个
+                    if (currentDBName === '标签库' || !dbList.includes(currentDBName)) {
+                        currentDBName = dbList[0];
+                    }
+                    
+                    dbListMenu.innerHTML = ''; // 清空列表
+                    dbList.forEach(dbName => {
+                        const li = document.createElement('li');
+                        const a = document.createElement('a');
+                        a.className = `dropdown-item ${dbName === currentDBName ? 'active' : ''}`;
+                        a.href = '#';
+                        a.textContent = dbName;
+                        a.setAttribute('data-db-name', dbName);
+                        
+                        // 绑定切换事件
+                        a.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            switchDatabase(dbName);
+                        });
+                        
+                        li.appendChild(a);
+                        dbListMenu.appendChild(li);
+                    });
+                }
+                currentDBNameEl.textContent = currentDBName;
+                // 如果成功加载列表，确保加载标签树
+                loadAvailableTags();
+            })
+            .catch(error => {
+                console.error('Failed to load database list:', error);
+                dbListMenu.innerHTML = '<li class="dropdown-item text-danger">加载失败</li>';
+                currentDBNameEl.textContent = '加载失败';
+            });
+        }
+
+        // 切换数据库
+        function switchDatabase(dbName) {
+            if (dbName === currentDBName) {
+                return;
+            }
+            
+            // 暂时禁用按钮，并显示正在切换
+            const currentDBNameEl = document.getElementById('current-db-name');
+            const oldDBName = currentDBName;
+            currentDBName = '切换中...';
+            currentDBNameEl.textContent = currentDBName;
+            
+            axios.post(`${API_BASE_URL}/switch_db`, { db_name: dbName })
+            .then(response => {
+                if (response.data.success) {
+                    currentDBName = dbName;
+                    // 重新加载数据库列表（更新 active 状态）和标签树
+                    loadDatabaseList(); 
+                    // 切换成功后清空搜索结果
+                    clearSearch();
+                } else {
+                    console.error('Switch DB failed:', response.data.message);
+                    alert(`切换标签库失败: ${response.data.message}`);
+                    currentDBName = oldDBName; // 恢复
+                    currentDBNameEl.textContent = currentDBName;
+                }
+            })
+            .catch(error => {
+                console.error('Switch DB failed:', error);
+                alert('切换标签库失败，请检查服务器连接');
+                currentDBName = oldDBName; // 恢复
+                currentDBNameEl.textContent = currentDBName;
+            });
+        }
+
+
         // 初始化事件监听
         function initEventListeners() {
             // 搜索按钮点击事件
@@ -1108,7 +1207,7 @@
             document.documentElement.style.setProperty('--thumb-size', sizeMap[currentIconSize] + 'px');
             
             initEventListeners();
-            loadAvailableTags();
+            loadDatabaseList();
 
             // 防抖 (debounce) 函数，防止 resize 事件过于频繁
             function debounce(func, wait) {
