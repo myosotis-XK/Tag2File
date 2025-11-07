@@ -402,6 +402,44 @@
             <a class="navbar-brand" href="#">
                 <i class="fa fa-tags mr-2"></i>Tag2File
             </a>
+
+            <div class="dropdown ms-auto">
+                <button class="btn btn-primary dropdown-toggle" type="button" id="settings-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="设置">
+                    <i class="fa fa-cog"></i> </button>
+                <ul class="dropdown-menu dropdown-menu-end p-2" aria-labelledby="settings-dropdown">
+                    <li class="keep-open-on-click"> 
+                        <span class="dropdown-item-text fw-bold">标签库:</span>
+                        <div class="dropdown mb-2">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100" type="button" id="database-dropdown-inner" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fa fa-database me-1"></i>
+                                <span id="current-db-name">标签库</span>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="database-dropdown-inner" id="db-list-menu">
+                                <li class="dropdown-item text-muted">加载中...</li>
+                            </ul>
+                        </div>
+                    </li>
+
+                <li><hr class="dropdown-divider"></li>
+
+                    <li><hr class="dropdown-divider"></li>
+                    
+                    <li>
+                        <span class="dropdown-item-text fw-bold">缩略图尺寸:</span>
+                        <div class="btn-group btn-group-sm w-100 p-2" role="group" aria-label="Thumbnail size">
+                            <button type="button" class="btn btn-outline-secondary size-btn" data-size="small" title="小尺寸">
+                                <i class="fa fa-th-list"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-primary active size-btn" data-size="medium" title="中尺寸">
+                                <i class="fa fa-th"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary size-btn" data-size="large" title="大尺寸">
+                                <i class="fa fa-th-large"></i>
+                            </button>
+                        </div>
+                    </li>
+                </ul>
+            </div>
         </div>
     </nav>
     
@@ -443,7 +481,7 @@
             </div>
             
             <div class="content">
-                <div class="mb-3 d-flex justify-content-between align-items-center">
+                <!-- <div class="mb-3 d-flex justify-content-between align-items-center">
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="database-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="切换标签库">
                             <i class="fa fa-database me-1"></i>
@@ -465,7 +503,7 @@
                             <i class="fa fa-th-large"></i>
                         </button>
                     </div>
-                </div>
+                </div> -->
                 <div class="file-list">
                     <div id="results-container">
                         <div class="text-center text-muted py-5">
@@ -1218,7 +1256,15 @@
                     timeout = setTimeout(() => func.apply(context, args), wait);
                 };
             }
-
+            // 阻止点击特定区域时关闭父级下拉菜单的逻辑
+            const keepOpenElements = document.querySelectorAll('.keep-open-on-click');
+            keepOpenElements.forEach(element => {
+                // 阻止点击其内部元素时，关闭整个“设置”菜单
+                element.addEventListener('click', (e) => {
+                    // 阻止事件冒泡到父级的 dropdown 处理器
+                    e.stopPropagation();
+                });
+            });
             // 监听窗口大小变化
             window.addEventListener('resize', debounce(() => {
                 // 只有在有文件（即虚拟列表已初始化）时才重新渲染
