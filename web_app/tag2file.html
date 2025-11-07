@@ -104,7 +104,7 @@
             flex-grow: 1; /* 允许按钮占用更多空间 */
             flex-basis: 0; /* 允许按钮在分配空间前缩小 */
             min-width: 0; /* 避免在窄屏时溢出 */
-}
+        }
         /* 2. 让标签树占据侧边栏剩余的空间，并允许内部滚动 */
         .tag-tree {
             /* 关键：flex-grow: 1 使其占据所有剩余空间 */
@@ -402,6 +402,44 @@
             <a class="navbar-brand" href="#">
                 <i class="fa fa-tags mr-2"></i>Tag2File
             </a>
+
+            <div class="dropdown ms-auto">
+                <button class="btn btn-primary dropdown-toggle" type="button" id="settings-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="设置">
+                    <i class="fa fa-cog"></i> </button>
+                <ul class="dropdown-menu dropdown-menu-end p-2" aria-labelledby="settings-dropdown">
+                    <li class="keep-open-on-click"> 
+                        <span class="dropdown-item-text fw-bold">标签库:</span>
+                        <div class="dropdown mb-2">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100" type="button" id="database-dropdown-inner" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fa fa-database me-1"></i>
+                                <span id="current-db-name">标签库</span>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="database-dropdown-inner" id="db-list-menu">
+                                <li class="dropdown-item text-muted">加载中...</li>
+                            </ul>
+                        </div>
+                    </li>
+
+                <li><hr class="dropdown-divider"></li>
+
+                    <li><hr class="dropdown-divider"></li>
+                    
+                    <li>
+                        <span class="dropdown-item-text fw-bold">缩略图尺寸:</span>
+                        <div class="btn-group btn-group-sm w-100 p-2" role="group" aria-label="Thumbnail size">
+                            <button type="button" class="btn btn-outline-secondary size-btn" data-size="small" title="小尺寸">
+                                <i class="fa fa-th-list"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-primary active size-btn" data-size="medium" title="中尺寸">
+                                <i class="fa fa-th"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary size-btn" data-size="large" title="大尺寸">
+                                <i class="fa fa-th-large"></i>
+                            </button>
+                        </div>
+                    </li>
+                </ul>
+            </div>
         </div>
     </nav>
     
@@ -414,7 +452,7 @@
                             type="text" 
                             id="search-input" 
                             class="form-control" 
-                            placeholder="输入标签表达式，如：风景 & 人物"
+                            placeholder="示例：风景 ∪ 人物"
                             autocomplete="off"
                         >
                         <span id="clear-search" class="clear-btn" title="清空">
@@ -437,13 +475,23 @@
                 <div id="tag-tree" class="tag-tree">
                     <div class="loading">
                         <div class="spinner"></div>
-                        <p>加载标签库中...</p>
+                        <p>加载标签列表中...</p>
                     </div>
                 </div>
             </div>
             
             <div class="content">
-                <div class="mb-3 d-flex justify-content-end">
+                <!-- <div class="mb-3 d-flex justify-content-between align-items-center">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="database-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="切换标签库">
+                            <i class="fa fa-database me-1"></i>
+                            <span id="current-db-name">标签库</span>
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="database-dropdown" id="db-list-menu">
+                            <li class="dropdown-item text-muted">加载中...</li>
+                        </ul>
+                    </div>
+
                     <div class="btn-group btn-group-sm" role="group" aria-label="Thumbnail size">
                         <button type="button" class="btn btn-outline-secondary size-btn" data-size="small" title="小尺寸">
                             <i class="fa fa-th-list"></i>
@@ -455,23 +503,23 @@
                             <i class="fa fa-th-large"></i>
                         </button>
                     </div>
-                </div>
+                </div> -->
                 <div class="file-list">
                     <div id="results-container">
                         <div class="text-center text-muted py-5">
                             <i class="fa fa-search fa-3x mb-3"></i>
-                            <p>输入标签表达式并点击查询按钮开始搜索</p>
+                            <p>输入集合表达式并点击查询按钮开始搜索</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
         // 后端服务地址 - 请替换为您的Windows电脑IP
-        const API_BASE_URL = 'http://192.168.0.102:10252';
+        const API_BASE_URL = "{{ api_base_url }}";
         axios.defaults.withCredentials = true;
         
         // 标签表达式生成器
@@ -759,7 +807,7 @@
             resultsContainer.innerHTML = `
                 <div class="text-center text-muted py-5">
                     <i class="fa fa-search fa-3x mb-3"></i>
-                    <p>请输入标签表达式进行搜索</p>
+                    <p>请输入集合表达式进行搜索</p>
                 </div>
             `;
             // 清空全局文件列表
@@ -1059,6 +1107,95 @@
             });
         });
     
+        let currentDBName = '标签库';
+
+        // 加载可用标签库列表
+        function loadDatabaseList() {
+            const dbListMenu = document.getElementById('db-list-menu');
+            const currentDBNameEl = document.getElementById('current-db-name');
+            
+            // 初始状态
+            dbListMenu.innerHTML = '<li class="dropdown-item text-muted">加载中...</li>';
+
+            axios.get(`${API_BASE_URL}/get_db_list`)
+            .then(response => {
+                const dbList = response.data;
+                if (!dbList || dbList.length === 0) {
+                    dbListMenu.innerHTML = '<li class="dropdown-item text-muted">无可用标签库</li>';
+                    currentDBName = '无标签库';
+                } else {
+                    // 假设第一个是当前选中的，或者根据后端返回的当前状态来确定
+                    // 简单处理：如果当前名称未设置，则设置为列表中的第一个
+                    if (currentDBName === '标签库' || !dbList.includes(currentDBName)) {
+                        currentDBName = dbList[0];
+                    }
+                    
+                    dbListMenu.innerHTML = ''; // 清空列表
+                    dbList.forEach(dbName => {
+                        const li = document.createElement('li');
+                        const a = document.createElement('a');
+                        a.className = `dropdown-item ${dbName === currentDBName ? 'active' : ''}`;
+                        a.href = '#';
+                        a.textContent = dbName;
+                        a.setAttribute('data-db-name', dbName);
+                        
+                        // 绑定切换事件
+                        a.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            switchDatabase(dbName);
+                        });
+                        
+                        li.appendChild(a);
+                        dbListMenu.appendChild(li);
+                    });
+                }
+                currentDBNameEl.textContent = currentDBName;
+                // 如果成功加载列表，确保加载标签树
+                loadAvailableTags();
+            })
+            .catch(error => {
+                console.error('Failed to load database list:', error);
+                dbListMenu.innerHTML = '<li class="dropdown-item text-danger">加载失败</li>';
+                currentDBNameEl.textContent = '加载失败';
+            });
+        }
+
+        // 切换数据库
+        function switchDatabase(dbName) {
+            if (dbName === currentDBName) {
+                return;
+            }
+            
+            // 暂时禁用按钮，并显示正在切换
+            const currentDBNameEl = document.getElementById('current-db-name');
+            const oldDBName = currentDBName;
+            currentDBName = '切换中...';
+            currentDBNameEl.textContent = currentDBName;
+            
+            axios.post(`${API_BASE_URL}/switch_db`, { db_name: dbName })
+            .then(response => {
+                if (response.data.success) {
+                    currentDBName = dbName;
+                    // 重新加载数据库列表（更新 active 状态）和标签树
+                    loadDatabaseList(); 
+                    // 切换成功后清空搜索结果
+                    clearSearch();
+                } else {
+                    console.error('Switch DB failed:', response.data.message);
+                    alert(`切换标签库失败: ${response.data.message}`);
+                    currentDBName = oldDBName; // 恢复
+                    currentDBNameEl.textContent = currentDBName;
+                }
+            })
+            .catch(error => {
+                console.error('Switch DB failed:', error);
+                alert('切换标签库失败，请检查服务器连接');
+                currentDBName = oldDBName; // 恢复
+                currentDBNameEl.textContent = currentDBName;
+            });
+        }
+
+
         // 初始化事件监听
         function initEventListeners() {
             // 搜索按钮点击事件
@@ -1108,7 +1245,7 @@
             document.documentElement.style.setProperty('--thumb-size', sizeMap[currentIconSize] + 'px');
             
             initEventListeners();
-            loadAvailableTags();
+            loadDatabaseList();
 
             // 防抖 (debounce) 函数，防止 resize 事件过于频繁
             function debounce(func, wait) {
@@ -1119,7 +1256,15 @@
                     timeout = setTimeout(() => func.apply(context, args), wait);
                 };
             }
-
+            // 阻止点击特定区域时关闭父级下拉菜单的逻辑
+            const keepOpenElements = document.querySelectorAll('.keep-open-on-click');
+            keepOpenElements.forEach(element => {
+                // 阻止点击其内部元素时，关闭整个“设置”菜单
+                element.addEventListener('click', (e) => {
+                    // 阻止事件冒泡到父级的 dropdown 处理器
+                    e.stopPropagation();
+                });
+            });
             // 监听窗口大小变化
             window.addEventListener('resize', debounce(() => {
                 // 只有在有文件（即虚拟列表已初始化）时才重新渲染

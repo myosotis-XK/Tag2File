@@ -16,14 +16,19 @@ import warnings
 import traceback
 warnings.filterwarnings('ignore')
 
-from src.utils import get_cache_path, root
+from src.utils import get_cache_path, root, config
 
 app = Flask(__name__)
+
+domain_name = "tag2file.online"
+LOCAL_IP = "192.168.7.123"
+PORT = 10252
+
 CORS(app, 
      supports_credentials=True, 
      origins=[
-         "http://tag2file.online",
-         "http://192.168.0.102:10252/tag2file",
+         f"http://{domain_name}",
+         f"http://{LOCAL_IP}:{PORT}",
     ]
 )
 
@@ -88,9 +93,78 @@ def handle_global_exception(e):
     }
     return jsonify(response), status_code  
 
-from src.DictManage import DictManage
+import shelve
 from src.TagClass import get_tag_files
-dictManage = DictManage()
+def load_tagbase_data(tagbase_name: str = None) -> dict:
+    """
+    加载指定标签库的数据。此函数在 Flask 线程中独立运行，不依赖任何类实例。
+
+    Args:
+        tagbase_name: 要加载的标签库文件名（不含扩展名）。
+
+    Returns:
+        包含 'relation_graph', 'special_categories', 'special_tags_status' 的字典。
+    """
+    
+    # 1. 路径逻辑 (直接使用您提供的逻辑，并移除 self)
+    floder_path = config.get('DictManage', 'tagbase_folder', fallback='default_folder')
+    
+    # 确定 default_folder
+    default_folder = config.get('DictManage', 'default_folder', fallback='default_folder')
+    if default_folder == 'default_folder':
+        # 使用导入的 root 变量
+        default_folder = os.path.join(root, 'data', 'tagbase').replace('\\', '/')
+        
+    # 如果配置中 tagbase_folder 缺失，使用 default_folder
+    if floder_path == 'default_folder':
+        floder_path = default_folder
+        
+    os.makedirs(floder_path, exist_ok=True)
+    
+    if tagbase_name is None:
+        tagbase_name = config.get('DictManage', 'tagbase_name', fallback='tagbase')
+        
+    tag_dict_path = os.path.join(floder_path, tagbase_name).replace('\\', '/')
+    
+    # 2. 检查和创建标签库 (如果需要)
+    # ⚠️ 您必须确保 create_tagbase 函数在这里是可访问的，并且不依赖 QColor。
+    if not os.path.exists(tag_dict_path + ".dir"):
+        # 必须调用一个不依赖 Qt 的创建函数
+        # create_tagbase_pure_python(tag_dict_path)
+        pass # 假设已处理
+
+    # 3. 读取数据并返回
+    data = {
+        'relation_graph': {},
+        'special_categories': [],
+        'special_tags_status': {}
+    }
+    
+    try:
+        with shelve.open(tag_dict_path) as shelf:
+            # ❗ 移除 QColor 依赖，使用硬编码的颜色字符串 (QColor(200, 200, 200).name() ≈ #c8c8c8)
+            default_category = {
+                "未分类": {
+                    "tagColor": "#c8c8c8", 
+                    "tags": set(), 
+                    "tagOrder": []
+                }
+            }
+            
+            data['relation_graph']['category'] = shelf.get('category_dict', default_category)
+            data['relation_graph']['tag'] = shelf.get('tag_dict', {})
+            data['relation_graph']['file'] = shelf.get('file_dict', {})
+            data['special_categories'].extend(shelf.get('special_categories', []))
+            data['special_tags_status'].update(shelf.get('special_tags_status', {}))
+            
+    except Exception as e:
+        # 在 Web 线程中，打印错误并返回安全响应
+        print(f"Error loading tagbase {tagbase_name}: {e}")
+        # 如果读取失败，将返回带有空字典的 data
+        
+    return data
+
+tagbase_data = load_tagbase_data()
 
 
 _icon_provider = QFileIconProvider()
@@ -375,30 +449,51 @@ def login():
     # GET 请求
     return serve_html('login.html')
 
-# ---------------- 登出 ----------------
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login'))
 
-@app.route('/tag2file')
-@login_required
-def serve_tag2file_web():
-    return serve_html('tag2file.html')
-
 @app.route('/')
 @login_required
 def serve_root():
-    return serve_html('tag2file_frp.html')
+    # 自动检测来源域名
+    host = request.host.lower()
+
+    if domain_name in host:
+        api_base_url = f"http://{domain_name}"
+    else:
+        api_base_url = f"http://{LOCAL_IP}:{PORT}"
+
+    return serve_html('tag2file.html', api_base_url=api_base_url)
 
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory(os.path.join(root, 'data', 'icon', 'app'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
+
+@app.route('/get_db_list', methods=['GET'])
+@login_required
+def get_db_list():
+    db_list = config.get('DictManage', 'tagbase_list', fallback='').split('|')
+    db_name_list = [os.path.basename(db_name) for db_name in db_list]
+    return jsonify(db_name_list)
+
+@app.route('/switch_db', methods=['POST'])
+@login_required
+def switch_db():
+    global tagbase_data
+    db_name = request.json.get('db_name')
+    if not db_name:
+        return jsonify({'success': False, 'message': '数据库名称不能为空'}), 400
+    tagbase_data = load_tagbase_data(db_name)
+    return jsonify({'success': True, 'message': f'切换到数据库 {db_name}'})
+
+
 @app.route('/get_category', methods=['GET'])
 @login_required
 def get_category():
-    categories = dictManage.relation_graph['category']
+    categories = tagbase_data['relation_graph']['category']
     
     serializable_categories = {}
     category_order = []
@@ -422,7 +517,7 @@ def get_category():
 @app.route('/get_special_categories', methods=['GET'])
 @login_required
 def get_special_categories():
-    return jsonify(dictManage.special_categories)
+    return jsonify(tagbase_data['special_categories'])
 
 
 @app.route('/get_special_tags_status', methods=['GET'])
@@ -432,7 +527,7 @@ def get_special_tags_status():
     user_id = session.get('user_id')
     
     # 从数据库读取，如果没有就使用默认值初始化
-    default_tags = dictManage.special_tags_status
+    default_tags = tagbase_data['special_tags_status']
     tags_status = get_user_setting(user_id, 'special_tags', default_tags)
     
     return jsonify(tags_status)
@@ -443,7 +538,7 @@ def get_category_tree_status():
     user_id = session.get('user_id')
     
     # 从数据库读取，如果没有就使用默认值初始化
-    default_categories = {category: True for category in dictManage.relation_graph['category']}
+    default_categories = {category: True for category in tagbase_data['relation_graph']['category']}
     default_categories['文件类型'] = True
 
     category_status = get_user_setting(user_id, 'category_tree', default_categories)
@@ -555,7 +650,7 @@ def open_file():
         print(f"File not found: {file_path}")
         return jsonify({'error': '文件不存在或路径无效'}), 404
     
-    if file_path not in dictManage.relation_graph['file']:
+    if file_path not in tagbase_data['relation_graph']['file']:
         print(f'访问权限不足：{file_path}')
         return jsonify({'error': '访问权限不足'}), 403
 
@@ -579,4 +674,4 @@ def open_file():
 # ————————————————————————————————————————————————————————————————————————启动服务————————————————————————————————————————————————————————
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10252, threaded=True)
+    app.run(host='0.0.0.0', port=PORT, threaded=True)
