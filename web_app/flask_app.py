@@ -21,7 +21,7 @@ from src.utils import get_cache_path, root, config
 app = Flask(__name__)
 
 domain_name = "tag2file.online"
-LOCAL_IP = "192.168.7.123"
+LOCAL_IP = "192.168.0.102"
 PORT = 10252
 
 CORS(app, 
