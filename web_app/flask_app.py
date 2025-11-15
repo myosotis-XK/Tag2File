@@ -95,7 +95,8 @@ def handle_global_exception(e):
 
 import shelve
 from src.TagClass import get_tag_files
-def load_tagbase_data(tagbase_name: str = None) -> dict:
+
+def load_tagbase_data(tagbase_path: str) -> dict:
     """
     加载指定标签库的数据。此函数在 Flask 线程中独立运行，不依赖任何类实例。
 
@@ -105,35 +106,6 @@ def load_tagbase_data(tagbase_name: str = None) -> dict:
     Returns:
         包含 'relation_graph', 'special_categories', 'special_tags_status' 的字典。
     """
-    
-    # 1. 路径逻辑
-    floder_path = config.get('DictManage', 'tagbase_folder', fallback='default_folder')
-    
-    # 确定 default_folder
-    default_folder = config.get('DictManage', 'default_folder', fallback='default_folder')
-    if default_folder == 'default_folder':
-        # 使用导入的 root 变量
-        default_folder = os.path.join(root, 'data', 'tagbase').replace('\\', '/')
-        
-    # 如果配置中 tagbase_folder 缺失，使用 default_folder
-    if floder_path == 'default_folder':
-        floder_path = default_folder
-        
-    os.makedirs(floder_path, exist_ok=True)
-    
-    if tagbase_name is None:
-        tagbase_name = config.get('DictManage', 'tagbase_name', fallback='tagbase')
-        
-    tag_dict_path = os.path.join(floder_path, tagbase_name).replace('\\', '/')
-    
-    # 2. 检查和创建标签库 (如果需要)
-    # ⚠️ 您必须确保 create_tagbase 函数在这里是可访问的，并且不依赖 QColor。
-    if not os.path.exists(tag_dict_path + ".dir"):
-        # 必须调用一个不依赖 Qt 的创建函数
-        # create_tagbase_pure_python(tag_dict_path)
-        pass # 假设已处理
-
-    # 3. 读取数据并返回
     data = {
         'relation_graph': {},
         'special_categories': [],
@@ -141,8 +113,7 @@ def load_tagbase_data(tagbase_name: str = None) -> dict:
     }
     
     try:
-        with shelve.open(tag_dict_path) as shelf:
-            # ❗ 移除 QColor 依赖，使用硬编码的颜色字符串 (QColor(200, 200, 200).name() ≈ #c8c8c8)
+        with shelve.open(tagbase_path) as shelf:
             default_category = {
                 "未分类": {
                     "tagColor": "#c8c8c8", 
@@ -159,12 +130,11 @@ def load_tagbase_data(tagbase_name: str = None) -> dict:
             
     except Exception as e:
         # 在 Web 线程中，打印错误并返回安全响应
-        print(f"Error loading tagbase {tagbase_name}: {e}")
+        print(f"Error loading tagbase {tagbase_path}: {e}")
         # 如果读取失败，将返回带有空字典的 data
     return data
 
-tagbase_data = load_tagbase_data()
-
+tagbase_data_dict = {}
 
 _icon_provider = QFileIconProvider()
 
@@ -366,7 +336,7 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
 def get_user_setting(user_id, setting_type, default_value=None):
     """获取用户配置"""
     if not user_id:
-        return default_value or {}
+        return default_value
     db = get_db()
     cursor = db.cursor()
     
@@ -384,7 +354,7 @@ def get_user_setting(user_id, setting_type, default_value=None):
         # 如果没有找到，初始化默认值
         if default_value is not None:
             set_user_setting(user_id, setting_type, default_value)
-        return default_value or {}
+        return default_value
 
 def set_user_setting(user_id, setting_type, setting_data):
     """设置用户配置"""
@@ -470,28 +440,43 @@ def serve_root():
 def favicon():
     return send_from_directory(os.path.join(root, 'data', 'icon', 'app'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
-
-@app.route('/get_db_list', methods=['GET'])
+@app.route('/get_init', methods=['GET'])
 @login_required
-def get_db_list():
-    db_list = config.get('DictManage', 'tagbase_list', fallback='').split('|')
-    db_name_list = [os.path.basename(db_name) for db_name in db_list]
-    return jsonify(db_name_list)
+def get_init():
+    user_id = session.get('user_id')
+    db_list = get_user_setting(user_id, 'database_list')
+    if db_list is None:
+        db_list = config.get('DictManage', 'tagbase_list', fallback='').split('|')
+        set_user_setting(user_id, 'database_list', db_list)
+    db_path = get_user_setting(user_id, 'database_path')
+    if db_path is None:
+        db_path = db_list[0]
+        set_user_setting(user_id, 'database_path', db_path)
+    if db_path not in tagbase_data_dict:
+        tagbase_data_dict[db_path] = load_tagbase_data(db_path)
+    return jsonify({
+        'database_list': db_list,
+        'database_path': db_path,
+    })
 
 @app.route('/switch_db', methods=['POST'])
 @login_required
 def switch_db():
-    global tagbase_data
-    db_name = request.json.get('db_name')
-    if not db_name:
-        return jsonify({'success': False, 'message': '数据库名称不能为空'}), 400
-    tagbase_data = load_tagbase_data(db_name)
-    return jsonify({'success': True, 'message': f'切换到数据库 {db_name}'})
-
+    global tagbase_data_dict
+    db_path = request.json.get('db_path')
+    print(db_path)
+    if not db_path:
+        return jsonify({'success': False, 'message': '数据库路径不能为空'}), 400
+    set_user_setting(session.get('user_id'), 'database_path', db_path)
+    if db_path not in tagbase_data_dict:
+        tagbase_data_dict[db_path] = load_tagbase_data(db_path)
+    return jsonify({'success': True, 'message': f'切换到数据库 {db_path}'})
 
 @app.route('/get_category', methods=['GET'])
 @login_required
 def get_category():
+    db_path = get_user_setting(session.get('user_id'), 'database_path')
+    tagbase_data = tagbase_data_dict[db_path]
     categories = tagbase_data['relation_graph']['category']
     
     serializable_categories = {}
@@ -516,6 +501,8 @@ def get_category():
 @app.route('/get_special_categories', methods=['GET'])
 @login_required
 def get_special_categories():
+    db_path = get_user_setting(session.get('user_id'), 'database_path')
+    tagbase_data = tagbase_data_dict[db_path]
     return jsonify(tagbase_data['special_categories'])
 
 
@@ -524,7 +511,7 @@ def get_special_categories():
 def get_special_tags_status():
     # 假设 current_user.id 可以获取当前用户ID
     user_id = session.get('user_id')
-    
+    tagbase_data = tagbase_data_dict[get_user_setting(user_id, 'database_path')]
     # 从数据库读取，如果没有就使用默认值初始化
     default_tags = tagbase_data['special_tags_status']
     tags_status = get_user_setting(user_id, 'special_tags', default_tags)
@@ -535,7 +522,7 @@ def get_special_tags_status():
 @login_required
 def get_category_tree_status():
     user_id = session.get('user_id')
-    
+    tagbase_data = tagbase_data_dict[get_user_setting(user_id, 'database_path')]
     # 从数据库读取，如果没有就使用默认值初始化
     default_categories = {category: True for category in tagbase_data['relation_graph']['category']}
     default_categories['文件类型'] = True
@@ -605,6 +592,8 @@ def search_files():
     data = request.json
     tag_expression = data.get('tag_expression')
     special_tags_status = data.get('special_tags_status')
+    db_path = get_user_setting(session.get('user_id'), 'database_path')
+    tagbase_data = tagbase_data_dict[db_path]
     file_paths = get_tag_files(tag_expression, special_tags_status, tagbase_data['relation_graph'])
     if file_paths is False:
         return jsonify({"error": f"错误的表达式：{tag_expression}"}), 400
@@ -649,6 +638,8 @@ def open_file():
         print(f"File not found: {file_path}")
         return jsonify({'error': '文件不存在或路径无效'}), 404
     
+    db_path = get_user_setting(session.get('user_id'), 'database_path')
+    tagbase_data = tagbase_data_dict[db_path]
     if file_path not in tagbase_data['relation_graph']['file']:
         print(f'访问权限不足：{file_path}')
         return jsonify({'error': '访问权限不足'}), 403
