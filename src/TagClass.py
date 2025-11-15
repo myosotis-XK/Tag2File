@@ -304,9 +304,6 @@ class InputTagLabel(QLabel):
         self.parent().wheelEvent(event)
 
 from .utils import *
-from .DictManage import *
-dictmange = DictManage()
-relation_graph = dictmange.relation_graph
 class Tag:
     def __init__(self, tag):
         self.tag = tag # 保存集合名字符串
@@ -403,7 +400,7 @@ def parse_set_expression(expression):
     return result
 
 # 获取tag对应文件路径
-def get_tag_files(tag_expression: str, special_tags_status: dict=None):
+def get_tag_files(tag_expression: str, special_tags_status: dict=None, relation_graph: dict=None):
     result_tag = parse_set_expression(tag_expression)
     if not result_tag:
         return False

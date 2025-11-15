@@ -106,7 +106,7 @@ def load_tagbase_data(tagbase_name: str = None) -> dict:
         包含 'relation_graph', 'special_categories', 'special_tags_status' 的字典。
     """
     
-    # 1. 路径逻辑 (直接使用您提供的逻辑，并移除 self)
+    # 1. 路径逻辑
     floder_path = config.get('DictManage', 'tagbase_folder', fallback='default_folder')
     
     # 确定 default_folder
@@ -161,7 +161,6 @@ def load_tagbase_data(tagbase_name: str = None) -> dict:
         # 在 Web 线程中，打印错误并返回安全响应
         print(f"Error loading tagbase {tagbase_name}: {e}")
         # 如果读取失败，将返回带有空字典的 data
-        
     return data
 
 tagbase_data = load_tagbase_data()
@@ -606,7 +605,7 @@ def search_files():
     data = request.json
     tag_expression = data.get('tag_expression')
     special_tags_status = data.get('special_tags_status')
-    file_paths = get_tag_files(tag_expression, special_tags_status)
+    file_paths = get_tag_files(tag_expression, special_tags_status, tagbase_data['relation_graph'])
     if file_paths is False:
         return jsonify({"error": f"错误的表达式：{tag_expression}"}), 400
 

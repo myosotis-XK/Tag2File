@@ -259,7 +259,7 @@ class Tag2File(QMainWindow, Observer):
 
     # 获取tag对应文件路径
     def get_tag_files(self, tag_expression: str):
-        file_paths = get_tag_files(tag_expression, self.special_tags_status)
+        file_paths = get_tag_files(tag_expression, self.special_tags_status, self.relation_graph)
         if file_paths is False:
             message_box = QMessageBox(self)
             message_box.setIcon(QMessageBox.Information)
