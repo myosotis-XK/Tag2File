@@ -1,5 +1,4 @@
 from flask import Flask, Response, request, g, send_file, send_from_directory, jsonify, make_response, abort
-from flask_cors import CORS
 import urllib.parse
 from PIL import Image
 from io import BytesIO
@@ -21,16 +20,6 @@ from src.utils import get_cache_path, root, config
 app = Flask(__name__)
 
 domain_name = "tag2file.online"
-LOCAL_IP = "192.168.0.102"
-PORT = 10252
-
-CORS(app, 
-     supports_credentials=True, 
-     origins=[
-         f"http://{domain_name}",
-         f"http://{LOCAL_IP}:{PORT}",
-    ]
-)
 
 from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session
 from functools import wraps
@@ -427,14 +416,7 @@ def logout():
 @login_required
 def serve_root():
     # 自动检测来源域名
-    host = request.host.lower()
-
-    if domain_name in host:
-        api_base_url = f"http://{domain_name}"
-    else:
-        api_base_url = f"http://{LOCAL_IP}:{PORT}"
-
-    return serve_html('tag2file.html', api_base_url=api_base_url)
+    return serve_html('tag2file.html')
 
 @app.route('/favicon.ico')
 def favicon():
@@ -664,4 +646,4 @@ def open_file():
 # ————————————————————————————————————————————————————————————————————————启动服务————————————————————————————————————————————————————————
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=PORT, threaded=True)
+    app.run(host='0.0.0.0', port=10252, threaded=True)

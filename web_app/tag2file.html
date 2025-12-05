@@ -523,10 +523,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
-        // 后端服务地址 - 请替换为您的Windows电脑IP
-        const API_BASE_URL = "{{ api_base_url }}";
-        axios.defaults.withCredentials = true;
-        
         // 标签表达式生成器
         class TagExpressionBuilder {
             constructor() {
@@ -582,10 +578,10 @@
         function loadAvailableTags() {
             // ... (保持 Promise.all 部分不变)
             Promise.all([
-                axios.get(`${API_BASE_URL}/get_category`),
-                axios.get(`${API_BASE_URL}/get_special_categories`),
-                axios.get(`${API_BASE_URL}/get_special_tags_status`),
-                axios.get(`${API_BASE_URL}/get_category_tree_status`)
+                axios.get(`/get_category`),
+                axios.get(`/get_special_categories`),
+                axios.get(`/get_special_tags_status`),
+                axios.get(`/get_category_tree_status`)
             ])
             .then(([categoryResponse, specialCatResponse, specialTagsResponse, categoryTreeResponse]) => {
                 const tagTreeContainer = document.getElementById('tag-tree');
@@ -736,7 +732,7 @@
         }
 
         function updateSpecialTagsStatusToBackend() {
-            axios.post(`${API_BASE_URL}/update_special_tags_status`, specialTagsStatus)
+            axios.post(`/update_special_tags_status`, specialTagsStatus)
             .then(response => {
                 if (!response.data.success) {
                     console.error('保存特殊标签状态失败:', response.data.message);
@@ -748,7 +744,7 @@
         }
 
         function updateCategoryTreeStatusToBackend() {
-            axios.post(`${API_BASE_URL}/update_category_tree_status`, categoryTreeStatus)
+            axios.post(`/update_category_tree_status`, categoryTreeStatus)
             .then(response => {
                 if (!response.data.success) {
                     console.error('保存分类树状态失败:', response.data.message);
@@ -771,7 +767,7 @@
             showLoadingState();
             
             // 修改：调整请求参数以匹配后端接口，包含特殊标签状态
-            axios.post(`${API_BASE_URL}/search_files`, {
+            axios.post(`/search_files`, {
                 tag_expression: query,
                 special_tags_status: specialTagsStatus
             })
@@ -979,7 +975,7 @@
                     // 如果项目不存在，则创建并添加
                     const file = virtualFiles[index];
                     const currentThumbSize = sizeMap[currentIconSize];
-                    const thumbSrc = `${API_BASE_URL}/get_thumb?path=${encodeURIComponent(file.filePath)}&size=${currentThumbSize}`;
+                    const thumbSrc = `/get_thumb?path=${encodeURIComponent(file.filePath)}&size=${currentThumbSize}`;
                     if (!item) {
                         item = document.createElement('div');
                         item.id = `item-${index}`; // 设置ID以便追踪
@@ -992,7 +988,7 @@
                         // 绑定点击事件
                         item.addEventListener('click', () => {
                             // 使用后端服务地址 + 新的接口，将文件路径作为参数传递
-                            const targetUrl = `${API_BASE_URL}/open_file?path=${encodeURIComponent(file.filePath)}`;
+                            const targetUrl = `/open_file?path=${encodeURIComponent(file.filePath)}`;
                             window.open(targetUrl);
                         });
                         
@@ -1132,8 +1128,8 @@
             
             dbListMenu.innerHTML = '<li class="dropdown-item text-muted">加载中...</li>';
 
-            // 1. 调用 /get_init 路由 (仅此一次)
-            axios.get(`${API_BASE_URL}/get_init`)
+            // 1. 调用 /get_init 路由
+            axios.get(`/get_init`)
             .then(response => {
                 const dbList = response.data.database_list;
                 const activeDbPath = response.data.database_path;
@@ -1212,7 +1208,7 @@
             currentDBNameElements.forEach(el => el.textContent = '切换中...');
             
             // 4. POST请求发送完整路径
-            axios.post(`${API_BASE_URL}/switch_db`, { db_path: dbPath }) 
+            axios.post(`/switch_db`, { db_path: dbPath }) 
             .then(response => {
                 if (response.data.success) {
                     // 切换成功
