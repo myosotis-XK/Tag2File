@@ -9,6 +9,60 @@ from .TagInput import TagInputWidget
 import sys  
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QPushButton, QTreeWidgetItem, QApplication, QSystemTrayIcon
 from PyQt5.QtGui import QColor
+import socket
+import qrcode
+
+class WebUsagePopup(QWidget):
+    def __init__(self, url):
+        super().__init__()
+        self.setWindowTitle("Web端入口")
+        self.setFixedSize(300, 350)
+        self.url = url
+        self.initUI()
+
+    def initUI(self):
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignCenter)
+        layout.setSpacing(15)  # 元素间距
+
+        # “访问地址”标题
+        label_title = QLabel("访问地址")
+        font_title = QFont()
+        font_title.setPointSize(14)
+        font_title.setBold(True)
+        label_title.setFont(font_title)
+        label_title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label_title)
+
+        # URL 单独一行，可点击
+        label_url = QLabel(f"<a href='{self.url}'>{self.url}</a>")
+        font_url = QFont()
+        font_url.setPointSize(12)
+        label_url.setFont(font_url)
+        label_url.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        label_url.setOpenExternalLinks(True)
+        label_url.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label_url)
+
+        # 生成二维码
+        qr = qrcode.QRCode(box_size=6, border=2)
+        qr.add_data(self.url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        pixmap = QPixmap()
+        pixmap.loadFromData(buffer.getvalue())
+
+        # 二维码显示
+        label_qr = QLabel()
+        label_qr.setPixmap(pixmap)
+        label_qr.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label_qr)
+
+        self.setLayout(layout)
+
 
 class Tag2File(QMainWindow, Observer):
     def __init__(self):
@@ -23,6 +77,7 @@ class Tag2File(QMainWindow, Observer):
         self.tag_view = None
         self.categoryManager = None
         self.tagbaseManager = None
+        self.web_popup = None 
         self.image_paths = []
         self.tag_expression = ''
 
@@ -61,6 +116,7 @@ class Tag2File(QMainWindow, Observer):
         file_menu = menubar.addMenu("开始")
         file_menu.addAction("标签库", self.showTagbaseManager)
         file_menu.addAction("最小化到托盘", self.minimize_to_tray)
+        file_menu.addAction("Web端入口", self.show_web_usage)
 
         # 创建界面
         self.file_view = QWidget()
@@ -316,6 +372,23 @@ class Tag2File(QMainWindow, Observer):
     #点击tag输入文本框
     def onTagClick(self, tag):
         self.tag_input.add_element(tag)
+
+    def _get_local_ip(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+        finally:
+            s.close()
+        return ip
+
+    def show_web_usage(self):
+        local_ip = self._get_local_ip()
+        port = 10252
+        url = f"http://{local_ip}:{port}"
+
+        self.web_popup = WebUsagePopup(url)
+        self.web_popup.show()
 
 
 if __name__ == '__main__':  
