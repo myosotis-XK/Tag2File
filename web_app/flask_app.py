@@ -19,8 +19,6 @@ from src.utils import get_cache_path, root, config
 
 app = Flask(__name__)
 
-domain_name = "tag2file.online"
-
 from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session
 from functools import wraps
 
