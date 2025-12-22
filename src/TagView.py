@@ -119,9 +119,12 @@ class TagView(QMainWindow, Observer):
     def create_tag_widget(self):
         # 创建标签区域
         tag_layout = QFlowLayout()
-        for value in self.DictManage.relation_graph['category'].values():
-            tags = value['tagOrder']
-            color = QColor(value['tagColor'])
+        for item in self.DictManage.query_category():
+            category = item[0]
+            if category == '文件类型':
+                continue
+            color = QColor(item[1])
+            tags = self.DictManage.query('category', category, 'tag')
             bg_color = color.name()
             darker_color = QColor(color)
             darker_color.setHsv(color.hue(), color.saturation(), int(color.value() * 0.7))
@@ -174,8 +177,7 @@ class TagView(QMainWindow, Observer):
             if self.quickly_model:
                 self.SingleFileTagView.show_next()
                 QApplication.processEvents()
-            if tag not in self.DictManage.relation_graph['file'].get(file_path, {}).get('tag', set()):
-                self.DictManage.add_tag(tag, [file_path])
+            self.DictManage.add_tag(tag, [file_path])
 
     # 右键菜单
     def show_tag_context_menu(self, pos, label):
@@ -222,21 +224,22 @@ class TagView(QMainWindow, Observer):
         if ok and new_name:
             if not self.cherk_tag(new_name):
                 return
-            if new_name in self.DictManage.relation_graph['tag']:
+            if new_name in self.DictManage.get_all_tags():
                 reply = QMessageBox.question(self, "继续", f"'{new_name}' 标签已存在，继续将合并标签，是否继续？",
                                              QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 if reply == QMessageBox.Yes:
-                    self.DictManage.rename_tag(tag, new_name)
+                    self.DictManage.rename_entity('tag', tag, new_name)
             else:
-                self.DictManage.rename_tag(tag, new_name)
+                self.DictManage.rename_entity('tag', tag, new_name)
 
     def change_tag_category_action(self, label):
         tag = label.text()
         # 弹出一个对话框，让用户选择新的类别
-        existing_category = self.DictManage.relation_graph['category'].keys()
+        rows = self.DictManage.query_category()
+        existing_category = [row[0] for row in rows]
         category, ok = QInputDialog.getItem(self, "修改类别", "选择或输入类别名称:", existing_category, 0, True)
         if ok and category:
-            if category not in self.DictManage.relation_graph['category']:
+            if category not in existing_category:
                 # 提示类别不存在的消息框
                 message_box = QMessageBox(self)
                 message_box.setIcon(QMessageBox.Information)

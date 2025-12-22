@@ -12,7 +12,6 @@ class SingleFileTagView(QScrollArea, Observer):
         self.DictManage = DictManage()
         self.DictManage.add_observer(self)
         self.TagFileShowArea = TagFileShowArea
-        self.relation_graph = self.DictManage.relation_graph
         self.file_paths = file_paths
         self.current_index = 0
         if len(file_paths) > 0:
@@ -134,10 +133,11 @@ class SingleFileTagView(QScrollArea, Observer):
             self.tag_layout.itemAt(i).widget().setParent(None)
 
         # 添加新标签
-        file_tags = self.relation_graph['file'].get(self.current_file_path, {}).get('tag', set())
-        for value in self.relation_graph['category'].values():
-            tags = value['tagOrder']
-            color = QColor(value['tagColor'])
+        file_tags = self.DictManage.query('file', self.current_file_path, 'tag')
+        for item in self.DictManage.query_category():
+            category = item[0]
+            color = QColor(item[1])
+            tags = self.DictManage.query('category', category, 'tag')
             bg_color = color.name()
             darker_color = QColor(color)
             darker_color.setHsv(color.hue(), color.saturation(), int(color.value() * 0.7))
@@ -178,8 +178,7 @@ class SingleFileTagView(QScrollArea, Observer):
 
     def add_tag_current_file(self, tag):
         file_path = self.current_file_path
-        if tag not in self.relation_graph['file'].get(file_path, {}).get('tag', set()):
-            self.DictManage.add_tag(tag, [file_path])
+        self.DictManage.add_tag(tag, [file_path])
         
     def delete_tag_current_file(self, tag):
         file_path = self.current_file_path

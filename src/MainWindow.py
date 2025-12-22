@@ -69,9 +69,6 @@ class Tag2File(QMainWindow, Observer):
         super().__init__()
         self.DictManage = DictManage()
         self.DictManage.add_observer(self)
-        self.relation_graph = self.DictManage.relation_graph
-        self.special_categories = self.DictManage.special_categories
-        self.special_tags_status = self.DictManage.special_tags_status
 
         self.child_widget = [] # 文件属性窗口
         self.tag_view = None
@@ -115,8 +112,8 @@ class Tag2File(QMainWindow, Observer):
         # 创建设置菜单
         file_menu = menubar.addMenu("开始")
         file_menu.addAction("标签库", self.showTagbaseManager)
-        file_menu.addAction("最小化到托盘", self.minimize_to_tray)
         file_menu.addAction("Web端入口", self.show_web_usage)
+        file_menu.addAction("最小化到托盘", self.minimize_to_tray)
 
         # 创建界面
         self.file_view = QWidget()
@@ -210,51 +207,31 @@ class Tag2File(QMainWindow, Observer):
         tree = CategoryTreeWidget(self)
         tree.setIndentation(10)
 
-        # 创建固定文件类型项
-        category_item = QTreeWidgetItem(tree)
-        category_item.setText(0, "文件类型")
-        category_font = QApplication.font() 
-        category_font.setPointSize(14)
-        category_item.setFont(0, category_font)
-
-        color = QColor(0,0,0)
-        for tag in ["图片","视频","音频","其他"]:
-            label = SpecialTagLabel(tag, color, self)
-            label.checkStateChanged.connect(self.onSpecialLabelCheckChanged)
-            if tag in self.special_tags_status:
-                label.isChecked = self.special_tags_status[tag]
-            else:
-                self.DictManage.change_special_tags_status(tag, True)
-            label_item = QTreeWidgetItem(category_item)
-            tree.setItemWidget(label_item, 0, label)
-
-
         # 创建类别项
-        for category, value in self.relation_graph['category'].items():
+        for item in self.DictManage.query_category():
+            category = item[0]
+            color = QColor(item[1])
+            is_special = item[2]
+
             category_item = QTreeWidgetItem(tree)
             category_item.setText(0, category)
             category_font = QApplication.font() 
             category_font.setPointSize(14)
             category_item.setFont(0, category_font)
 
-            tags = value['tagOrder']
-            color = QColor(value['tagColor'])
+            tags = self.DictManage.query('category', category, 'tag')
             for tag in tags:
-                if category in self.special_categories:
+                if is_special:
                     label = SpecialTagLabel(tag, color, self)
                     label.checkStateChanged.connect(self.onSpecialLabelCheckChanged)
-                    if tag in self.special_tags_status:
-                        label.isChecked = self.special_tags_status[tag]
-                    else:
-                        self.DictManage.change_special_tags_status(tag, True)
+                    label.isChecked = self.DictManage.get_special_tag_status(tag)
                 else:
-                    file_count = len(self.relation_graph['tag'].get(tag, {}).get('file', set()))
+                    file_count = len(self.DictManage.query('tag', tag, 'file'))
                     label = TagLabel(tag, file_count, color, self)
                 label_item = QTreeWidgetItem(category_item)
                 tree.setItemWidget(label_item, 0, label)
-
             # 设置展开状态
-            if category in self.special_categories:
+            if is_special:
                 category_item.setExpanded(False)
             else:
                 category_item.setExpanded(True)
@@ -262,6 +239,7 @@ class Tag2File(QMainWindow, Observer):
 
     def update_tag_widget(self):
         # 保存当前的展开状态
+
         expanded_categories = []
         root = self.tag_tree.invisibleRootItem()
         for i in range(root.childCount()):
@@ -294,6 +272,7 @@ class Tag2File(QMainWindow, Observer):
         self.update_tag_widget()
         self.changeFile(self.tag_expression, True)
 
+
     def closeEvent(self, event):
         self.MainFileShowArea.closeEvent(event)
         if self.categoryManager != None:
@@ -303,11 +282,6 @@ class Tag2File(QMainWindow, Observer):
         if self.tag_view != None:
             self.tag_view.close()
 
-        try:
-            self.DictManage.compact_tagbase()
-        except Exception as e:
-            print(f"Error compacting shelve: {e}")
-
         super().closeEvent(event)
 
 
@@ -315,7 +289,7 @@ class Tag2File(QMainWindow, Observer):
 
     # 获取tag对应文件路径
     def get_tag_files(self, tag_expression: str):
-        file_paths = get_tag_files(tag_expression, self.special_tags_status, self.relation_graph)
+        file_paths = get_tag_files(tag_expression, self.DictManage)
         if file_paths is False:
             message_box = QMessageBox(self)
             message_box.setIcon(QMessageBox.Information)
@@ -324,6 +298,7 @@ class Tag2File(QMainWindow, Observer):
             message_box.exec_()
             return False
 
+        file_paths = [file_path[0] for file_path in file_paths]
         return file_paths
 
 

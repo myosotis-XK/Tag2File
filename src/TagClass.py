@@ -350,7 +350,7 @@ class Tag:
             if token:
                 if token not in ['|', '&', '(', ')', "-"]:
                     # 处理集合名
-                    cleaned_tokens.append(f"relation_graph['tag'].get('{token}', {{}}).get('file', set())")
+                    cleaned_tokens.append(f"DictManage.query('tag', '{token}', 'file')")
                 else:
                     cleaned_tokens.append(token)
         # 重建表达式
@@ -400,27 +400,25 @@ def parse_set_expression(expression):
     return result
 
 # 获取tag对应文件路径
-def get_tag_files(tag_expression: str, special_tags_status: dict=None, relation_graph: dict=None):
+def get_tag_files(tag_expression: str, DictManage):
     result_tag = parse_set_expression(tag_expression)
     if not result_tag:
         return False
-    result_files = eval(str(result_tag))
+    result_files: set[tuple[str, int, float]] = eval(str(result_tag))
     if result_tag.Complement: # 如果结果是补集，则取所有文件的补集
-        all_files = set(relation_graph['file'].keys())
+        all_files: set[tuple[str, int, float]] = DictManage.get_all_files()
         result_files = all_files - result_files
     # 处理特殊tag
-    if not special_tags_status is None:
-        for spcial_tag, ischecked in special_tags_status.items():
-            if not ischecked and spcial_tag not in ["图片","视频","音频","其他"]:
-                result_files = result_files - relation_graph['tag'].get(spcial_tag, {}).get('file', set())
-            
-        for file_type in ["图片","视频","音频","其他"]:
-            if not special_tags_status[file_type]:
-                result_files = {file for file in result_files if get_file_type(file) != file_type}
-
+    special_tags_status: list[tuple[str, int]] = DictManage.get_all_special_tags_status()
+    for spcial_tag, ischecked in special_tags_status:
+        if not ischecked:
+            if spcial_tag in ["图片","视频","音频","其他"]:
+                result_files = {file_item for file_item in result_files if get_file_type(file_item[0]) != spcial_tag}
+            else:
+                result_files = result_files - DictManage.query('tag', spcial_tag, 'file')
     # 将结果转换为列表并规范化路径
-    file_paths = [file_path.replace('\\', '/') for file_path in result_files]
-    return file_paths
+    files = [file_item for file_item in result_files]
+    return files
 
 
 if __name__ == "__main__":

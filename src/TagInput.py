@@ -153,8 +153,7 @@ class TagInputWidget(QWidget, Observer):
         QWidget.__init__(self, parent)
         self.DictManage = DictManage()
         self.DictManage.add_observer(self)
-        self.relation_graph = self.DictManage.relation_graph
-        self.tag_library = self.relation_graph['tag'].keys()
+        self.tag_library = self.DictManage.get_all_tags()
         # 操作符列表  
         self.operators = ['∩', '∪', "'", '(', ')']  
         
@@ -275,6 +274,7 @@ class TagInputWidget(QWidget, Observer):
         self.input_edit.setFocus()
 
     def observer_update(self):
+        self.tag_library = self.DictManage.get_all_tags()
         self.tag_model.setStringList(list(self.tag_library))
 
     def eventFilter(self, obj, event):
@@ -450,8 +450,9 @@ class TagInputWidget(QWidget, Observer):
             elif text in self.operators:
                 color = 'gray'
             else:
-                category = list(self.relation_graph['tag'][text]['category'])[0]
-                color = self.relation_graph['category'][category]['tagColor']
+                category = self.DictManage.query('tag', text, 'category')
+                row = self.DictManage.query_category(category)[0]
+                color = row[1]
         except:
             color = 'gray'
         

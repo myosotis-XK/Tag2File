@@ -113,7 +113,6 @@ class FileShowArea(QWidget):
     def __init__(self, file_paths: list=None):
         super().__init__()
         self.DictManage = DictManage()
-        self.relation_graph = self.DictManage.relation_graph
 
         # 读取配置文件
             # 图标大小
@@ -1108,7 +1107,7 @@ class FileShowArea(QWidget):
                 message_box.setStandardButtons(QMessageBox.Ok)
             # 显示消息框
             message_box.exec_()
-            self.DictManage.save_notify()
+            self.DictManage.notify_observers()
 
     # 修改文件位置
     def changeFilePath(self, target_folder, file_action, move_tags):
@@ -1177,7 +1176,7 @@ class FileShowArea(QWidget):
             return
         os.rename(file_path, new_file_path)
         self.DictManage.rename_entity('file', file_path, new_file_path)
-        self.DictManage.save_notify()
+        self.DictManage.notify_observers()
 
     # 确认删除文件函数
     def confirmDelete(self, os_delete=False):
@@ -1200,12 +1199,12 @@ class FileShowArea(QWidget):
         delete_files = self.select_labels_keys
         for file_path in delete_files:
             try:
-                self.DictManage.delete_entity('file', file_path)
+                self.DictManage.delete_file(file_path, notify=False)
                 if os_delete and os.path.exists(file_path):
                     os.remove(file_path)
             except Exception as e:
                 print(f"删除文件 {file_path} 时出错: {e}")
-        self.DictManage.save_notify()
+        self.DictManage.notify_observers()
 
     # 刷新
     def refresh(self):
@@ -1311,8 +1310,7 @@ class FileShowArea(QWidget):
                 else:
                     print(f"警告: 结果中包含未知组索引 {i}: {group_selection}")
             
-            # 通知 DictManage 保存或更新状态
-            self.DictManage.save_notify()
+            self.DictManage.notify_observers()
             QMessageBox.information(self, "修复完成", "所有文件修复操作已处理。")
 
         self.repair_dialog.result_selected.connect(handle_repair_selection)
@@ -1346,7 +1344,7 @@ class FileShowArea(QWidget):
         text_edit.setFont(font)
 
         # 获取文件标签
-        tags = self.relation_graph['file'].get(file_path, {}).get('tag', set())
+        tags = self.DictManage.query('file', file_path, 'tag')
         tags_str = ", ".join(list(tags)) if tags else "无标签"
 
         # 显示文件信息

@@ -10,7 +10,6 @@ class CategoryManager(QDialog, Observer):
         QDialog.__init__(self)  
         self.DictManage = DictManage()  
         self.DictManage.add_observer(self)
-        self.relation_graph = self.DictManage.relation_graph
         
         # 记住当前选择的类别和标签  
         self.current_category = None  
@@ -115,7 +114,7 @@ class CategoryManager(QDialog, Observer):
         
         # 根据特殊类别状态动态设置文本
         category = item.text()
-        specialText = "设为普通类别" if category in self.DictManage.special_categories else "设为筛选类别"
+        specialText = "设为普通类别" if self.DictManage.query_category(category)[0][2] else "设为筛选类别"
         specialAction = menu.addAction(specialText)
         
         # 获取用户点击的操作
@@ -129,7 +128,7 @@ class CategoryManager(QDialog, Observer):
         elif action == colorAction:
             self.setColor()
         elif action == specialAction:
-            self.setSpecialCategory()
+            self.changeSpecialCategory()
 
     def showTagContextMenu(self, position):
         # 检查点击位置是否有项目
@@ -157,10 +156,8 @@ class CategoryManager(QDialog, Observer):
         self.DictManage.reorder_categories(categories)
     
     def onTagOrderChanged(self):
-        if not self.current_category:
-            return
         tags = [self.tagList.item(i).text() for i in range(self.tagList.count())]
-        self.DictManage.reorder_tags(self.current_category, tags)
+        self.DictManage.reorder_tags(tags)
 
     def center(self):  
         # 获取屏幕几何信息  
@@ -188,7 +185,9 @@ class CategoryManager(QDialog, Observer):
 
     def loadCategories(self):  
         self.categoryList.clear()
-        self.categoryList.addItems(list(self.relation_graph['category'].keys()))
+        rows = self.DictManage.query_category()
+        categorys = [row[0] for row in rows]
+        self.categoryList.addItems(categorys)
 
     def onCategoryChanged(self, current):  
         self.tagList.clear()
@@ -198,7 +197,8 @@ class CategoryManager(QDialog, Observer):
                 current = self.current_category  
             else:  
                 self.current_category = current  
-            self.tagList.addItems(self.relation_graph['category'][current]['tagOrder'])  
+            tags = self.DictManage.query('category', current, 'tag')
+            self.tagList.addItems(tags)  
             self.tagListLabel.setText(f"标签列表 - {current}")  
             
             # 恢复标签选择  
@@ -215,7 +215,9 @@ class CategoryManager(QDialog, Observer):
     def addCategory(self):  
         category, ok = QInputDialog.getText(self, "添加类别", "输入新类别名称:")  
         if ok and category:  
-            if category not in self.relation_graph['category']:  
+            rows = self.DictManage.query_category()
+            categorys = [row[0] for row in rows]
+            if category not in categorys:  
                 self.DictManage.create_category(category)
             else:  
                 QMessageBox.warning(self, "警告", "类别已存在！")  
@@ -226,13 +228,13 @@ class CategoryManager(QDialog, Observer):
             oldCategory = currentItem.text()  
             newCategory, ok = QInputDialog.getText(self, "编辑类别", "输入新类别名称:", text=oldCategory)  
             if ok and newCategory and newCategory != oldCategory:  
-                self.relation_graph['category'][newCategory] = self.relation_graph['category'].pop(oldCategory)  
+                self.DictManage.rename_entity('category', oldCategory, newCategory)
                 
                 # 如果正在修改当前选中的类别，需要更新记录  
                 if self.current_category == oldCategory:  
                     self.current_category = newCategory  
                 
-                self.saveCategories()
+                self.DictManage.notify_observers()
 
     def deleteCategory(self):  
         currentItem = self.categoryList.currentItem()  
@@ -249,22 +251,16 @@ class CategoryManager(QDialog, Observer):
             category = currentItem.text()  
             color = QColorDialog.getColor()  
             if color.isValid():  
-                self.relation_graph['category'][category]['tagColor'] = color.name()  
-                self.saveCategories()  
+                self.DictManage.set_category_color(category, color.name())
+                self.DictManage.notify_observers()
 
-    def setSpecialCategory(self):
+    def changeSpecialCategory(self):
         currentItem = self.categoryList.currentItem()
         if currentItem:
             category = currentItem.text()
-            if category in self.DictManage.special_categories:
-                self.DictManage.special_categories.remove(category)
-            else:
-                self.DictManage.special_categories.append(category)
-            
-            # 保存更改
-            with shelve.open(self.DictManage.tag_dict_path, writeback=True) as shelf:
-                shelf['special_categories'] = self.DictManage.special_categories
-            self.saveCategories()
+            is_special = bool(self.DictManage.query_category(category)[0][2])
+            self.DictManage.set_category_special(category, int(not is_special))
+            self.DictManage.notify_observers()
 
     def cherk_tag(self, tag):
         operators = [' ∩ ', ' ∪ ', "'", '(', ')', '-']
@@ -283,7 +279,7 @@ class CategoryManager(QDialog, Observer):
         currentCategory = self.categoryList.currentItem()  
         if currentCategory:  
             category = currentCategory.text()  
-            existing_tags = self.relation_graph['tag'].keys()  
+            existing_tags = self.DictManage.get_all_tags()
             
             tag, ok = QInputDialog.getItem(self, "添加标签", "选择或输入新标签名称:", existing_tags, 0, True)  
             if ok and tag:  
@@ -291,7 +287,7 @@ class CategoryManager(QDialog, Observer):
                     if not self.cherk_tag(tag):
                         return
                     self.DictManage.add_tag(tag, [])  
-                if tag not in self.relation_graph['category'][category]['tag']:  
+                if tag not in self.DictManage.query('category', category, 'tag'):  
                     self.current_tag = tag  # 记住新添加的标签  
                     self.DictManage.change_tag_category(tag, category)  
                     self.onCategoryChanged(category)  
@@ -357,6 +353,3 @@ class CategoryManager(QDialog, Observer):
                 self.DictManage.reorder_categories(categories)
                 # 保持选中状态
                 self.categoryList.setCurrentRow(current_index+1)
-
-    def saveCategories(self):  
-        self.DictManage.save_notify()

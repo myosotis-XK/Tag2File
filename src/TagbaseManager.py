@@ -130,7 +130,7 @@ class TagbaseManager(QDialog):
         # 查找默认路径的所有标签库
         if os.path.exists(self.DictManage.default_folder):
             for item in os.listdir(self.DictManage.default_folder):
-                if item.endswith('.dir'):  # shelve文件
+                if item.endswith('.db'):
                     name = item[:-4]
                     tagbase_path = os.path.join(self.DictManage.default_folder, name).replace('\\', '/')
                     if tagbase_path not in self.tagbase_path_list:
@@ -158,7 +158,7 @@ class TagbaseManager(QDialog):
         config.set('DictManage', 'tagbase_folder', path)
         save_config()
         self.father.MainFileShowArea.changeFile([])
-        self.DictManage.load_tagbase()
+        self.DictManage.load_tagbase(os.path.join(path, name + '.db').replace('\\', '/'))
         # 更新显示
         self.current_tagbase_name = name
         self.current_tagbase_path = path
@@ -193,7 +193,7 @@ class TagbaseManager(QDialog):
         
         # 创建空标签库
         floder_path = os.path.join(root, 'data', 'tagbase').replace('\\', '/')
-        tagbase_path = os.path.join(floder_path, name).replace('\\', '/')
+        tagbase_path = os.path.join(floder_path, f'{name}.db').replace('\\', '/')
         
         # 调用DictManage的create_tagbase方法
         self.DictManage.create_tagbase(tagbase_path)
@@ -360,6 +360,7 @@ class TagbaseManager(QDialog):
                     config.set('DictManage', 'tagbase_folder', self.DictManage.default_folder)
                     config.set('DictManage', 'tagbase_name', 'tagbase')
                     save_config()
+                    tagbase_path = tagbase_path + '.db'
                     self.DictManage.create_tagbase(tagbase_path)
                     self.DictManage.load_tagbase()
 
@@ -427,7 +428,7 @@ class TagbaseManager(QDialog):
         """添加现有标签库"""
         # 打开文件对话框，让用户选择任意一种标签库文件
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择标签库文件", self.DictManage.default_folder, "标签库文件 (*.dir *.dat *.bak)"
+            self, "选择标签库文件", self.DictManage.default_folder, "标签库文件 (*.db)"
         )
 
         if not file_path:
@@ -439,12 +440,8 @@ class TagbaseManager(QDialog):
         full_name = os.path.basename(file_path)
         
         # 处理可能的扩展名
-        if full_name.endswith('.dir'):
-            file_name = full_name[:-4]
-        elif full_name.endswith('.dat'):
-            file_name = full_name[:-4]
-        elif full_name.endswith('.bak'):
-            file_name = full_name[:-4]
+        if full_name.endswith('.db'):
+            file_name = full_name[:-3]
         else:
             file_name = full_name
         

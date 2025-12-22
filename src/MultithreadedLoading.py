@@ -6,6 +6,7 @@ Image.MAX_IMAGE_PIXELS = 1_000_000_000
 import pillow_avif
 from io import BytesIO
 import os
+import random
 from mutagen.mp3 import MP3  
 from mutagen.id3 import ID3
 from mutagen.mp4 import MP4, MP4Cover
@@ -232,42 +233,95 @@ class ImageLoader(QRunnable):
             return None
 
     def loadMp4Cover(self):  
-        """处理 MP4 文件并提取封面为 QPixmap"""  
+        """从 MP4 提取封面，如果首帧黑屏则尝试提取随机帧"""  
+        video = None
         try:  
-            # 使用 OpenCV 打开视频文件  
             video = cv2.VideoCapture(self.file_path)  
-            
-            # 检查视频是否成功打开  
             if not video.isOpened():  
-                print(f"无法打开视频文件 {self.file_path}")  
                 return None  
+
+            # 获取视频总帧数
+            total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
             
-            # 读取第一帧  
-            success, frame = video.read()  
+            # 策略：先尝试读取第 1 帧，如果失败或全黑，则在视频前 30% 到 50% 之间随机选一帧
+            # (这样可以避开片头的黑屏和片尾的演职员表)
+            success, frame = video.read()
             
+            # 检查是否黑屏 (计算像素平均值，阈值通常设为 5-10)
+            if not success or frame.mean() < 5:
+                # 随机定位到一个位置 (避开最开始，通常跳过前 1 秒或前 10 帧)
+                # 这里的 0.3 是比例，你也可以直接取 total_frames // 2
+                target_frame = random.randint(min(10, total_frames), min(total_frames, 100)) 
+                if total_frames > 100:
+                    target_frame = random.randint(total_frames // 10, total_frames // 2)
+                    
+                video.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+                success, frame = video.read()
+
+            if not success:
+                video.set(cv2.CAP_PROP_POS_FRAMES, 5) # 跳过前几帧
+                for _ in range(10): # 连续尝试读 10 帧，直到有一帧成功
+                    success, frame = video.read()
+                    if success: break
+
             if success:  
-                # 将 OpenCV 的 BGR 格式转换为 RGB  
+                # 转换颜色空间 (BGR -> RGB)
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  
                 
-                # 将 numpy 数组转换为 QImage  
+                # 转换为 QImage
+                # 注意：使用 .copy() 是为了防止 numpy 内存被回收导致 QImage 报错
                 height, width, channels = frame_rgb.shape  
                 bytes_per_line = channels * width  
-                q_img = QImage(frame_rgb.data, width, height, bytes_per_line, QImage.Format_RGB888)  
+                q_img = QImage(frame_rgb.data, width, height, bytes_per_line, QImage.Format_RGB888).copy()  
                 
-                # 转换为 QPixmap  
-                pixmap = QPixmap.fromImage(q_img)  
-                
-                # 释放视频资源  
-                video.release()  
-                
-                return pixmap  
-            else:  
-                print(f"无法读取视频帧 {self.file_path}")  
-                return None  
+                return QPixmap.fromImage(q_img)  
                 
         except Exception as e:  
-            print(f"提取 MP4 封面失败 {self.file_path}: {e}")  
-            return None  
+            print(f"提取 MP4 封面失败: {e}")  
+        finally:
+            if video:
+                video.release()
+        return None
+
+    # def loadMp4Cover(self):  
+    #     """处理 MP4 文件并提取封面为 QPixmap"""  
+    #     try:  
+    #         # 使用 OpenCV 打开视频文件  
+    #         video = cv2.VideoCapture(self.file_path)  
+            
+    #         # 检查视频是否成功打开  
+    #         if not video.isOpened():  
+    #             print(f"无法打开视频文件 {self.file_path}")  
+    #             return None  
+            
+    #         # 读取第一帧  
+    #         success, frame = video.read()  
+            
+    #         if success:  
+    #             # 将 OpenCV 的 BGR 格式转换为 RGB  
+    #             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  
+                
+    #             # 将 numpy 数组转换为 QImage  
+    #             height, width, channels = frame_rgb.shape  
+    #             bytes_per_line = channels * width  
+    #             q_img = QImage(frame_rgb.data, width, height, bytes_per_line, QImage.Format_RGB888)  
+                
+    #             # 转换为 QPixmap  
+    #             pixmap = QPixmap.fromImage(q_img)  
+                
+    #             # 释放视频资源  
+    #             video.release()  
+                
+    #             return pixmap  
+    #         else:  
+    #             print(f"无法读取视频帧 {self.file_path}")  
+    #             return None  
+                
+    #     except Exception as e:  
+    #         print(f"提取 MP4 封面失败 {self.file_path}: {e}")  
+    #         return None  
+        
+
     # def loadMp4Cover(self):
     #     """处理 MP4 文件并提取封面为 QPixmap"""
     #     try:
