@@ -21,3 +21,5 @@ build/
 dist/
 *.spec
 *.lnk
+web_app/users.db
+qy.py
