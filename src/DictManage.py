@@ -15,12 +15,14 @@ save_config()
 
 class DataAPI():
     # 单例
-    _instance = None
+    _instances: dict[str, "DataAPI"] = {}
     _initialized = False
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    def __new__(cls, db_path: str):
+        with cls._lock:
+            if db_path not in cls._instances:
+                inst = super().__new__(cls)
+                cls._instances[db_path] = inst
+            return cls._instances[db_path]
     
     def __init__(self, db_path: str):
         if self._initialized:
@@ -37,7 +39,7 @@ class DataAPI():
         # 配置
         self.ini_color = "#c8c8c8"
 
-        self.tag2file_cache: dict[str, int] = {}
+        self.tag2file_cache: dict[str, set[int]] = {}
         self.file_cache: dict[int, tuple[str, int, float]] = {}
 
         # 加载数据库
@@ -167,33 +169,36 @@ class DataAPI():
             self.conn.commit()
         cur.close()
 
-    def rename_entity(self, entity: str, old_name: str, new_name: str):
-        with self._lock, self.conn:
-            self.conn.execute(f"UPDATE {entity} SET name=? WHERE name=?", (new_name, old_name))
+    def close(self):
+        if self.conn:
+            self.conn.close()
+            self.conn = None
 
-    # 查询操作
-    # def _tag_to_file(self, tag: str) -> set[tuple[str, int, float]]:
-    #     """返回指定 tag 对应的所有文件路径"""
-    #     if tag in self.tag2file_cache:
-    #         return self.tag2file_cache[tag]
-    #     cur = self.conn.execute(
-    #         """
-    #         SELECT f.name, f.size_bytes, f.mtime
-    #         FROM file f
-    #         JOIN tag_file tf ON tf.file_id = f.id
-    #         JOIN tag t ON t.id = tf.tag_id
-    #         WHERE t.name = ?
-    #         """,
-    #         (tag,)
-    #     )
-    #     result = {row for row in cur.fetchall()}
-    #     cur.close()
-    #     self.tag2file_cache[tag] = result
-    #     return result
-    def _tag_to_file(self, tag: str) -> dict[int, FileInfo]:
+    def rename_entity(self, entity: str, old_name: str, new_name: str):
+        if entity not in ("tag", "file", "category"):
+            raise ValueError("invalid entity")
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+            row = cur.execute(f"SELECT id FROM {entity} WHERE name=?", (old_name,)).fetchone()
+            if not row:
+                return
+            entity_id = row[0]
+            self.conn.execute(f"UPDATE {entity} SET name=? WHERE id=?", (new_name, entity_id))
+            cur.close()
+        if entity == 'file':
+            # 同步缓存
+            if entity_id in self.file_cache:
+                self.file_cache[entity_id] = (new_name, self.file_cache[entity_id][1], self.file_cache[entity_id][2])
+        elif entity == 'tag':
+            # 同步缓存
+            if old_name in self.tag2file_cache:
+                self.tag2file_cache[new_name] = self.tag2file_cache.pop(old_name)
+
+
+    def _tag_to_file(self, tag: str) -> set[tuple[str, int, float]]:
         if tag in self.tag2file_cache:
             return {
-                fid: self.file_cache[fid]
+                self.file_cache[fid]
                 for fid in self.tag2file_cache[tag]
             }
 
@@ -217,10 +222,9 @@ class DataAPI():
         self.tag2file_cache[tag] = file_ids
 
         return {
-            fid: self.file_cache[fid]
+            self.file_cache[fid]
             for fid in file_ids
         }
-
 
     def _file_to_tag(self, file_path: str) -> set[str]:
         """返回指定文件对应的所有 tag"""
@@ -411,6 +415,8 @@ class DataAPI():
                 if cur.fetchone()[0] == 0:
                     # 删除文件
                     self.conn.execute("DELETE FROM file WHERE id=?", (file_id,))
+                    if file_id in self.file_cache:
+                        del self.file_cache[file_id]
             cur.close()
 
     def delete_tag(self, tag: str, file_paths: list[str]):
@@ -431,6 +437,8 @@ class DataAPI():
                     cur.execute("DELETE FROM tag_file WHERE tag_id=? AND file_id=?", (tag_id, file_id))
             cur.close()
         self._cleanup_orphan_files(file_ids)
+        if tag in self.tag2file_cache:
+            self.tag2file_cache[tag] -= set(file_ids)
 
     def destroy_tag(self, tag: str):
         """删除标签及相关关系，同时清理孤立文件"""
@@ -451,6 +459,8 @@ class DataAPI():
             cur.execute("DELETE FROM tag WHERE id=?", (tag_id,))
             cur.close()
         self._cleanup_orphan_files(file_ids)
+        if tag in self.tag2file_cache:
+            del self.tag2file_cache[tag]
 
     def change_special_tags_status(self, tag: str, status: bool):
         with self._lock, self.conn:
@@ -489,10 +499,72 @@ class DataAPI():
                 )
             cur.close()
 
+
+    # def add_tag(self, tag: str, file_paths: list[str]):
+    #     # for循环
+    #     if not tag or not file_paths:
+    #         return
+
+    #     with self._lock, self.conn:
+    #         cur = self.conn.cursor()
+
+    #         # 确保 tag 存在
+    #         cur.execute("SELECT id, category_id FROM tag WHERE name=?", (tag,))
+    #         row = cur.fetchone()
+    #         if row is None:
+    #             cur.execute(
+    #                 "SELECT COALESCE(MAX(order_index), -1)+1 FROM tag WHERE category_id=?",
+    #                 (self.uncategorized_id,)
+    #             )
+    #             order_index = cur.fetchone()[0]
+    #             cur.execute(
+    #                 "INSERT INTO tag (name, category_id, order_index) VALUES (?, ?, ?)",
+    #                 (tag, self.uncategorized_id, order_index)
+    #             )
+    #             tag_id = cur.lastrowid
+    #         else:
+    #             tag_id = row[0]
+
+    #         file_ids = set()
+    #         for file_path in file_paths:
+    #             # 检查文件是否已存在
+    #             cur.execute("SELECT id FROM file WHERE name=?", (file_path,))
+    #             row = cur.fetchone()
+    #             if row:
+    #                 fid = row[0]
+    #             else:
+    #                 # 插入新文件
+    #                 st = os.stat(file_path)
+    #                 size_bytes = st.st_size
+    #                 mtime = st.st_mtime
+    #                 cur.execute("INSERT INTO file (name, size_bytes, mtime) VALUES (?, ?, ?)", (file_path, size_bytes, mtime))
+    #                 fid = cur.lastrowid
+    #                 self.file_cache[fid] = (file_path, size_bytes, mtime)
+    #             # 插入 tag_file 关联
+    #             cur.execute("INSERT OR IGNORE INTO tag_file (tag_id, file_id) VALUES (?, ?)", (tag_id, fid))
+    #             file_ids.add(fid)
+
+    #         cur.close()
+
+    #         # 同步缓存
+    #         if tag in self.tag2file_cache:
+    #             self.tag2file_cache[tag] |= file_ids
+
+
     # 文件操作
     def delete_file(self, file_path: str):
         with self._lock, self.conn:
-            self.conn.execute("DELETE FROM file WHERE name=?", (file_path,))
+            cur = self.conn.cursor()
+            row = cur.execute("SELECT id FROM file WHERE name=?", (file_path,)).fetchone()
+            if not row:
+                return
+            fid = row[0]
+            self.conn.execute("DELETE FROM file WHERE id=?", (fid,))
+            cur.close()
+        # 同步缓存
+        self.file_cache.pop(fid, None)
+        for tag, fids in self.tag2file_cache.items():
+            fids.discard(fid)
 
     def add_tag(self, tag: str, file_paths: list[str]):
         if not tag or not file_paths:
@@ -504,7 +576,7 @@ class DataAPI():
         with self._lock, self.conn:
             cur = self.conn.cursor()
 
-            # 1️⃣ 确保 tag 存在
+            # 确保 tag 存在
             cur.execute("SELECT id, category_id FROM tag WHERE name=?", (tag,))
             row = cur.fetchone()
             if row is None:
@@ -523,7 +595,7 @@ class DataAPI():
 
             existing_files = {}
 
-            # 2️⃣ 查询已有文件 ID
+            # 查询已有文件 ID
             if len(file_paths) <= THRESHOLD:
                 # 小批量直接 IN 查询
                 placeholders = ','.join('?' for _ in file_paths)
@@ -542,31 +614,46 @@ class DataAPI():
                 cur.execute("SELECT f.name, f.id FROM file f JOIN temp_files t ON f.name = t.name")
                 existing_files = {row[0]: row[1] for row in cur.fetchall()}
 
-            # 3️⃣ 批量插入不存在的文件
-            new_files = [(p,) for p in file_paths if p not in existing_files]
+            # 批量插入不存在的文件
+            new_files = [p for p in file_paths if p not in existing_files]
             if new_files:
                 for i in range(0, len(new_files), BATCH_SIZE):
-                    cur.executemany("INSERT INTO file(name) VALUES (?)", new_files[i:i+BATCH_SIZE])
+                    batch = new_files[i:i+BATCH_SIZE]
+                    insert_datas = []
+                    for file_path in batch:
+                        st = os.stat(file_path)
+                        size_bytes = st.st_size
+                        mtime = st.st_mtime
+                        insert_datas.append((file_path, size_bytes, mtime))
+                    cur.executemany("INSERT INTO file(name, size_bytes, mtime) VALUES (?, ?, ?)", insert_datas) 
 
                 # 查询新插入文件 ID
                 for i in range(0, len(new_files), THRESHOLD):
                     batch = new_files[i:i+THRESHOLD]
                     placeholders = ','.join('?' for _ in batch)
-                    cur.execute(f"SELECT name, id FROM file WHERE name IN ({placeholders})", [p[0] for p in batch])
-                    existing_files.update({row[0]: row[1] for row in cur.fetchall()})
+                    cur.execute(f"SELECT id, name, size_bytes, mtime FROM file WHERE name IN ({placeholders})", batch)
+                    rows = cur.fetchall()
+                    for row in rows:
+                        existing_files[row[1]] = row[0]
+                        self.file_cache[row[0]] = (row[1], row[2], row[3]) # 同步缓存
 
-            # 4️⃣ 批量建立 tag ↔ file 关系
+            # 批量建立 tag ↔ file 关系
             for i in range(0, len(file_paths), BATCH_SIZE):
                 cur.executemany(
                     "INSERT OR IGNORE INTO tag_file(tag_id, file_id) VALUES (?, ?)",
                     [(tag_id, existing_files[p]) for p in file_paths[i:i+BATCH_SIZE]]
                 )
 
-            # 5️⃣ 清理临时表
+            # 清理临时表
             if len(file_paths) > THRESHOLD:
                 cur.execute("DROP TABLE temp_files")
 
             cur.close()
+
+            # 同步缓存
+            if tag in self.tag2file_cache:
+                self.tag2file_cache[tag] |= set(existing_files.values())
+
 
 
 class Observer(QObject):
