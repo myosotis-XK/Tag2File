@@ -14,36 +14,65 @@ init_config_section('DictManage', default_value)
 save_config()
 
 class DataAPI():
+    # 类型注解
+    conn: sqlite3.Connection
+    uncategorized_id: int
+    _lock: threading.Lock
+    ini_color: str
+    tag2file_cache: dict[str, set[int]]
+    file_cache: dict[int, tuple[str, int, float]]
+
     # 单例
     _instances: dict[str, "DataAPI"] = {}
-    _initialized = False
+    _cls_lock = threading.Lock()
     def __new__(cls, db_path: str):
-        with cls._lock:
+        with cls._cls_lock:
             if db_path not in cls._instances:
                 inst = super().__new__(cls)
                 cls._instances[db_path] = inst
+                inst.uncategorized_id = None
+
+                # UI & 线程安全
+                inst._lock = threading.Lock()
+
+                # 配置
+                inst.ini_color = "#c8c8c8"
+
+                inst.tag2file_cache = {}
+                inst.file_cache = {}
+
+                # 加载数据库
+                # 如果数据库不存在，创建
+                if not os.path.exists(db_path):
+                    inst.create_tagbase(db_path)
+
+                # 打开 SQLite 连接
+                if inst.conn:
+                    inst.conn.close()
+                inst.conn = sqlite3.connect(
+                    db_path,
+                    check_same_thread=False
+                )
+                inst.conn.execute("PRAGMA journal_mode=WAL;")
+                inst.conn.execute("PRAGMA foreign_keys=ON;")
+
+                # 缓存「未分类」ID
+                cur = inst.conn.cursor()
+                cur.execute("SELECT id FROM category WHERE name='未分类'")
+                row = cur.fetchone()
+                if row:
+                    inst.uncategorized_id = row[0]
+                else:
+                    sql = """INSERT INTO category (name, color, order_index, is_special) VALUES (?, ?, 0, 0) RETURNING id;"""
+                    cur.execute(sql, ("未分类", inst.ini_color))
+                    inst.uncategorized_id = cur.fetchone()[0]
+                    inst.conn.commit()
+                cur.close()
             return cls._instances[db_path]
     
     def __init__(self, db_path: str):
-        if self._initialized:
-            return
-        self._initialized = True
-
-        # 数据库
-        self.conn: sqlite3.Connection = None
-        self.uncategorized_id: int = None
-
-        # UI & 线程安全
-        self._lock = threading.Lock()
-
-        # 配置
-        self.ini_color = "#c8c8c8"
-
-        self.tag2file_cache: dict[str, set[int]] = {}
-        self.file_cache: dict[int, tuple[str, int, float]] = {}
-
-        # 加载数据库
-        self.load_tagbase(db_path)
+        # 在 __new__ 中初始化
+        pass
 
     def create_tagbase(self, db_path: str):
         """
@@ -140,34 +169,6 @@ class DataAPI():
                 cur.close()
         finally:
             conn.close()
-
-    def load_tagbase(self, db_path: str):
-        # 1️⃣ 如果数据库不存在，创建
-        if not os.path.exists(db_path):
-            self.create_tagbase(db_path)
-
-        # 2️⃣ 打开 SQLite 连接
-        if self.conn:
-            self.conn.close()
-        self.conn = sqlite3.connect(
-            db_path,
-            check_same_thread=False
-        )
-        self.conn.execute("PRAGMA journal_mode=WAL;")
-        self.conn.execute("PRAGMA foreign_keys=ON;")
-
-        # 3️⃣ 缓存「未分类」ID（非常关键，后面会反复用）
-        cur = self.conn.cursor()
-        cur.execute("SELECT id FROM category WHERE name='未分类'")
-        row = cur.fetchone()
-        if row:
-            self.uncategorized_id = row[0]
-        else:
-            sql = """INSERT INTO category (name, color, order_index, is_special) VALUES (?, ?, 0, 0) RETURNING id;"""
-            cur.execute(sql, ("未分类", self.ini_color))
-            self.uncategorized_id = cur.fetchone()[0]
-            self.conn.commit()
-        cur.close()
 
     def close(self):
         if self.conn:
@@ -736,7 +737,7 @@ class DictManage():
         self.notify_observers()
 
     def load_tagbase(self, db_path: str) -> None:
-        self.dataAPI.load_tagbase(db_path)
+        self.dataAPI = DataAPI(db_path)
         self.notify_observers()
 
     def rename_entity(self, entity: str, old_name: str, new_name: str) -> None:
