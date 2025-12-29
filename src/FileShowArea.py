@@ -1125,7 +1125,7 @@ class FileShowArea(QWidget):
                 target_path = self.shutil_add_rename(file_path, target_folder, file_action)
                 if not move_tags:
                     continue
-                self.DictManage.rename_entity('file', file_path, target_path)
+                self.DictManage.rename_file(file_path, target_path)
                 if os.path.isdir(target_path):
                     self.changeFolderAllFilePath(file_path, target_path)                
             except Exception as e:
@@ -1161,7 +1161,7 @@ class FileShowArea(QWidget):
         for file_path in file_paths:
             old_file_path = file_path.replace(target_folder, parent_path)
             # 修改文件路径
-            self.DictManage.rename_entity('file', old_file_path, file_path)
+            self.DictManage.rename_file(old_file_path, file_path)
 
 
     # 重命名文件函数
@@ -1175,7 +1175,7 @@ class FileShowArea(QWidget):
             QMessageBox.warning(self, '重命名失败', f'目标路径 {new_file_path} 已存在！')
             return
         os.rename(file_path, new_file_path)
-        self.DictManage.rename_entity('file', file_path, new_file_path)
+        self.DictManage.rename_file(file_path, new_file_path)
         self.DictManage.notify_observers()
 
     # 确认删除文件函数
@@ -1304,7 +1304,7 @@ class FileShowArea(QWidget):
                         selected_candidate_path = group_selection[0] 
                         print(f"准备修复: '{original_path_to_repair}' -> 使用: '{selected_candidate_path}'")
                         # 执行实际的文件修复操作
-                        self.DictManage.rename_entity('file', original_path_to_repair, selected_candidate_path)
+                        self.DictManage.rename_file(original_path_to_repair, selected_candidate_path)
                     else:
                         print(f"文件 '{original_path_to_repair}' 未选择修复文件，跳过。")
                 else:

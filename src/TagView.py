@@ -228,9 +228,9 @@ class TagView(QMainWindow, Observer):
                 reply = QMessageBox.question(self, "继续", f"'{new_name}' 标签已存在，继续将合并标签，是否继续？",
                                              QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 if reply == QMessageBox.Yes:
-                    self.DictManage.rename_entity('tag', tag, new_name)
+                    self.DictManage.rename_tag(tag, new_name)
             else:
-                self.DictManage.rename_entity('tag', tag, new_name)
+                self.DictManage.rename_tag(tag, new_name)
 
     def change_tag_category_action(self, label):
         tag = label.text()
