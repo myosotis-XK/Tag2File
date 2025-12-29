@@ -175,25 +175,69 @@ class DataAPI():
             self.conn.close()
             self.conn = None
 
-    def rename_entity(self, entity: str, old_name: str, new_name: str):
-        if entity not in ("tag", "file", "category"):
-            raise ValueError("invalid entity")
+    def rename_tag(self, old_name: str, new_name: str):
         with self._lock, self.conn:
             cur = self.conn.cursor()
-            row = cur.execute(f"SELECT id FROM {entity} WHERE name=?", (old_name,)).fetchone()
+            row = cur.execute("SELECT id FROM tag WHERE name=?", (old_name,)).fetchone()
             if not row:
+                cur.close()
                 return
-            entity_id = row[0]
-            self.conn.execute(f"UPDATE {entity} SET name=? WHERE id=?", (new_name, entity_id))
+            old_id = row[0]
+
+            row = cur.execute("SELECT id FROM tag WHERE name=?", (new_name,)).fetchone()
             cur.close()
-        if entity == 'file':
-            # 同步缓存
-            if entity_id in self.file_cache:
-                self.file_cache[entity_id] = (new_name, self.file_cache[entity_id][1], self.file_cache[entity_id][2])
-        elif entity == 'tag':
-            # 同步缓存
-            if old_name in self.tag2file_cache:
-                self.tag2file_cache[new_name] = self.tag2file_cache.pop(old_name)
+
+            if row: # 如果新名称存在，合并标签：将 old_name 的文件关联转移到 new_name
+                new_id = row[0]
+                self.conn.execute("""
+                    INSERT OR IGNORE INTO tag_file(tag_id, file_id)
+                    SELECT ?, file_id FROM tag_file WHERE tag_id = ?
+                """, (new_id, old_id))
+                self.conn.execute("DELETE FROM tag_file WHERE tag_id=?", (old_id,))
+                self.conn.execute("DELETE FROM tag WHERE id=?", (old_id,))
+            else:
+                self.conn.execute("UPDATE tag SET name=? WHERE id=?", (new_name, old_id))
+
+        # 同步缓存
+        old_files = self.tag2file_cache.pop(old_name, None)
+        if old_files is not None:
+            if new_name in self.tag2file_cache:
+                self.tag2file_cache[new_name] |= old_files
+            else:
+                self.tag2file_cache[new_name] = old_files
+
+    def rename_file(self, old_name: str, new_name: str):
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+            row = cur.execute("SELECT id FROM file WHERE name=?", (old_name,)).fetchone()
+            cur.close()
+            if not row:
+                cur.close()
+                return
+            old_id = row[0]
+            row = cur.execute("SELECT id FROM file WHERE name=?", (new_name,)).fetchone()
+            cur.close()
+            if row:
+                raise ValueError("file already exists")
+            self.conn.execute("UPDATE file SET name=? WHERE id=?", (new_name, old_id))
+            
+        # 同步缓存
+        if old_id in self.file_cache:
+            self.file_cache[old_id] = (new_name, self.file_cache[old_id][1], self.file_cache[old_id][2])
+
+    def rename_category(self, old_name: str, new_name: str):
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+            row = cur.execute("SELECT id FROM category WHERE name=?", (old_name,)).fetchone()
+            if not row:
+                cur.close()
+                return
+            old_id = row[0]
+            row = cur.execute("SELECT id FROM category WHERE name=?", (new_name,)).fetchone()
+            cur.close()
+            if row:
+                raise ValueError("category already exists")
+            self.conn.execute("UPDATE category SET name=? WHERE id=?", (new_name, old_id))
 
 
     def _tag_to_file(self, tag: str) -> set[tuple[str, int, float]]:
@@ -740,8 +784,16 @@ class DictManage():
         self.dataAPI = DataAPI(db_path)
         self.notify_observers()
 
-    def rename_entity(self, entity: str, old_name: str, new_name: str) -> None:
-        self.dataAPI.rename_entity(entity, old_name, new_name)
+    def rename_tag(self, old_name: str, new_name: str) -> None:
+        self.dataAPI.rename_tag(old_name, new_name)
+        self.notify_observers()
+
+    def rename_file(self, old_name: str, new_name: str) -> None:
+        self.dataAPI.rename_file(old_name, new_name)
+        self.notify_observers()
+
+    def rename_category(self, old_name: str, new_name: str) -> None:
+        self.dataAPI.rename_category(old_name, new_name)
         self.notify_observers()
 
 
