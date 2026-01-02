@@ -160,7 +160,8 @@ class TagView(QMainWindow, Observer):
         new_file_paths = list(set(file_paths) - set(self.file_paths))
         if len(new_file_paths) > 0:
             self.file_paths.extend(new_file_paths)
-            self.TagFileShowArea.createFileItem(new_file_paths)
+            file_meta_datas = [(file_path, 0, 0) for file_path in new_file_paths]
+            self.TagFileShowArea.createFileItem(file_meta_datas)
             self.TagFileShowArea._sort_files()
             self.TagFileShowArea.updateLayout()
             self.TagFileShowArea.startLoadingImages(self.TagFileShowArea.threadpool, new_file_paths)

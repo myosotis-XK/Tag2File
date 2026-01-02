@@ -400,7 +400,7 @@ def parse_set_expression(expression):
     return result
 
 # 获取tag对应文件路径
-def get_tag_files(tag_expression: str, DictManage):
+def get_tag_files(tag_expression: str, DictManage) -> list[tuple[str, int, float]]:
     result_tag = parse_set_expression(tag_expression)
     if not result_tag:
         return False
@@ -416,9 +416,8 @@ def get_tag_files(tag_expression: str, DictManage):
                 result_files = {file_item for file_item in result_files if get_file_type(file_item[0]) != spcial_tag}
             else:
                 result_files = result_files - DictManage.query('tag', spcial_tag, 'file')
-    # 将结果转换为列表并规范化路径
-    files = [file_item for file_item in result_files]
-    return files
+
+    return list(result_files)
 
 
 if __name__ == "__main__":

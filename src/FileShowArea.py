@@ -56,7 +56,8 @@ class FileItem():
     font_metrics = QFontMetrics(QApplication.font())
     single_line_height = font_metrics.lineSpacing()
     SPACING_RATE = config.getfloat('FileShowArea', 'SPACING_RATE', fallback=0.05)
-    def __init__(self, file_path:str, label_width: int):
+
+    def __init__(self, file_path:str, file_size_bytes: int, file_date: float, label_width: int):
         self.file_path = file_path
         self.file_name = os.path.basename(file_path)
 
@@ -64,13 +65,8 @@ class FileItem():
         self.label_pos = (0, 0)
         self.update_label_size()
 
-        try:
-            st = os.stat(file_path)
-            self.file_size_bytes = st.st_size
-            self.file_date = st.st_mtime
-        except OSError:
-            self.file_size_bytes = 0
-            self.file_date = 0
+        self.file_size_bytes = file_size_bytes
+        self.file_date = file_date
 
         self.icon: bool = False
         self.pixmap: dict[str, QPixmap] = None
@@ -181,7 +177,17 @@ class FileShowArea(QWidget):
         
         self.initFileView()
         self.update_scrollbars()
-        self.createFileItem()
+        file_meta_datas = []
+        for file_path in file_paths:
+            try:
+                st = os.stat(file_path)
+                size_bytes = st.st_size
+                mtime = st.st_mtime
+            except:
+                size_bytes = 0
+                mtime = 0
+            file_meta_datas.append((file_path, size_bytes, mtime))
+        self.createFileItem(file_meta_datas)
         self._sort_files()
 
     def initFileView(self):
@@ -264,14 +270,16 @@ class FileShowArea(QWidget):
     #——————————————————————基础功能————————————————————————
 
     # 改变显示文件
-    def changeFile(self, file_paths: list=None, recover=False):
+    def changeFile(self, file_meta_datas: list[tuple[str, int, float]]=None, recover=False):
         '''
         改变显示文件
-        :param file_paths: 新的文件路径列表
+        :param file_paths: 新的文件元数据列表
         :param recover: 是否恢复滚动条位置
         '''
-        if file_paths is None:
-            file_paths = []
+        if file_meta_datas is None:
+            file_meta_datas = []
+
+        file_paths = [file_meta_data[0] for file_meta_data in file_meta_datas]
 
         # 线程处理
         while self.startLoadingImagesThreadpool.activeThreadCount() > 0:
@@ -298,10 +306,14 @@ class FileShowArea(QWidget):
             self.recycleFileLabel(file_path)
         self.ctrl_select_labels_keys.clear()
         self.visible_labels_keys.clear()
-        new_file_paths = list(set(file_paths) - set(self.file_paths))
+        new_file_paths = set(file_paths) - set(self.file_paths)
         self.file_paths = file_paths
         if len(new_file_paths) != 0:
-            self.createFileItem(new_file_paths)
+            new_file_meta_datas = []
+            for file_meta_data in file_meta_datas:
+                if file_meta_data[0] in new_file_paths:
+                    new_file_meta_datas.append(file_meta_data)
+            self.createFileItem(new_file_meta_datas)
         self._sort_files()
         self.changeThumbnailSize(self.image_size)
         # 重置滚动条位置
@@ -310,19 +322,18 @@ class FileShowArea(QWidget):
 
 
     # 创建文件对象
-    def createFileItem(self, file_paths: list=None):
+    def createFileItem(self, file_meta_datas: list[tuple[str, int, float]]):
         '''
         创建文件对象
         :param file_paths: 新的文件路径列表
         '''
-        if file_paths is None:
-            file_paths = self.file_paths
         # 使用多线程添加文件属性
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(self._createFileItem, file_path) for file_path in file_paths]
+            futures = [executor.submit(self._createFileItem, file_meta_data) for file_meta_data in file_meta_datas]
             concurrent.futures.wait(futures)
 
-    def _createFileItem(self, file_path:str):
+    def _createFileItem(self, file_path_meta_data: tuple[str, int, float]):
+        file_path = file_path_meta_data[0]
         if file_path in self.file_items_cache:
             file_item = self.file_items_cache[file_path]
             file_item.specifid = 0
@@ -333,7 +344,7 @@ class FileShowArea(QWidget):
                 file_item.update_label_size(self.label_width)
             self.file_items[file_path] = file_item
             return
-        file_item = FileItem(file_path, self.label_width)
+        file_item = FileItem(file_path, file_path_meta_data[1], file_path_meta_data[2], self.label_width)
         # 获取文件图标
         file_extension = os.path.splitext(file_path)[1]
         try:
@@ -1622,6 +1633,16 @@ class TagFileShowArea(FileShowArea):
             file_paths = paths
         file_paths = list(set(file_paths) - set(self.file_paths))
         self.file_paths += file_paths
-        self.createFileItem(file_paths)
+        file_meta_datas = []
+        for file_path in file_paths:
+            try:
+                st = os.stat(file_path)
+                size_bytes = st.st_size
+                mtime = st.st_mtime
+            except:
+                size_bytes = 0
+                mtime = 0
+            file_meta_datas.append((file_path, size_bytes, mtime))
+        self.createFileItem(file_meta_datas)
         self._sort_files()
         self.updateLayout()

@@ -288,7 +288,7 @@ class Tag2File(QMainWindow, Observer):
     # ——————————————————————辅助功能————————————————————————
 
     # 获取tag对应文件路径
-    def get_tag_files(self, tag_expression: str):
+    def get_tag_files(self, tag_expression: str) -> list[tuple[str, int, float]]:
         file_paths = get_tag_files(tag_expression, self.DictManage)
         if file_paths is False:
             message_box = QMessageBox(self)
@@ -298,7 +298,6 @@ class Tag2File(QMainWindow, Observer):
             message_box.exec_()
             return False
 
-        file_paths = [file_path[0] for file_path in file_paths]
         return file_paths
 
 
@@ -339,7 +338,10 @@ class Tag2File(QMainWindow, Observer):
             file_paths = self.get_tag_files(self.tag_expression)
             if file_paths is False:
                 return
+            begin = time.time()
             self.MainFileShowArea.changeFile(file_paths, recover)
+            end = time.time()
+            print(f"changeFile: {end-begin}")
 
     def clearInput(self):  
         self.tag_input.clear()

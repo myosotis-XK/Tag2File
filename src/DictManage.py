@@ -46,9 +46,6 @@ class DataAPI():
                 if not os.path.exists(db_path):
                     inst.create_tagbase(db_path)
 
-                # 打开 SQLite 连接
-                if inst.conn:
-                    inst.conn.close()
                 inst.conn = sqlite3.connect(
                     db_path,
                     check_same_thread=False
