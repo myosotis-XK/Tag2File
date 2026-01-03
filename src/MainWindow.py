@@ -338,10 +338,7 @@ class Tag2File(QMainWindow, Observer):
             file_paths = self.get_tag_files(self.tag_expression)
             if file_paths is False:
                 return
-            begin = time.time()
             self.MainFileShowArea.changeFile(file_paths, recover)
-            end = time.time()
-            print(f"changeFile: {end-begin}")
 
     def clearInput(self):  
         self.tag_input.clear()

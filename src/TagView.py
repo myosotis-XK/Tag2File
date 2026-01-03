@@ -322,10 +322,11 @@ class TagView(QMainWindow, Observer):
                 updateStyle(label, "background-color: transparent;")
             file_path = None
             if not self.TagFileShowArea.now_select_label_key is None:
-                label = self.TagFileShowArea.labels[self.TagFileShowArea.now_select_label_key]
                 file_path = self.TagFileShowArea.now_select_label_key
                 self.TagFileShowArea.now_select_label_key = None
-                updateStyle(label, "border: none;")
+                if file_path in self.TagFileShowArea.labels:
+                    label = self.TagFileShowArea.labels[file_path]
+                    updateStyle(label, "border: none;")
             self.TagFileShowArea.hide()
             self.splitter.replaceWidget(0, self.SingleFileTagView)
             self.SingleFileTagView.show()
@@ -337,11 +338,13 @@ class TagView(QMainWindow, Observer):
             self.splitter.replaceWidget(0, self.TagFileShowArea)
             self.TagFileShowArea.show()
             if not self.SingleFileTagView.current_file_path is None and self.SingleFileTagView.current_file_path in self.TagFileShowArea.labels:
-                label = self.TagFileShowArea.labels[self.SingleFileTagView.current_file_path]
-                file_path = label.file_path
+                
+                file_path = self.SingleFileTagView.current_file_path
                 file_item = self.TagFileShowArea.file_items[file_path]
                 self.TagFileShowArea.now_select_label_key = file_path
-                updateStyle(label, "border: 1px solid #99d1ff;")
+                if file_path in self.TagFileShowArea.select_labels_keys:
+                    label = self.TagFileShowArea.labels[file_path]
+                    updateStyle(label, "border: 1px solid #99d1ff;")
                 # 滚动条滚动到当前标签
                 self.TagFileShowArea.v_scroll.setValue(file_item.label_pos[1])
             self.switch_view_button.setText("多文件视图")

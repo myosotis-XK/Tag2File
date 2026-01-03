@@ -506,7 +506,6 @@ class DataAPI():
 
     def change_special_tags_status(self, tag: str, status: bool):
         with self._lock, self.conn:
-            print(tag, status)
             self.conn.execute("""
                 INSERT INTO tag_special_status (tag_id, status)
                 VALUES (
