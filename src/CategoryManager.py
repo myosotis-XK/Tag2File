@@ -227,7 +227,10 @@ class CategoryManager(QDialog, Observer):
         if currentItem:  
             oldCategory = currentItem.text()  
             newCategory, ok = QInputDialog.getText(self, "编辑类别", "输入新类别名称:", text=oldCategory)  
-            if ok and newCategory and newCategory != oldCategory:  
+            if ok and newCategory:  
+                if newCategory != oldCategory:
+                    QMessageBox.warning(self, "警告", "类别已存在！")
+                    return
                 self.DictManage.rename_category(oldCategory, newCategory)
                 
                 # 如果正在修改当前选中的类别，需要更新记录  

@@ -400,7 +400,7 @@ def parse_set_expression(expression):
     return result
 
 # 获取tag对应文件路径
-def get_tag_files(tag_expression: str, DictManage) -> list[tuple[str, int, float]]:
+def get_tag_files(tag_expression: str, DictManage, special_tags_status: list[tuple[str, int]]=None) -> list[tuple[str, int, float]]:
     result_tag = parse_set_expression(tag_expression)
     if not result_tag:
         return False
@@ -409,7 +409,8 @@ def get_tag_files(tag_expression: str, DictManage) -> list[tuple[str, int, float
         all_files: set[tuple[str, int, float]] = DictManage.get_all_files()
         result_files = all_files - result_files
     # 处理特殊tag
-    special_tags_status: list[tuple[str, int]] = DictManage.get_all_special_tags_status()
+    if special_tags_status is None:
+        special_tags_status: list[tuple[str, int]] = DictManage.get_all_special_tags_status()
     for spcial_tag, ischecked in special_tags_status:
         if not ischecked:
             if spcial_tag in ["图片","视频","音频","其他"]:

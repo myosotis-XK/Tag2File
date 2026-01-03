@@ -19,6 +19,7 @@ class TagbaseManager(QDialog):
         if self.current_tagbase_path == 'default_folder':
             self.current_tagbase_path = self.DictManage.default_folder
         
+        self.file_ext = ['.db', '.db-shm', '.db-wal']
         self.init_ui()
         self.load_tagbases()
         
@@ -102,7 +103,7 @@ class TagbaseManager(QDialog):
             size = 0
             full_path = os.path.join(path, name).replace('\\', '/')
                 
-            for ext in ['', '.dir', '.dat', '.bak']:
+            for ext in self.file_ext:
                 file_path = full_path + ext
                 if os.path.exists(file_path):
                     size += os.path.getsize(file_path)
@@ -130,8 +131,8 @@ class TagbaseManager(QDialog):
         # 查找默认路径的所有标签库
         if os.path.exists(self.DictManage.default_folder):
             for item in os.listdir(self.DictManage.default_folder):
-                if item.endswith('.db'):
-                    name = item[:-4]
+                if item.endswith(self.file_ext[0]):
+                    name = item[:-3]
                     tagbase_path = os.path.join(self.DictManage.default_folder, name).replace('\\', '/')
                     if tagbase_path not in self.tagbase_path_list:
                         self.tagbase_path_list.append(tagbase_path)
@@ -158,7 +159,7 @@ class TagbaseManager(QDialog):
         config.set('DictManage', 'tagbase_folder', path)
         save_config()
         self.father.MainFileShowArea.changeFile([])
-        self.DictManage.load_tagbase(os.path.join(path, name + '.db').replace('\\', '/'))
+        self.DictManage.load_tagbase(os.path.join(path, name + self.file_ext[0]).replace('\\', '/'))
         # 更新显示
         self.current_tagbase_name = name
         self.current_tagbase_path = path
@@ -193,7 +194,7 @@ class TagbaseManager(QDialog):
         
         # 创建空标签库
         floder_path = os.path.join(root, 'data', 'tagbase').replace('\\', '/')
-        tagbase_path = os.path.join(floder_path, f'{name}.db').replace('\\', '/')
+        tagbase_path = os.path.join(floder_path, name + self.file_ext[0]).replace('\\', '/')
         
         # 调用DictManage的create_tagbase方法
         self.DictManage.create_tagbase(tagbase_path)
@@ -298,7 +299,7 @@ class TagbaseManager(QDialog):
             new_full_path = os.path.join(new_path, new_name).replace('\\', '/')
             
             # 重命名所有相关文件
-            for ext in ['', '.dir', '.dat', '.bak']:
+            for ext in self.file_ext:
                 src = old_full_path + ext
                 if os.path.exists(src):
                     os.rename(src, new_full_path + ext)
@@ -344,7 +345,7 @@ class TagbaseManager(QDialog):
             # 删除文件
             full_path = os.path.join(path, name).replace('\\', '/')
                 
-            for ext in ['', '.dir', '.dat', '.bak']:
+            for ext in self.file_ext:
                 file_path = full_path + ext
                 if os.path.exists(file_path):
                     os.remove(file_path)
@@ -360,7 +361,7 @@ class TagbaseManager(QDialog):
                     config.set('DictManage', 'tagbase_folder', self.DictManage.default_folder)
                     config.set('DictManage', 'tagbase_name', 'tagbase')
                     save_config()
-                    tagbase_path = tagbase_path + '.db'
+                    tagbase_path = tagbase_path + self.file_ext[0]
                     self.DictManage.create_tagbase(tagbase_path)
                     self.DictManage.load_tagbase()
 
@@ -375,60 +376,11 @@ class TagbaseManager(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"删除失败: {str(e)}")
     
-    def repair_from_backup(self):
-        """从备份修复标签库"""
-        selected = self.tagbase_list.currentItem()
-        if not selected:
-            QMessageBox.warning(self, "警告", "请先选择一个标签库")
-            return
-            
-        name = selected.text(0)  # 第一列：名称
-        path = selected.text(1)  # 第二列：路径
-        
-        # 查找备份
-        backup_path = os.path.join(self.DictManage.default_folder, 'backup').replace('\\', '/')
-        if not os.path.exists(backup_path):
-            QMessageBox.warning(self, "警告", "未找到备份目录")
-            return
-            
-        # 选择备份版本
-        backups = []
-        for item in os.listdir(backup_path):
-            if item.startswith(name + '_') and item.endswith('.dir'):
-                backups.append(item[:-4])
-        
-        if not backups:
-            QMessageBox.warning(self, "警告", "未找到可用的备份")
-            return
-            
-        backup, ok = QInputDialog.getItem(self, "选择备份", "选择要恢复的备份版本:", backups, 0, False)
-        if not ok or not backup:
-            return
-            
-        try:
-            # 恢复备份
-            src_path = os.path.join(backup_path, backup).replace('\\', '/')
-            dest_path = os.path.join(path, name).replace('\\', '/')
-            
-            for ext in ['', '.dir', '.dat', '.bak']:
-                src = src_path + ext
-                dest = dest_path + ext
-                if os.path.exists(src):
-                    if os.path.exists(dest):
-                        os.remove(dest)
-                    os.rename(src, dest)
-            
-            QMessageBox.information(self, "成功", "恢复完成")
-            self.DictManage.load_tagbase()
-            
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"恢复失败: {str(e)}")
-
     def add_existing_tagbase(self):
         """添加现有标签库"""
         # 打开文件对话框，让用户选择任意一种标签库文件
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择标签库文件", self.DictManage.default_folder, "标签库文件 (*.db)"
+            self, "选择标签库文件", self.DictManage.default_folder, f"标签库文件 (*{self.file_ext[0]})"
         )
 
         if not file_path:
@@ -440,7 +392,7 @@ class TagbaseManager(QDialog):
         full_name = os.path.basename(file_path)
         
         # 处理可能的扩展名
-        if full_name.endswith('.db'):
+        if full_name.endswith(self.file_ext[0]):
             file_name = full_name[:-3]
         else:
             file_name = full_name
@@ -450,27 +402,7 @@ class TagbaseManager(QDialog):
         if tagbase_path in self.tagbase_path_list:
             QMessageBox.information(self, "提示", f"标签库 '{file_name}' 已在列表中")
             return
-        
-        # 检查所有必要文件是否存在
-        missing_files = []
-        for ext in ['.dir', '.dat', '.bak']:
-            if not os.path.exists(tagbase_path + ext):
-                missing_files.append(ext)
-        
-        if missing_files:
-            # 有文件缺失，显示警告
-            msg = f"标签库 '{file_name}' 缺少以下文件：\n"
-            for ext in missing_files:
-                msg += f"- {file_name}{ext}\n"
-            msg += "\n是否仍然添加此标签库？（可能无法正常工作）"
-            
-            reply = QMessageBox.warning(self, "文件不完整", msg, 
-                                    QMessageBox.Yes | QMessageBox.No, 
-                                    QMessageBox.No)
-            
-            if reply != QMessageBox.Yes:
-                return
-        
+
         # 添加到标签库列表
         self.tagbase_path_list.append(tagbase_path)
         config.set('DictManage', 'tagbase_list', '|'.join(self.tagbase_path_list))
@@ -479,7 +411,4 @@ class TagbaseManager(QDialog):
         # 刷新列表
         self.load_tagbases()
         
-        if missing_files:
-            QMessageBox.information(self, "已添加", f"已添加不完整的标签库: {file_name}")
-        else:
-            QMessageBox.information(self, "成功", f"已添加标签库: {file_name}")
+        QMessageBox.information(self, "成功", f"已添加标签库: {file_name}")

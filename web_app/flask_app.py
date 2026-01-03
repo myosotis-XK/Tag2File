@@ -420,6 +420,7 @@ def serve_root():
 def favicon():
     return send_from_directory(os.path.join(root, 'data', 'icon', 'app'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
+from src.DictManage import DataAPI
 @app.route('/get_init', methods=['GET'])
 @login_required
 def get_init():
@@ -433,7 +434,8 @@ def get_init():
         db_path = db_list[0]
         set_user_setting(user_id, 'database_path', db_path)
     if db_path not in tagbase_data_dict:
-        tagbase_data_dict[db_path] = load_tagbase_data(db_path)
+        db_path_full = db_path + '.db'
+        tagbase_data_dict[db_path] = DataAPI(db_path_full)
     return jsonify({
         'database_list': db_list,
         'database_path': db_path,
@@ -442,73 +444,60 @@ def get_init():
 @app.route('/switch_db', methods=['POST'])
 @login_required
 def switch_db():
-    global tagbase_data_dict
     db_path = request.json.get('db_path')
     print(db_path)
     if not db_path:
         return jsonify({'success': False, 'message': '数据库路径不能为空'}), 400
     set_user_setting(session.get('user_id'), 'database_path', db_path)
     if db_path not in tagbase_data_dict:
-        tagbase_data_dict[db_path] = load_tagbase_data(db_path)
+        tagbase_data_dict[db_path] = DataAPI(db_path)
     return jsonify({'success': True, 'message': f'切换到数据库 {db_path}'})
 
 @app.route('/get_category', methods=['GET'])
 @login_required
 def get_category():
     db_path = get_user_setting(session.get('user_id'), 'database_path')
-    tagbase_data = tagbase_data_dict[db_path]
-    categories = tagbase_data['relation_graph']['category']
+    data_api: DataAPI = tagbase_data_dict[db_path]
+    results = data_api.query_category()
     
-    serializable_categories = {}
+    categories = {}
     category_order = []
 
-    for category_name, category_info in categories.items():
-        serializable_category = {}
-
-        for key, value in category_info.items():
-            if isinstance(value, set):
-                serializable_category[key] = list(value)
-            else:
-                serializable_category[key] = value
-
-        serializable_categories[category_name] = serializable_category
+    for item in results:
+        category_name = item[0]
+        tags = data_api.query('category', category_name, 'tag')
+        data = {
+            "tags": tags,
+            "is_special": item[2]
+        }
+        categories[category_name] = data
         category_order.append(category_name)
     return jsonify({
-        'categories': serializable_categories,
+        'categories': categories,
         'category_order': category_order 
     })
-
-@app.route('/get_special_categories', methods=['GET'])
-@login_required
-def get_special_categories():
-    db_path = get_user_setting(session.get('user_id'), 'database_path')
-    tagbase_data = tagbase_data_dict[db_path]
-    return jsonify(tagbase_data['special_categories'])
-
 
 @app.route('/get_special_tags_status', methods=['GET'])
 @login_required
 def get_special_tags_status():
     # 假设 current_user.id 可以获取当前用户ID
     user_id = session.get('user_id')
-    tagbase_data = tagbase_data_dict[get_user_setting(user_id, 'database_path')]
+    data_api: DataAPI = tagbase_data_dict[get_user_setting(user_id, 'database_path')]
     # 从数据库读取，如果没有就使用默认值初始化
-    default_tags = tagbase_data['special_tags_status']
+    results = data_api.get_all_special_tags_status()
+    default_tags = {item[0]: item[1] for item in results}
     tags_status = get_user_setting(user_id, 'special_tags', default_tags)
-    
     return jsonify(tags_status)
 
 @app.route('/get_category_tree_status', methods=['GET'])
 @login_required
 def get_category_tree_status():
     user_id = session.get('user_id')
-    tagbase_data = tagbase_data_dict[get_user_setting(user_id, 'database_path')]
+    data_api: DataAPI = tagbase_data_dict[get_user_setting(user_id, 'database_path')]
     # 从数据库读取，如果没有就使用默认值初始化
-    default_categories = {category: True for category in tagbase_data['relation_graph']['category']}
-    default_categories['文件类型'] = True
-
+    categories = data_api.query_category()
+    default_categories = {item[0]: True for item in categories}
     category_status = get_user_setting(user_id, 'category_tree', default_categories)
-    
     return jsonify(category_status)
 
 @app.route('/update_special_tags_status', methods=['POST'])
@@ -572,12 +561,14 @@ def search_files():
     data = request.json
     tag_expression = data.get('tag_expression')
     special_tags_status = data.get('special_tags_status')
+    special_tags_status_list = []
+    for tag, status in special_tags_status.items():
+        special_tags_status_list.append((tag, int(status)))
     db_path = get_user_setting(session.get('user_id'), 'database_path')
-    tagbase_data = tagbase_data_dict[db_path]
-    file_paths = get_tag_files(tag_expression, special_tags_status, tagbase_data['relation_graph'])
-    if file_paths is False:
+    file_items = get_tag_files(tag_expression, tagbase_data_dict[db_path], special_tags_status_list)
+    if file_items is False:
         return jsonify({"error": f"错误的表达式：{tag_expression}"}), 400
-
+    file_paths = [item[0] for item in file_items]
     return jsonify(file_paths)
 
 @app.route('/get_thumb', methods=['GET'])
@@ -619,8 +610,9 @@ def open_file():
         return jsonify({'error': '文件不存在或路径无效'}), 404
     
     db_path = get_user_setting(session.get('user_id'), 'database_path')
-    tagbase_data = tagbase_data_dict[db_path]
-    if file_path not in tagbase_data['relation_graph']['file']:
+    data_api: DataAPI = tagbase_data_dict[db_path]
+    tags = data_api.query('file', file_path, 'tag')
+    if not tags:
         print(f'访问权限不足：{file_path}')
         return jsonify({'error': '访问权限不足'}), 403
 
