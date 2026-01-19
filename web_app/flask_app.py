@@ -1,4 +1,4 @@
-from flask import Flask, Response, request, g, send_file, send_from_directory, jsonify, make_response, abort
+from flask import Flask, Response, request, g, send_file, render_template, send_from_directory, jsonify, make_response, abort
 import urllib.parse
 from PIL import Image
 from io import BytesIO
@@ -17,7 +17,14 @@ warnings.filterwarnings('ignore')
 
 from src.utils import get_cache_path, root, config
 
-app = Flask(__name__)
+TEMPLATES_DIR = os.path.join(root, "web_app", "frontend", "templates")
+STATIC_DIR = os.path.join(root, "web_app", "frontend", "static")
+app = Flask(
+    "tag2file",
+    template_folder=TEMPLATES_DIR,
+    static_folder=STATIC_DIR
+)
+app.json.ensure_ascii = False
 
 from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session
 from functools import wraps
@@ -400,10 +407,10 @@ def login():
             session['user_id'] = user_id
             return redirect(url_for('serve_root'))
         # 登录失败，返回带错误信息的页面
-        return serve_html('login.html', error="用户名或密码错误")
+        return serve_html('frontend/templates/login.html', error="用户名或密码错误")
     
     # GET 请求
-    return serve_html('login.html')
+    return serve_html('frontend/templates/login.html')
 
 @app.route('/logout')
 def logout():
@@ -413,8 +420,11 @@ def logout():
 @app.route('/')
 @login_required
 def serve_root():
-    # 自动检测来源域名
-    return serve_html('tag2file.html')
+    response = make_response(render_template('index.html'))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/favicon.ico')
 def favicon():
@@ -554,20 +564,82 @@ def update_category_tree_status():
     except Exception as e:
         return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
 
+@app.route('/get_ui_settings', methods=['GET'])
+@login_required
+def get_ui_settings():
+    user_id = session.get('user_id')
+    # 获取缩略图大小设置
+    icon_size = get_user_setting(user_id, 'icon_size', 'medium')
+    # 获取排序键设置
+    sort_key = get_user_setting(user_id, 'sort_key', 'name')
+    # 获取排序顺序设置
+    sort_order = get_user_setting(user_id, 'sort_order', 'desc')
+    
+    return jsonify({
+        'icon_size': icon_size,
+        'sort_key': sort_key,
+        'sort_order': sort_order
+    })
+
+@app.route('/update_ui_settings', methods=['POST'])
+@login_required
+def update_ui_settings():
+    user_id = session.get('user_id')
+    data = request.json
+    
+    # 更新缩略图大小设置
+    if 'icon_size' in data:
+        set_user_setting(user_id, 'icon_size', data['icon_size'])
+    
+    # 更新排序键设置
+    if 'sort_key' in data:
+        set_user_setting(user_id, 'sort_key', data['sort_key'])
+    
+    # 更新排序顺序设置
+    if 'sort_order' in data:
+        set_user_setting(user_id, 'sort_order', data['sort_order'])
+    
+    return jsonify({'success': True})
+
+
+import random
+from natsort import natsort_keygen
+def _sort_files(file_items: list[tuple[str, int, float]], sort_key: str = None, sort_order: str = None):
+    """根据当前排序设置对文件路径列表进行排序"""
+    if sort_key == "name":
+        # 自然排序
+        nkey = natsort_keygen(key=lambda item: item[0])
+        file_items.sort(
+            key=nkey,
+            reverse=(sort_order == "desc")
+        )
+    elif sort_key == "size":
+        file_items.sort(key=lambda item: item[1], reverse=(sort_order == "desc"))
+    elif sort_key == "date":
+        file_items.sort(key=lambda item: item[2], reverse=(sort_order == "desc"))
+    elif sort_key == "random":
+        random.shuffle(file_items)
 
 @app.route('/search_files', methods=['POST'])
 @login_required
 def search_files():
     data = request.json
-    tag_expression = data.get('tag_expression')
-    special_tags_status = data.get('special_tags_status')
-    special_tags_status_list = []
-    for tag, status in special_tags_status.items():
-        special_tags_status_list.append((tag, int(status)))
+    tag_expression = data.get('tag_expression', '')
+    special_tags_status: dict[str, int] = data.get('special_tags_status', {})
+    sort_key = data.get('sort_key', 'name')  # 默认按名称排序
+    sort_order = data.get('sort_order', 'desc')  # 默认降序
+    if sort_key not in ["name", "size", "date", "random"]:
+        return jsonify({"error": f"错误的排序类型：{sort_key}"}), 400
+    
+    special_tags_status_list = [
+        (tag, int(status))
+        for tag, status in special_tags_status.items()
+    ]
     db_path = get_user_setting(session.get('user_id'), 'database_path')
     file_items = get_tag_files(tag_expression, tagbase_data_dict[db_path], special_tags_status_list)
     if file_items is False:
         return jsonify({"error": f"错误的表达式：{tag_expression}"}), 400
+    _sort_files(file_items, sort_key, sort_order)
     file_paths = [item[0] for item in file_items]
     return jsonify(file_paths)
 

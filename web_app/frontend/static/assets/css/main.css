@@ -1,0 +1,384 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    padding-top: 60px;
+    background-color: #f8f9fa;
+}
+.container {
+    max-width: 100%;
+    padding-left: 5px;
+    padding-right: 5px;
+}
+/* 侧边栏样式 */
+.sidebar {
+    background-color: #ffffff;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+/* 1. 确保侧边栏容器能正确支撑子元素伸展 */
+@media (max-width: 767.98px) {
+    .sidebar {
+        /* 默认隐藏，固定在左侧 */
+        position: fixed;
+        top: 0px;
+        left: 0;
+        bottom: 0;
+        z-index: 1050; /* 确保在内容之上 */
+        width: 85%; /* 侧边栏宽度 */
+        max-width: 300px;
+        transform: translateX(-100%); /* 默认移出屏幕 */
+        transition: transform 0.3s ease-in-out; /* 添加过渡动画 */
+        padding-top: 20px;
+        border-radius: 0 8px 8px 0; /* 仅右侧圆角 */
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        margin-bottom: 0;
+        /* 确保内容区域能滚动 */
+        height: calc(100vh - 60px); 
+        display: flex; 
+        flex-direction: column;
+    }
+
+    /* 侧边栏显示时的样式 */
+    .sidebar.show {
+        transform: translateX(0); /* 移入屏幕 */
+    }
+
+    /* 遮罩层样式 */
+    .sidebar-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1040; /* 侧边栏之下 */
+        display: none;
+    }
+    .sidebar-backdrop.show {
+        display: block;
+    }
+}
+@media (min-width: 768px) {
+    .layout {
+        display: flex;
+        gap: 20px;
+        /* 关键：允许 .layout 占据视口所有可用高度 */
+        min-height: calc(100vh - 60px - 2rem); /* 100vh - 顶部导航栏高度 - 上下边距 */
+    }
+    .sidebar {
+        flex: 0 0 280px;
+        position: sticky;
+        top: 80px;
+        align-self: flex-start;
+        /* 关键：允许 .sidebar 占据父容器的可用高度 */
+        height: calc(100vh - 80px - 20px); /* 100vh - top - 底部留白 */
+        display: flex; /* 启用 flex 布局 */
+        flex-direction: column; /* 垂直方向排列子元素 */
+        transform: none;
+    }
+    .content {
+        flex: 1;
+    }
+}
+
+.operator-buttons-container {
+    display: flex; /* 启用 Flex 布局 */
+    flex-wrap: wrap; /* 允许换行 */
+    gap: 8px; /* 按钮之间的基础间距 */
+    margin-top: 10px; /* 调整或新增上部间距 */
+    margin-bottom: 15px; /* 增加与 tag-tree 之间的间距 */
+}
+
+/* 让每个按钮平均分配宽度 */
+.operator-buttons-container .operator-btn {
+    flex-grow: 1; /* 允许按钮占用更多空间 */
+    flex-basis: 0; /* 允许按钮在分配空间前缩小 */
+    min-width: 0; /* 避免在窄屏时溢出 */
+}
+/* 2. 让标签树占据侧边栏剩余的空间，并允许内部滚动 */
+.tag-tree {
+    /* 关键：flex-grow: 1 使其占据所有剩余空间 */
+    flex-grow: 1; 
+    /* 关键：设置最小高度为 0，防止内容过多时溢出 */
+    min-height: 0; 
+    /* 关键：设置内部滚动 */
+    overflow-y: auto;
+}
+
+/* 3. 调整加载状态的高度，以便居中 */
+.loading {
+    /* 让 loading 区域填满 tag-tree 容器，以便居中 */
+    display: flex; 
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    text-align: center;
+    padding: 0; /* 移除原来的 padding */
+}
+
+.category-header {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-top: 15px;
+    margin-bottom: 0px; /* 减少底部间距 */
+    padding: 5px 10px; /* 增加点击区域 */
+    color: #333;
+    border-bottom: 1px solid #eee;
+    display: flex; /* 确保图标和文字对齐 */
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.category-header:hover {
+    background-color: #f1f1f1; /* 悬停效果 */
+    cursor: pointer;
+}
+
+.category-header i.fa {
+    transition: transform 0.2s; /* 为图标添加过渡效果 */
+}
+
+/* 标签列表主体，用于折叠 */
+.tag-list-body {
+    padding-left: 10px; /* 增加一些左边距 */
+    margin-bottom: 8px; /* 增加底部间距 */
+}
+.tag-item {
+    padding: 6px 10px;
+    margin: 3px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.95em;
+}
+.tag-item:hover {
+    background-color: #e9ecef;
+}
+.tag-item.active {
+    background-color: #007bff;
+    color: white;
+}
+/* 特殊标签样式 */
+.special-tag {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    margin: 3px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.95em;
+}
+
+.special-tag:hover {
+    background-color: #e9ecef;
+}
+
+.special-tag.checked {
+    background-color: #d4edda;
+    border-left: 3px solid #28a745;
+}
+
+.check-box {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    text-align: center;
+    line-height: 20px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    color: #28a745;
+    font-weight: bold;
+}
+
+.special-tag.checked .check-box {
+    background-color: #28a745;
+    color: white;
+}
+
+.tag-text {
+    flex: 1;
+}
+.file-type-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+    margin-bottom: 20px;
+}
+.file-type-btn {
+    flex: 1;
+    min-width: 80px;
+    text-align: center;
+}
+/* 文件列表样式 */
+.file-list {
+    background-color: #ffffff;
+    padding: 0px;
+}
+.file-item {
+    padding: 0px;
+    margin-bottom: 5px;
+    border: 1px solid #eee;
+    transition: all 0.2s;
+}
+.file-item:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0,123,255,0.15);
+}
+.file-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.file-name {
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 5px;
+}
+.file-meta {
+    font-size: 0.85em;
+    color: #6c757d;
+}
+/* 响应式设计 */
+@media (min-width: 768px) {
+    .layout {
+        display: flex;
+        gap: 20px;
+    }
+    .sidebar {
+        flex: 0 0 280px;
+        position: sticky;
+        top: 80px;
+        align-self: flex-start;
+    }
+    .content {
+        flex: 1;
+    }
+}
+/* 滚动条样式 */
+.tag-tree::-webkit-scrollbar {
+    width: 6px;
+}
+.tag-tree::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+.tag-tree::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+.tag-tree::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+/* 动画效果 */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+/* 查询输入框样式 */
+.search-box {
+    position: relative;
+    margin-bottom: 15px;
+}
+.search-box input {
+    padding-right: 40px;
+}
+.search-box .clear-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #6c757d;
+}
+.spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #007bff;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 文件列表内容区容器优化 */
+.container.mt-4 {
+    /* 优化：减少顶部外边距 */
+    margin-top: 0.1rem !important; /* 原为 mt-4 (1.5rem)，改为 mt-2 (0.5rem) 或 mt-3 (1rem) */
+}
+
+/* 缩略图切换按钮组的优化 */
+.content .mb-3 {
+    /* 优化：减少底部外边距 */
+    margin-bottom: 5px !important; /* 从 mb-3 (1rem) 减少 */
+}
+
+/* 缩略图视图样式 */
+.thumbnail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size), 1fr));
+    gap: 2px;
+}
+
+.thumb-item {
+    background: #fff;
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+    padding: 4px;
+}
+
+.thumb-img {
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    width: 100%;
+    aspect-ratio: 1/1;
+}
+
+.thumb-icon {
+    font-size: 3em;
+    color: #6c757d;
+    margin: 20px 0;
+}
+
+.thumb-name {
+    font-size: 0.85em;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 三种尺寸 */
+.thumb-item.small .thumb-img,
+.thumb-item.small .thumb-icon {
+    height: 56px;
+}
+
+.thumb-item.medium .thumb-img,
+.thumb-item.medium .thumb-icon {
+    height: 85px;
+}
+
+.thumb-item.large .thumb-img,
+.thumb-item.large .thumb-icon {
+    height: 170px;
+}
