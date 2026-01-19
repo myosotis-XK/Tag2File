@@ -21,5 +21,6 @@ build/
 dist/
 *.spec
 *.lnk
+*.exe
 web_app/users.db
 qy.py

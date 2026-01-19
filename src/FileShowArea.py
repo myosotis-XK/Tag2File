@@ -177,16 +177,7 @@ class FileShowArea(QWidget):
         
         self.initFileView()
         self.update_scrollbars()
-        file_meta_datas = []
-        for file_path in file_paths:
-            try:
-                st = os.stat(file_path)
-                size_bytes = st.st_size
-                mtime = st.st_mtime
-            except:
-                size_bytes = 0
-                mtime = 0
-            file_meta_datas.append((file_path, size_bytes, mtime))
+        file_meta_datas = [(file_path, 0, 0) for file_path in self.file_paths]
         self.createFileItem(file_meta_datas)
         self._sort_files()
 
@@ -1633,16 +1624,7 @@ class TagFileShowArea(FileShowArea):
             file_paths = paths
         file_paths = list(set(file_paths) - set(self.file_paths))
         self.file_paths += file_paths
-        file_meta_datas = []
-        for file_path in file_paths:
-            try:
-                st = os.stat(file_path)
-                size_bytes = st.st_size
-                mtime = st.st_mtime
-            except:
-                size_bytes = 0
-                mtime = 0
-            file_meta_datas.append((file_path, size_bytes, mtime))
+        file_meta_datas = [(file_path, 0, 0) for file_path in file_paths]
         self.createFileItem(file_meta_datas)
         self._sort_files()
         self.updateLayout()

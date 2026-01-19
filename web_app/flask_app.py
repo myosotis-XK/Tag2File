@@ -454,7 +454,7 @@ def get_init():
 @app.route('/switch_db', methods=['POST'])
 @login_required
 def switch_db():
-    db_path = request.json.get('db_path')
+    db_path = request.json.get('db_path') + '.db'
     print(db_path)
     if not db_path:
         return jsonify({'success': False, 'message': '数据库路径不能为空'}), 400
