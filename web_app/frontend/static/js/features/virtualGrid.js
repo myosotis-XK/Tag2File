@@ -1,5 +1,5 @@
 import { globalState, saveUISettings } from '../state.js';
-import { apiGetThumbnail, apiOpenFile } from '../api.js';
+import { apiGetThumbnail, apiOpenFile, apiSearchFiles } from '../api.js';
 import { throttle } from '../utils.js';
 
 // 核心渲染函数：设置和渲染虚拟网格
@@ -18,9 +18,6 @@ export function setupVirtualGrid() {
         `;
         return;
     }
-    
-    // 重置页码
-    globalState.pagination.currentPage = 0;
     
     // 首次渲染或切换尺寸时重建容器
     if (!container || !grid) {
@@ -69,13 +66,11 @@ export function setupVirtualGrid() {
     console.log('Grid Container columns:', columns);
     if (columns === 0) return;
     
-    // 只显示当前页的数据
-    const pageStartIndex = globalState.pagination.currentPage * globalState.pagination.pageSize;
-    const pageEndIndex = Math.min(pageStartIndex + globalState.pagination.pageSize, globalState.virtualFiles.length);
-    const pageFiles = globalState.virtualFiles.slice(pageStartIndex, pageEndIndex);
+    // 使用完整的文件列表（API已经返回了当前页的数据）
+    const allFiles = globalState.virtualFiles;
     
     const rowHeight = itemHeight;
-    const totalRows = Math.ceil(pageFiles.length / columns);
+    const totalRows = Math.ceil(allFiles.length / columns);
     
     // 设置虚拟高度
     grid.style.height = totalRows * rowHeight + 'px';
@@ -88,6 +83,7 @@ export function setupVirtualGrid() {
     }
 
     // 重新渲染当前可见项目
+    console.log(globalState.virtualFiles.length);
     renderVisibleItems(true); 
     
     // 添加分页控件
@@ -102,8 +98,9 @@ function addPaginationControls(resultsContainer) {
         existingPagination.remove();
     }
     
-    // 计算总页数
-    const totalPages = Math.ceil(globalState.virtualFiles.length / globalState.pagination.pageSize);
+    // 使用 globalState 中的总页数，而不是自己计算
+    const totalPages = globalState.pagination.totalPages;
+    
     
     // 创建分页控件
     const paginationDiv = document.createElement('div');
@@ -158,69 +155,118 @@ function addPaginationControls(resultsContainer) {
         await saveUISettings();
         globalState.pagination.currentPage = 0; // 重置到第一页
         
-        // 重新计算网格参数
-        const container = document.getElementById('virtual-container');
-        const grid = document.getElementById('virtual-grid');
-        
-        if (container && grid) {
-            // 清除现有网格项
-            while(grid.firstChild) {
-                grid.removeChild(grid.firstChild);
+        // 重新执行搜索以获取新页面大小的数据
+        const query = document.getElementById('search-input').value;
+        if (query.trim()) {
+            // 显示加载状态
+            const resultsContainer = document.getElementById('results-container');
+            resultsContainer.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>加载中...</p>
+                </div>
+            `;
+            
+            try {
+                // 调用后端API获取指定页面和页面大小的数据
+                const response = await apiSearchFiles({
+                    tagExpression: query,
+                    specialTagsStatus: globalState.specialTagsStatus,
+                    sort_key: globalState.currentSortKey,
+                    sort_order: globalState.currentSortOrder,
+                    page: 1, // 总是获取第一页
+                    page_size: globalState.pagination.pageSize,
+                });
+                
+                // 更新分页状态
+                globalState.pagination.currentPage = response.data.pagination.page - 1; // 前端页码从0开始
+                globalState.pagination.totalPages = response.data.pagination.pages;
+                globalState.pagination.totalItems = response.data.pagination.total;
+                globalState.pagination.pageSize = response.data.pagination.page_size;
+                
+                // 更新文件列表
+                globalState.virtualFiles = response.data.file_paths.map(filePath => {
+                    const fileName = filePath.split('\\').pop().split('/').pop();
+                    return { 
+                        filePath, 
+                        fileName
+                    };
+                });
+                
+                // 重新渲染网格
+                setupVirtualGrid();
+            } catch (error) {
+                console.error('更改每页数量失败:', error);
+                resultsContainer.innerHTML = `
+                    <div class="text-center text-danger py-5">
+                        <i class="fa fa-exclamation-circle fa-3x mb-3"></i>
+                        <p>加载失败，请重试</p>
+                    </div>
+                `;
             }
-            
-            // 重新设置网格高度
-            const itemHeight = globalState.sizeMap[globalState.currentIconSize] + 80;
-            const columns = Math.floor(container.clientWidth / (globalState.sizeMap[globalState.currentIconSize] + 2));
-            const pageStartIndex = globalState.pagination.currentPage * globalState.pagination.pageSize;
-            const pageEndIndex = Math.min(pageStartIndex + globalState.pagination.pageSize, globalState.virtualFiles.length);
-            const pageFiles = globalState.virtualFiles.slice(pageStartIndex, pageEndIndex);
-            const rowHeight = itemHeight;
-            const totalRows = Math.ceil(pageFiles.length / columns);
-            
-            grid.style.height = totalRows * rowHeight + 'px';
         }
-        
-        renderVisibleItems(true);
-        
-        // 重新添加分页控件
-        addPaginationControls(document.getElementById('results-container'));
     });
     
     // 绑定分页按钮事件
     paginationDiv.querySelectorAll('.page-link').forEach(link => {
-        link.addEventListener('click', (e) => {
+        link.addEventListener('click', async (e) => {
             e.preventDefault();
             const targetPage = parseInt(e.target.getAttribute('data-page'));
             
-            if (!isNaN(targetPage) && targetPage >= 0 && targetPage < Math.ceil(globalState.virtualFiles.length / globalState.pagination.pageSize)) {
+            // 使用 globalState 中的总页数进行验证
+            if (!isNaN(targetPage) && targetPage >= 0 && targetPage < globalState.pagination.totalPages) {
                 globalState.pagination.currentPage = targetPage;
                 
-                // 重新计算网格参数
-                const container = document.getElementById('virtual-container');
-                const grid = document.getElementById('virtual-grid');
-                
-                if (container && grid) {
-                    // 清除现有网格项
-                    while(grid.firstChild) {
-                        grid.removeChild(grid.firstChild);
+                // 触发新的查询获取该页数据
+                const query = document.getElementById('search-input').value;
+                if (query.trim()) {
+                    // 显示加载状态
+                    const resultsContainer = document.getElementById('results-container');
+                    resultsContainer.innerHTML = `
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>加载中...</p>
+                        </div>
+                    `;
+                    
+                    try {
+                        // 调用后端API获取指定页面的数据
+                        const response = await apiSearchFiles({
+                            tagExpression: query,
+                            specialTagsStatus: globalState.specialTagsStatus,
+                            sort_key: globalState.currentSortKey,
+                            sort_order: globalState.currentSortOrder,
+                            page: targetPage + 1, // 后端页码从1开始
+                            page_size: globalState.pagination.pageSize,
+                        });
+                        
+                        // 更新分页状态
+                        globalState.pagination.currentPage = response.data.pagination.page - 1; // 前端页码从0开始
+                        globalState.pagination.totalPages = response.data.pagination.pages;
+                        globalState.pagination.totalItems = response.data.pagination.total;
+                        globalState.pagination.pageSize = response.data.pagination.page_size;
+                        
+                        // 更新文件列表
+                        globalState.virtualFiles = response.data.file_paths.map(filePath => {
+                            const fileName = filePath.split('\\').pop().split('/').pop();
+                            return { 
+                                filePath, 
+                                fileName
+                            };
+                        });
+                        
+                        // 重新渲染网格
+                        setupVirtualGrid();
+                    } catch (error) {
+                        console.error('获取分页数据失败:', error);
+                        resultsContainer.innerHTML = `
+                            <div class="text-center text-danger py-5">
+                                <i class="fa fa-exclamation-circle fa-3x mb-3"></i>
+                                <p>加载失败，请重试</p>
+                            </div>
+                        `;
                     }
-                    
-                    // 重新设置网格高度
-                    const itemHeight = globalState.sizeMap[globalState.currentIconSize] + 80;
-                    const columns = Math.floor(container.clientWidth / (globalState.sizeMap[globalState.currentIconSize] + 2));
-                    const pageStartIndex = globalState.pagination.currentPage * globalState.pagination.pageSize;
-                    const pageEndIndex = Math.min(pageStartIndex + globalState.pagination.pageSize, globalState.virtualFiles.length);
-                    const pageFiles = globalState.virtualFiles.slice(pageStartIndex, pageEndIndex);
-                    const rowHeight = itemHeight;
-                    const totalRows = Math.ceil(pageFiles.length / columns);
-                    
-                    grid.style.height = totalRows * rowHeight + 'px';
                 }
-                
-                renderVisibleItems(true);
-                
-                // 重新添加分页控件
-                addPaginationControls(document.getElementById('results-container'));
             }
         });
     });
@@ -241,13 +287,11 @@ function renderVisibleItems(forceRefresh = false) {
     const columns = Math.floor(gridWidth / (globalState.sizeMap[globalState.currentIconSize] + 2));
     if (columns === 0) return; 
 
-    // 只显示当前页的数据
-    const pageStartIndex = globalState.pagination.currentPage * globalState.pagination.pageSize;
-    const pageEndIndex = Math.min(pageStartIndex + globalState.pagination.pageSize, globalState.virtualFiles.length);
-    const pageFiles = globalState.virtualFiles.slice(pageStartIndex, pageEndIndex);
+    // 使用完整的文件列表（API已经返回了当前页的数据）
+    const allFiles = globalState.virtualFiles;
     
     const rowHeight = itemHeight;
-    const totalRows = Math.ceil(pageFiles.length / columns);
+    const totalRows = Math.ceil(allFiles.length / columns);
     
     // 缓冲设置：增加可视区域上下的缓冲行数
     const BUFFER_ROWS = 4; 
@@ -255,14 +299,14 @@ function renderVisibleItems(forceRefresh = false) {
     const startRow = Math.floor(scrollTop / rowHeight);
     const endRow = Math.min(startRow + Math.ceil(clientHeight / rowHeight) + BUFFER_ROWS, totalRows); 
     const startIndex = Math.max(0, (startRow - BUFFER_ROWS) * columns);
-    const endIndex = Math.min(pageFiles.length, endRow * columns);
+    const endIndex = Math.min(allFiles.length, endRow * columns);
 
     const newRenderedIndexes = new Set();
     const itemsToKeep = new Set();
 
     // 1. 渲染/更新新的可见项目
     for (let index = startIndex; index < endIndex; index++) {
-        if (index >= pageFiles.length) break;
+        if (index >= allFiles.length) break;
         newRenderedIndexes.add(index);
         itemsToKeep.add(`item-${index}`); 
 
@@ -270,7 +314,7 @@ function renderVisibleItems(forceRefresh = false) {
         
         if (!item || forceRefresh) { // 如果项目不存在 或 强制刷新 (如切换尺寸)
             // 如果项目不存在，则创建并添加
-            const file = pageFiles[index];
+            const file = allFiles[index];
             const currentThumbSize = globalState.sizeMap[globalState.currentIconSize];
             const thumbSrc = apiGetThumbnail(file.filePath, currentThumbSize);
             if (!item) {
@@ -297,7 +341,7 @@ function renderVisibleItems(forceRefresh = false) {
             } else {
                 item.querySelector('.thumb-img').style.backgroundImage = `url('${thumbSrc}')`;
                 // 更新文件名显示
-                const fileName = pageFiles[index].fileName;
+                const fileName = allFiles[index].fileName;
                 const estimatedLines = Math.min(Math.ceil(fileName.length / 15), 3); // 每行大约15个字符
                 const nameElement = item.querySelector('.thumb-name');
                 nameElement.style.webkitLineClamp = estimatedLines;
@@ -340,12 +384,8 @@ function renderVisibleItems(forceRefresh = false) {
             const itemId = item.id;
             const itemIndex = parseInt(itemId.replace('item-', ''));
             
-            // 检查该项目是否在当前页的范围内
-            const pageStartIndex = globalState.pagination.currentPage * globalState.pagination.pageSize;
-            const pageEndIndex = Math.min(pageStartIndex + globalState.pagination.pageSize, globalState.virtualFiles.length);
-            
-            // 如果项目索引不在当前页范围，或者不在当前可见范围内，则移除
-            if (itemIndex < pageStartIndex || itemIndex >= pageEndIndex || !newRenderedIndexes.has(itemIndex)) {
+            // 如果项目索引超出当前文件列表范围，则移除
+            if (itemIndex >= allFiles.length || !newRenderedIndexes.has(itemIndex)) {
                 grid.removeChild(item);
             }
         }

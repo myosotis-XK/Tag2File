@@ -37,134 +37,20 @@ export function searchFiles(pageOrEvent) {
         page_size: globalState.pagination.pageSize,
     })
     .then(response => {
-        // 检查响应是否包含分页信息
-        if (response.data && response.data.pagination) {
-            // 更新分页状态
-            globalState.pagination.currentPage = response.data.pagination.page;
-            globalState.pagination.totalPages = response.data.pagination.pages;
-            globalState.pagination.totalItems = response.data.pagination.total;
-            globalState.pagination.pageSize = response.data.pagination.page_size;
-            
-            // 显示分页结果
-            displayResults(response.data.file_paths);
-            showPaginationControls();
-        } else {
-            // 兼容旧格式（直接返回文件路径数组）
-            displayResults(response.data);
-            globalState.pagination.currentPage = 1;
-            globalState.pagination.totalPages = 1;
-            globalState.pagination.totalItems = response.data.length;
-            hidePaginationControls();
-        }
+        // 更新分页状态
+        globalState.pagination.currentPage = response.data.pagination.page;
+        globalState.pagination.totalPages = response.data.pagination.pages;
+        globalState.pagination.totalItems = response.data.pagination.total;
+        globalState.pagination.pageSize = response.data.pagination.page_size;
+        console.log('Total Pages:', globalState.pagination);
+        
+        // 显示分页结果
+        displayResults(response.data.file_paths);
     })
     .catch(error => {
         console.error('Search failed:', error);
         showErrorState();
     });
-}
-
-// 显示分页控件
-function showPaginationControls() {
-    const resultsContainer = document.getElementById('results-container');
-    const paginationContainer = document.getElementById('pagination-controls') || createPaginationControls();
-    
-    // 确保分页控件在结果下方显示
-    if (!document.getElementById('pagination-controls')) {
-        resultsContainer.parentNode.insertBefore(paginationContainer, resultsContainer.nextSibling);
-    }
-    
-    updatePaginationDisplay();
-}
-
-// 隐藏分页控件
-function hidePaginationControls() {
-    const paginationContainer = document.getElementById('pagination-controls');
-    if (paginationContainer) {
-        paginationContainer.style.display = 'none';
-    }
-}
-
-// 创建分页控件
-function createPaginationControls() {
-    const paginationDiv = document.createElement('div');
-    paginationDiv.id = 'pagination-controls';
-    paginationDiv.className = 'pagination-wrapper text-center my-3';
-    paginationDiv.innerHTML = `
-        <nav aria-label="分页导航">
-            <ul class="pagination justify-content-center" id="pagination-list">
-                <li class="page-item" id="prev-page-li">
-                    <a class="page-link" href="#" id="prev-page" aria-label="Previous">
-                        <span aria-hidden="true">&laquo;</span>
-                    </a>
-                </li>
-                <li class="page-item disabled"><span class="page-link" id="page-info">第 1 页，共 1 页</span></li>
-                <li class="page-item" id="next-page-li">
-                    <a class="page-link" href="#" id="next-page" aria-label="Next">
-                        <span aria-hidden="true">&raquo;</span>
-                    </a>
-                </li>
-            </ul>
-        </nav>
-    `;
-    
-    // 绑定事件
-    document.getElementById('prev-page').addEventListener('click', goToPrevPage);
-    document.getElementById('next-page').addEventListener('click', goToNextPage);
-    
-    return paginationDiv;
-}
-
-// 更新分页显示
-function updatePaginationDisplay() {
-    const pageInfo = document.getElementById('page-info');
-    const prevPageLi = document.getElementById('prev-page-li');
-    const nextPageLi = document.getElementById('next-page-li');
-    
-    if (pageInfo) {
-        pageInfo.textContent = `第 ${globalState.pagination.currentPage} 页，共 ${globalState.pagination.totalPages} 页 (${globalState.pagination.totalItems} 项)`;
-    }
-    
-    // 控制上一页/下一页按钮的禁用状态
-    if (prevPageLi) {
-        if (globalState.pagination.currentPage <= 1) {
-            prevPageLi.classList.add('disabled');
-        } else {
-            prevPageLi.classList.remove('disabled');
-        }
-    }
-    
-    if (nextPageLi) {
-        if (globalState.pagination.currentPage >= globalState.pagination.totalPages) {
-            nextPageLi.classList.add('disabled');
-        } else {
-            nextPageLi.classList.remove('disabled');
-        }
-    }
-}
-
-// 上一页
-function goToPrevPage(e) {
-    e.preventDefault();
-    if (globalState.pagination.currentPage > 1) {
-        const newPage = globalState.pagination.currentPage - 1;
-        searchFiles(newPage);
-    }
-}
-
-// 下一页
-function goToNextPage(e) {
-    e.preventDefault();
-    if (globalState.pagination.currentPage < globalState.pagination.totalPages) {
-        const newPage = globalState.pagination.currentPage + 1;
-        searchFiles(newPage);
-    }
-}
-
-// 跳转到指定页面
-export function goToPage(pageNum) {
-    if (pageNum >= 1 && pageNum <= globalState.pagination.totalPages) {
-        searchFiles(pageNum);
-    }
 }
 
 // 清空搜索输入
@@ -181,7 +67,6 @@ export function clearSearch() {
     
     // 重置结果显示
     showEmptyResults();
-    hidePaginationControls();
 }
 
 // 显示加载状态
