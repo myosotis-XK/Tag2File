@@ -362,9 +362,42 @@ body {
 .thumb-name {
     font-size: 0.85em;
     color: #333;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    line-clamp: 3;
+    box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.4;
+    max-height: 4.2em; /* 3行 * 1.4行高 */
+}
+
+/* 分页控件样式 */
+.pagination-controls {
+    margin-top: 15px;
+}
+
+.pagination .page-link {
+    color: #007bff;
+    border: 1px solid #dee2e6;
+}
+
+.pagination .page-link:hover {
+    color: #0056b3;
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.pagination .page-item.active .page-link {
+    color: #fff;
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #6c757d;
+    background-color: #fff;
+    border-color: #dee2e6;
 }
 
 /* 三种尺寸 */

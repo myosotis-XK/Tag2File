@@ -90,13 +90,21 @@ export function apiUpdateCategoryTreeStatus(status) {
  */
 
 // 搜索文件
-export function apiSearchFiles({ tagExpression, specialTagsStatus, sort_key, sort_order }) {
-  return api.post('/search_files', {
+export function apiSearchFiles({ tagExpression, specialTagsStatus, sort_key, sort_order, page, page_size }) {
+  const requestData = {
     tag_expression: tagExpression,
     special_tags_status: specialTagsStatus,
     sort_key: sort_key,
     sort_order: sort_order,
-  });
+    page_size: page_size,
+  };
+  
+  // 添加分页参数（如果提供）
+  if (page !== undefined) {
+    requestData.page = page;
+  }
+  
+  return api.post('/search_files', requestData);
 }
 
 /**

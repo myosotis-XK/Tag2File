@@ -1,6 +1,7 @@
-import { globalState } from '../state.js';
+import { globalState, saveUISettings } from '../state.js';
 import { apiGetThumbnail, apiOpenFile } from '../api.js';
 import { throttle } from '../utils.js';
+
 // 核心渲染函数：设置和渲染虚拟网格
 export function setupVirtualGrid() {
     const resultsContainer = document.getElementById('results-container');
@@ -17,6 +18,9 @@ export function setupVirtualGrid() {
         `;
         return;
     }
+    
+    // 重置页码
+    globalState.pagination.currentPage = 0;
     
     // 首次渲染或切换尺寸时重建容器
     if (!container || !grid) {
@@ -50,12 +54,12 @@ export function setupVirtualGrid() {
     
     // --- 动态高度计算和 CSS 变量更新 ---
     const topOffset = container.getBoundingClientRect().top;
-    const availableHeight = window.innerHeight - topOffset - 20; // 减去 20px 作为底部间距
+    const availableHeight = window.innerHeight - topOffset - 100; // 减去 20px 作为底部间距
     container.style.height = Math.max(400, availableHeight) + 'px'; // 设置最小高度 400px
     document.documentElement.style.setProperty('--thumb-size', globalState.sizeMap[globalState.currentIconSize] + 'px'); // 更新 CSS 变量
     
     // --- 虚拟滚动参数计算 ---
-    const itemHeight = globalState.sizeMap[globalState.currentIconSize] + 40; // 图片 + 名称 + margin
+    const itemHeight = globalState.sizeMap[globalState.currentIconSize] + 80; // 图片 + 名称 + margin (增加高度以适应多行文本)
     const gridWidth = container.clientWidth;
     console.log('Grid Container ClientWidth:', gridWidth);
     if (gridWidth === 0) return; 
@@ -65,8 +69,13 @@ export function setupVirtualGrid() {
     console.log('Grid Container columns:', columns);
     if (columns === 0) return;
     
+    // 只显示当前页的数据
+    const pageStartIndex = globalState.pagination.currentPage * globalState.pagination.pageSize;
+    const pageEndIndex = Math.min(pageStartIndex + globalState.pagination.pageSize, globalState.virtualFiles.length);
+    const pageFiles = globalState.virtualFiles.slice(pageStartIndex, pageEndIndex);
+    
     const rowHeight = itemHeight;
-    const totalRows = Math.ceil(globalState.virtualFiles.length / columns);
+    const totalRows = Math.ceil(pageFiles.length / columns);
     
     // 设置虚拟高度
     grid.style.height = totalRows * rowHeight + 'px';
@@ -80,8 +89,142 @@ export function setupVirtualGrid() {
 
     // 重新渲染当前可见项目
     renderVisibleItems(true); 
+    
+    // 添加分页控件
+    addPaginationControls(resultsContainer);
 }
 
+// 添加分页控件
+function addPaginationControls(resultsContainer) {
+    // 移除现有的分页控件
+    const existingPagination = document.getElementById('pagination-controls');
+    if (existingPagination) {
+        existingPagination.remove();
+    }
+    
+    // 计算总页数
+    const totalPages = Math.ceil(globalState.virtualFiles.length / globalState.pagination.pageSize);
+    
+    // 创建分页控件
+    const paginationDiv = document.createElement('div');
+    paginationDiv.id = 'pagination-controls';
+    paginationDiv.className = 'pagination-controls d-flex justify-content-between align-items-center mt-3';
+    
+    paginationDiv.innerHTML = `
+        <div class="page-size-selector">
+            <label for="page-size-select">每页显示:</label>
+            <select id="page-size-select" class="form-select form-select-sm mx-2" style="width: auto;">
+                <option value="50" ${globalState.pagination.pageSize === 50 ? 'selected' : ''}>50</option>
+                <option value="100" ${globalState.pagination.pageSize === 100 ? 'selected' : ''}>100</option>
+                <option value="200" ${globalState.pagination.pageSize === 200 ? 'selected' : ''}>200</option>
+                <option value="500" ${globalState.pagination.pageSize === 500 ? 'selected' : ''}>500</option>
+                <option value="1000" ${globalState.pagination.pageSize === 1000 ? 'selected' : ''}>1000</option>
+            </select>
+        </div>
+        <nav>
+            <ul class="pagination mb-0">
+                <li class="page-item ${globalState.pagination.currentPage === 0 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${globalState.pagination.currentPage - 1}">上一页</a>
+                </li>
+                
+                ${Array.from({length: Math.min(5, totalPages)}, (_, i) => {
+                    const pageNum = Math.max(0, Math.min(globalState.pagination.currentPage - 2, totalPages - 5)) + i;
+                    if (pageNum < totalPages) {
+                        return `
+                            <li class="page-item ${globalState.pagination.currentPage === pageNum ? 'active' : ''}">
+                                <a class="page-link" href="#" data-page="${pageNum}">${pageNum + 1}</a>
+                            </li>
+                        `;
+                    }
+                    return '';
+                }).join('')}
+                
+                <li class="page-item ${globalState.pagination.currentPage === totalPages - 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${globalState.pagination.currentPage + 1}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+        <div class="page-info">
+            第 ${globalState.pagination.currentPage + 1} 页，共 ${totalPages} 页 (${globalState.virtualFiles.length} 项)
+        </div>
+    `;
+    
+    resultsContainer.appendChild(paginationDiv);
+    
+    // 绑定每页显示数量选择事件
+    const pageSizeSelect = paginationDiv.querySelector('#page-size-select');
+    pageSizeSelect.addEventListener('change', async (e) => {
+        globalState.pagination.pageSize = parseInt(e.target.value);
+        await saveUISettings();
+        globalState.pagination.currentPage = 0; // 重置到第一页
+        
+        // 重新计算网格参数
+        const container = document.getElementById('virtual-container');
+        const grid = document.getElementById('virtual-grid');
+        
+        if (container && grid) {
+            // 清除现有网格项
+            while(grid.firstChild) {
+                grid.removeChild(grid.firstChild);
+            }
+            
+            // 重新设置网格高度
+            const itemHeight = globalState.sizeMap[globalState.currentIconSize] + 80;
+            const columns = Math.floor(container.clientWidth / (globalState.sizeMap[globalState.currentIconSize] + 2));
+            const pageStartIndex = globalState.pagination.currentPage * globalState.pagination.pageSize;
+            const pageEndIndex = Math.min(pageStartIndex + globalState.pagination.pageSize, globalState.virtualFiles.length);
+            const pageFiles = globalState.virtualFiles.slice(pageStartIndex, pageEndIndex);
+            const rowHeight = itemHeight;
+            const totalRows = Math.ceil(pageFiles.length / columns);
+            
+            grid.style.height = totalRows * rowHeight + 'px';
+        }
+        
+        renderVisibleItems(true);
+        
+        // 重新添加分页控件
+        addPaginationControls(document.getElementById('results-container'));
+    });
+    
+    // 绑定分页按钮事件
+    paginationDiv.querySelectorAll('.page-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const targetPage = parseInt(e.target.getAttribute('data-page'));
+            
+            if (!isNaN(targetPage) && targetPage >= 0 && targetPage < Math.ceil(globalState.virtualFiles.length / globalState.pagination.pageSize)) {
+                globalState.pagination.currentPage = targetPage;
+                
+                // 重新计算网格参数
+                const container = document.getElementById('virtual-container');
+                const grid = document.getElementById('virtual-grid');
+                
+                if (container && grid) {
+                    // 清除现有网格项
+                    while(grid.firstChild) {
+                        grid.removeChild(grid.firstChild);
+                    }
+                    
+                    // 重新设置网格高度
+                    const itemHeight = globalState.sizeMap[globalState.currentIconSize] + 80;
+                    const columns = Math.floor(container.clientWidth / (globalState.sizeMap[globalState.currentIconSize] + 2));
+                    const pageStartIndex = globalState.pagination.currentPage * globalState.pagination.pageSize;
+                    const pageEndIndex = Math.min(pageStartIndex + globalState.pagination.pageSize, globalState.virtualFiles.length);
+                    const pageFiles = globalState.virtualFiles.slice(pageStartIndex, pageEndIndex);
+                    const rowHeight = itemHeight;
+                    const totalRows = Math.ceil(pageFiles.length / columns);
+                    
+                    grid.style.height = totalRows * rowHeight + 'px';
+                }
+                
+                renderVisibleItems(true);
+                
+                // 重新添加分页控件
+                addPaginationControls(document.getElementById('results-container'));
+            }
+        });
+    });
+}
 
 function renderVisibleItems(forceRefresh = false) {
     const container = document.getElementById('virtual-container');
@@ -91,15 +234,20 @@ function renderVisibleItems(forceRefresh = false) {
     const scrollTop = container.scrollTop;
     const clientHeight = container.clientHeight;
     
-    const itemHeight = globalState.sizeMap[globalState.currentIconSize] + 40;
+    const itemHeight = globalState.sizeMap[globalState.currentIconSize] + 80; // 图片 + 名称 + margin (增加高度以适应多行文本)
     const gridWidth = container.clientWidth;
     if (gridWidth === 0) return;
 
     const columns = Math.floor(gridWidth / (globalState.sizeMap[globalState.currentIconSize] + 2));
     if (columns === 0) return; 
 
+    // 只显示当前页的数据
+    const pageStartIndex = globalState.pagination.currentPage * globalState.pagination.pageSize;
+    const pageEndIndex = Math.min(pageStartIndex + globalState.pagination.pageSize, globalState.virtualFiles.length);
+    const pageFiles = globalState.virtualFiles.slice(pageStartIndex, pageEndIndex);
+    
     const rowHeight = itemHeight;
-    const totalRows = Math.ceil(globalState.virtualFiles.length / columns);
+    const totalRows = Math.ceil(pageFiles.length / columns);
     
     // 缓冲设置：增加可视区域上下的缓冲行数
     const BUFFER_ROWS = 4; 
@@ -107,14 +255,14 @@ function renderVisibleItems(forceRefresh = false) {
     const startRow = Math.floor(scrollTop / rowHeight);
     const endRow = Math.min(startRow + Math.ceil(clientHeight / rowHeight) + BUFFER_ROWS, totalRows); 
     const startIndex = Math.max(0, (startRow - BUFFER_ROWS) * columns);
-    const endIndex = Math.min(globalState.virtualFiles.length, endRow * columns);
+    const endIndex = Math.min(pageFiles.length, endRow * columns);
 
     const newRenderedIndexes = new Set();
     const itemsToKeep = new Set();
 
     // 1. 渲染/更新新的可见项目
     for (let index = startIndex; index < endIndex; index++) {
-        if (index >= globalState.virtualFiles.length) break;
+        if (index >= pageFiles.length) break;
         newRenderedIndexes.add(index);
         itemsToKeep.add(`item-${index}`); 
 
@@ -122,16 +270,20 @@ function renderVisibleItems(forceRefresh = false) {
         
         if (!item || forceRefresh) { // 如果项目不存在 或 强制刷新 (如切换尺寸)
             // 如果项目不存在，则创建并添加
-            const file = globalState.virtualFiles[index];
+            const file = pageFiles[index];
             const currentThumbSize = globalState.sizeMap[globalState.currentIconSize];
             const thumbSrc = apiGetThumbnail(file.filePath, currentThumbSize);
             if (!item) {
                 item = document.createElement('div');
                 item.id = `item-${index}`; // 设置ID以便追踪
                 
+                // 根据文件名长度动态计算行数，最多3行
+                const fileName = file.fileName;
+                const estimatedLines = Math.min(Math.ceil(fileName.length / 15), 3); // 每行大约15个字符
+                
                 item.innerHTML = `
                     <div class="thumb-img" style="background-image: url('${thumbSrc}')"></div>
-                    <div class="thumb-name" title="${file.fileName}">${file.fileName}</div>
+                    <div class="thumb-name" style="display: -webkit-box; -webkit-line-clamp: ${estimatedLines}; -webkit-box-orient: vertical; overflow: hidden;" title="${file.fileName}">${file.fileName}</div>
                 `;
                 
                 // 绑定点击事件
@@ -144,6 +296,13 @@ function renderVisibleItems(forceRefresh = false) {
                 grid.appendChild(item);
             } else {
                 item.querySelector('.thumb-img').style.backgroundImage = `url('${thumbSrc}')`;
+                // 更新文件名显示
+                const fileName = pageFiles[index].fileName;
+                const estimatedLines = Math.min(Math.ceil(fileName.length / 15), 3); // 每行大约15个字符
+                const nameElement = item.querySelector('.thumb-name');
+                nameElement.style.webkitLineClamp = estimatedLines;
+                nameElement.title = fileName;
+                nameElement.textContent = fileName;
             }
             
             // 刷新样式和位置
@@ -174,14 +333,22 @@ function renderVisibleItems(forceRefresh = false) {
 
     // 2. 移除不再可见的项目 (除非是强制刷新，通常在尺寸切换时不移除)
     if (!forceRefresh) {
-        const itemsToRemove = Array.from(globalState.renderedIndexes).filter(index => !newRenderedIndexes.has(index));
+        // 获取所有当前网格中的项目
+        const currentItems = Array.from(grid.children);
         
-        itemsToRemove.forEach(index => {
-            const item = document.getElementById(`item-${index}`);
-            if (item) {
+        for (const item of currentItems) {
+            const itemId = item.id;
+            const itemIndex = parseInt(itemId.replace('item-', ''));
+            
+            // 检查该项目是否在当前页的范围内
+            const pageStartIndex = globalState.pagination.currentPage * globalState.pagination.pageSize;
+            const pageEndIndex = Math.min(pageStartIndex + globalState.pagination.pageSize, globalState.virtualFiles.length);
+            
+            // 如果项目索引不在当前页范围，或者不在当前可见范围内，则移除
+            if (itemIndex < pageStartIndex || itemIndex >= pageEndIndex || !newRenderedIndexes.has(itemIndex)) {
                 grid.removeChild(item);
             }
-        });
+        }
     }
 
 

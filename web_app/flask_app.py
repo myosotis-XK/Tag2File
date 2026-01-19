@@ -574,11 +574,14 @@ def get_ui_settings():
     sort_key = get_user_setting(user_id, 'sort_key', 'name')
     # 获取排序顺序设置
     sort_order = get_user_setting(user_id, 'sort_order', 'desc')
+    # 获取每页显示数量设置
+    page_size = get_user_setting(user_id, 'page_size', 100)
     
     return jsonify({
         'icon_size': icon_size,
         'sort_key': sort_key,
-        'sort_order': sort_order
+        'sort_order': sort_order,
+        'page_size': page_size
     })
 
 @app.route('/update_ui_settings', methods=['POST'])
@@ -598,6 +601,10 @@ def update_ui_settings():
     # 更新排序顺序设置
     if 'sort_order' in data:
         set_user_setting(user_id, 'sort_order', data['sort_order'])
+    
+    # 更新每页显示数量设置
+    if 'page_size' in data:
+        set_user_setting(user_id, 'page_size', data['page_size'])
     
     return jsonify({'success': True})
 
@@ -628,8 +635,18 @@ def search_files():
     special_tags_status: dict[str, int] = data.get('special_tags_status', {})
     sort_key = data.get('sort_key', 'name')  # 默认按名称排序
     sort_order = data.get('sort_order', 'desc')  # 默认降序
+    page = data.get('page', 1)  # 当前页数，默认为第一页
+    page_size = data.get('page_size', 50)  # 每页显示数量，默认为50
+    
     if sort_key not in ["name", "size", "date", "random"]:
         return jsonify({"error": f"错误的排序类型：{sort_key}"}), 400
+    
+    # 验证页码和每页数量参数
+    try:
+        page = max(1, int(page))
+        page_size = max(1, min(int(page_size), 1000))  # 限制最大每页数量以防止性能问题
+    except (ValueError, TypeError):
+        return jsonify({"error": "页码或每页数量参数无效"}), 400
     
     special_tags_status_list = [
         (tag, int(status))
@@ -640,8 +657,28 @@ def search_files():
     if file_items is False:
         return jsonify({"error": f"错误的表达式：{tag_expression}"}), 400
     _sort_files(file_items, sort_key, sort_order)
-    file_paths = [item[0] for item in file_items]
-    return jsonify(file_paths)
+    
+    # 计算总数
+    total = len(file_items)
+    
+    # 计算起始索引
+    start_index = (page - 1) * page_size
+    end_index = start_index + page_size
+    
+    # 截取当前页的数据
+    paginated_file_items = file_items[start_index:end_index]
+    file_paths = [item[0] for item in paginated_file_items]
+    
+    # 返回分页结果
+    return jsonify({
+        "file_paths": file_paths,
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "pages": (total + page_size - 1) // page_size  # 向上取整计算总页数
+        }
+    })
 
 @app.route('/get_thumb', methods=['GET'])
 @login_required

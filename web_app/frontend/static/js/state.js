@@ -9,6 +9,12 @@ export const globalState = {
     availableDatabases: [], // 存储所有可用的数据库 *完整路径*列表
     renderedIndexes: new Set(), // 已渲染的文件索引集合
     virtualFiles: [], // 缓存所有文件信息
+    pagination: { // 分页状态
+        currentPage: 1,
+        totalPages: 1,
+        totalItems: 0,
+        pageSize: 100, // 每页显示数量
+    },
 };
 
 import { apiGetUISettings, apiUpdateUISettings } from './api.js';
@@ -30,12 +36,14 @@ export async function initializeState() {
         if (settings.sort_order) {
             globalState.currentSortOrder = settings.sort_order;
         }
+
+        if (settings.page_size) {
+            globalState.pagination.pageSize = settings.page_size;
+        }
     } catch (error) {
         console.error('加载用户界面设置失败，使用默认值:', error);
         // 使用默认值继续
     }
-    
-    // 初始化其他状态...
 }
 
 // 保存用户界面设置到后端
@@ -44,7 +52,8 @@ export async function saveUISettings() {
         const settings = {
             icon_size: globalState.currentIconSize,
             sort_key: globalState.currentSortKey,
-            sort_order: globalState.currentSortOrder
+            sort_order: globalState.currentSortOrder,
+            page_size: globalState.pagination.pageSize,
         };
         
         await apiUpdateUISettings(settings);
