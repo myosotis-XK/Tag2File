@@ -32,11 +32,11 @@ from functools import wraps
 app.secret_key = 'a_very_secret_key_change_this'  # 用于加密 session cookie
 
 import sqlite3
-db_path = os.path.join(root, 'web_app', 'users.db')
+user_db_path = os.path.join(root, 'web_app', 'users.db')
 def get_db():
     """获取数据库连接，每个请求独立"""
     if 'db' not in g:
-        g.db = sqlite3.connect(db_path)
+        g.db = sqlite3.connect(user_db_path)
         # 设置行工厂，返回字典形式的结果
         g.db.row_factory = sqlite3.Row
     return g.db
@@ -454,13 +454,13 @@ def get_init():
 @app.route('/switch_db', methods=['POST'])
 @login_required
 def switch_db():
-    db_path = request.json.get('db_path') + '.db'
-    print(db_path)
+    db_path = request.json.get('db_path')
     if not db_path:
         return jsonify({'success': False, 'message': '数据库路径不能为空'}), 400
     set_user_setting(session.get('user_id'), 'database_path', db_path)
     if db_path not in tagbase_data_dict:
-        tagbase_data_dict[db_path] = DataAPI(db_path)
+        db_path_full = db_path + '.db'
+        tagbase_data_dict[db_path] = DataAPI(db_path_full)
     return jsonify({'success': True, 'message': f'切换到数据库 {db_path}'})
 
 @app.route('/get_category', methods=['GET'])

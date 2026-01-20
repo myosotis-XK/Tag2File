@@ -57,7 +57,6 @@ export function searchFiles(pageOrEvent) {
 export function clearSearch() {
     const searchInput = document.getElementById('search-input');
     searchInput.value = '';
-    expressionBuilder.clear();
     
     // 移除所有标签的激活状态
     const activeTags = document.querySelectorAll('.tag-item.active');
