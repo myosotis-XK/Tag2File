@@ -105,12 +105,11 @@ function addPaginationControls(resultsContainer) {
     // 创建分页控件
     const paginationDiv = document.createElement('div');
     paginationDiv.id = 'pagination-controls';
-    paginationDiv.className = 'pagination-controls d-flex justify-content-between align-items-center mt-3';
+    paginationDiv.className = 'pagination-controls d-flex justify-content-center align-items-center gap-1 mt-3';
     
     paginationDiv.innerHTML = `
         <div class="page-size-selector">
-            <label for="page-size-select">每页显示:</label>
-            <select id="page-size-select" class="form-select form-select-sm mx-2" style="width: auto;">
+            <select id="page-size-select" class="form-select form-select-sm mx-0" style="width: auto;">
                 <option value="50" ${globalState.pagination.pageSize === 50 ? 'selected' : ''}>50</option>
                 <option value="100" ${globalState.pagination.pageSize === 100 ? 'selected' : ''}>100</option>
                 <option value="200" ${globalState.pagination.pageSize === 200 ? 'selected' : ''}>200</option>
@@ -119,30 +118,30 @@ function addPaginationControls(resultsContainer) {
             </select>
         </div>
         <nav>
-            <ul class="pagination mb-0">
-                <li class="page-item ${globalState.pagination.currentPage === 0 ? 'disabled' : ''}">
-                    <a class="page-link" href="#" data-page="${globalState.pagination.currentPage - 1}">上一页</a>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item ${globalState.pagination.currentPage === 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${globalState.pagination.currentPage - 1}">&lt;</a>
                 </li>
                 
                 ${Array.from({length: Math.min(5, totalPages)}, (_, i) => {
-                    const pageNum = Math.max(0, Math.min(globalState.pagination.currentPage - 2, totalPages - 5)) + i;
-                    if (pageNum < totalPages) {
+                    const pageNum = Math.max(1, Math.min(globalState.pagination.currentPage - 2, totalPages - 4)) + i;
+                    if (pageNum <= totalPages) {
                         return `
                             <li class="page-item ${globalState.pagination.currentPage === pageNum ? 'active' : ''}">
-                                <a class="page-link" href="#" data-page="${pageNum}">${pageNum + 1}</a>
+                                <a class="page-link" href="#" data-page="${pageNum}">${pageNum}</a>
                             </li>
                         `;
                     }
                     return '';
                 }).join('')}
                 
-                <li class="page-item ${globalState.pagination.currentPage === totalPages - 1 ? 'disabled' : ''}">
-                    <a class="page-link" href="#" data-page="${globalState.pagination.currentPage + 1}">下一页</a>
+                <li class="page-item ${globalState.pagination.currentPage === totalPages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${globalState.pagination.currentPage + 1}">&gt;</a>
                 </li>
             </ul>
         </nav>
         <div class="page-info">
-            第 ${globalState.pagination.currentPage + 1} 页，共 ${totalPages} 页 (${globalState.virtualFiles.length} 项)
+            共 ${totalPages} 页
         </div>
     `;
     
@@ -153,7 +152,7 @@ function addPaginationControls(resultsContainer) {
     pageSizeSelect.addEventListener('change', async (e) => {
         globalState.pagination.pageSize = parseInt(e.target.value);
         await saveUISettings();
-        globalState.pagination.currentPage = 0; // 重置到第一页
+        globalState.pagination.currentPage = 1; // 重置到第一页
         
         // 重新执行搜索以获取新页面大小的数据
         const query = document.getElementById('search-input').value;
@@ -179,7 +178,7 @@ function addPaginationControls(resultsContainer) {
                 });
                 
                 // 更新分页状态
-                globalState.pagination.currentPage = response.data.pagination.page - 1; // 前端页码从0开始
+                globalState.pagination.currentPage = response.data.pagination.page;
                 globalState.pagination.totalPages = response.data.pagination.pages;
                 globalState.pagination.totalItems = response.data.pagination.total;
                 globalState.pagination.pageSize = response.data.pagination.page_size;
@@ -214,7 +213,7 @@ function addPaginationControls(resultsContainer) {
             const targetPage = parseInt(e.target.getAttribute('data-page'));
             
             // 使用 globalState 中的总页数进行验证
-            if (!isNaN(targetPage) && targetPage >= 0 && targetPage < globalState.pagination.totalPages) {
+            if (!isNaN(targetPage) && targetPage >= 1 && targetPage <= globalState.pagination.totalPages) {
                 globalState.pagination.currentPage = targetPage;
                 
                 // 触发新的查询获取该页数据
@@ -236,12 +235,12 @@ function addPaginationControls(resultsContainer) {
                             specialTagsStatus: globalState.specialTagsStatus,
                             sort_key: globalState.currentSortKey,
                             sort_order: globalState.currentSortOrder,
-                            page: targetPage + 1, // 后端页码从1开始
+                            page: targetPage,
                             page_size: globalState.pagination.pageSize,
                         });
                         
                         // 更新分页状态
-                        globalState.pagination.currentPage = response.data.pagination.page - 1; // 前端页码从0开始
+                        globalState.pagination.currentPage = response.data.pagination.page;
                         globalState.pagination.totalPages = response.data.pagination.pages;
                         globalState.pagination.totalItems = response.data.pagination.total;
                         globalState.pagination.pageSize = response.data.pagination.page_size;
