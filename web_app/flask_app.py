@@ -744,5 +744,51 @@ def open_file():
 
 # ————————————————————————————————————————————————————————————————————————启动服务————————————————————————————————————————————————————————
 
+# 日志过滤器
+import re
+import logging
+class RouteFilter(logging.Filter):
+    def __init__(self, excluded_routes: list[str], excluded_codes: set[int] = None):
+        '''
+        过滤werkzeug日志，排除指定路由的日志
+        :param excluded_routes: 要排除的路由列表
+        :param excluded_codes: 要排除的状态码集合，默认值为{ 200, 206, 304 }
+        '''
+        super().__init__()
+        self.excluded_routes = excluded_routes
+        if excluded_codes is None:
+            excluded_codes = { 200, 206, 304 }
+        self.excluded_codes = excluded_codes
+    
+        self.pattern = re.compile(r'"[A-Z]+ (?P<path>\S+) HTTP/[\d.]+" (?P<status>\d{3})')
+
+    def extract_path_and_status(self, log_message):
+        match = self.pattern.search(log_message)
+        if match:
+            path = match.group('path')      # '/static/file.js'
+            status = int(match.group('status'))  # 200
+            return path, status
+        else:
+            raise ValueError("Log message does not match expected format")
+
+    def filter(self, record):
+        message = record.getMessage()
+        try:
+            path, status = self.extract_path_and_status(message)
+        except ValueError:
+            return True
+        # 检查日志消息是否包含要过滤的路由
+        if status not in self.excluded_codes:
+            return True
+        for route in self.excluded_routes:
+            if path.startswith(route):
+                return False
+        return True
+
+# 添加过滤器到werkzeug日志
+werkzeug_logger = logging.getLogger('werkzeug')
+route_filter = RouteFilter(['/static/', '/open_file/', '/get_thumb/'])
+werkzeug_logger.addFilter(route_filter)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10252, threaded=True)
