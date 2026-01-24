@@ -226,7 +226,7 @@ class Tag2File(QMainWindow, Observer):
                     label.checkStateChanged.connect(self.onSpecialLabelCheckChanged)
                     label.isChecked = self.DictManage.get_special_tag_status(tag)
                 else:
-                    file_count = len(self.DictManage.query('tag', tag, 'file'))
+                    file_count = self.DictManage.query_tag_file_count(tag)
                     label = TagLabel(tag, file_count, color, self)
                 label_item = QTreeWidgetItem(category_item)
                 tree.setItemWidget(label_item, 0, label)

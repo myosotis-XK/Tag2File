@@ -327,6 +327,20 @@ class DataAPI():
 
         raise ValueError(f"unsupported relation {src_group} → {dst_group}")
 
+    def query_tag_file_count(self, tag: str) -> int:
+        if tag in self.tag2file_cache:
+            return len(self.tag2file_cache[tag])
+        cur = self.conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM tag_file tf
+            JOIN tag t ON t.id = tf.tag_id
+            WHERE t.name = ?
+            """,
+            (tag,)
+        )
+        return cur.fetchone()[0]
+
     def get_all_files(self) -> set[tuple[str, int, float]]:
         with self._lock, self.conn:
             cur = self.conn.cursor()
@@ -346,9 +360,11 @@ class DataAPI():
     def get_all_special_tags_status(self) -> list[tuple[str, int]]:
         with self._lock, self.conn:
             cur = self.conn.cursor()
-            cur.execute("""SELECT t.name, tss.status FROM tag_special_status tss
-                           LEFT JOIN tag t ON t.id = tss.tag_id
-                        """)
+            cur.execute("""
+                SELECT t.name, tss.status FROM tag_special_status tss
+                LEFT JOIN tag t ON t.id = tss.tag_id
+                """
+            )
             rows = cur.fetchall()
             cur.close()
         return rows
@@ -755,6 +771,9 @@ class DictManage():
     def query(self, src_group: str, src_entity: str, dst_group: str):
         return self.dataAPI.query(src_group, src_entity, dst_group)
     
+    def query_tag_file_count(self, tag: str) -> int:
+        return self.dataAPI.query_tag_file_count(tag)
+
     def get_all_files(self):
         return self.dataAPI.get_all_files()
     
