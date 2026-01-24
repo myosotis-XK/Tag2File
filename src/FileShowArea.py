@@ -411,9 +411,10 @@ class FileShowArea(QWidget):
             self.starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
             self.startLoadingImagesThreadpool.start(self.starImageLoader)
         if threadpool is self.threadpool0:
-            for file_path in file_paths[:]:
-                if self.file_items[file_path].icon:
-                    file_paths.remove(file_path)
+            if use_cache:
+                for file_path in file_paths[:]:
+                    if self.file_items[file_path].icon:
+                        file_paths.remove(file_path)
             if len(file_paths) > 0:
                 starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
                 self.startLoadingImagesThreadpool.start(starImageLoader)
@@ -1211,12 +1212,17 @@ class FileShowArea(QWidget):
     # 刷新
     def refresh(self):
         # 不使用缓存加载
+        file_meta_datas = []
         for file_path in self.select_labels_keys:
             self.file_items.pop(file_path)
             self.file_items_cache.pop(file_path)
+            st = os.stat(file_path)
+            size_bytes = st.st_size
+            mtime = st.st_mtime
+            file_meta_datas.append((file_path, size_bytes, mtime))
             if file_path in self.labels:
                 self.recycleFileLabel(file_path)
-        self.createFileItem(list(self.select_labels_keys))
+        self.createFileItem(file_meta_datas)
         self.startLoadingImages(self.threadpool0, list(self.select_labels_keys), use_cache=False)
         self.select_labels_keys.clear()
         self.updateLayout()
