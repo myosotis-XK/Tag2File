@@ -447,6 +447,10 @@ class FileShowArea(QWidget):
         icon_label.file_path = file_path
         file_name_label.file_path = file_path
         
+        if not file_item.icon and mimetypes.guess_type(file_path)[0] == "image/gif":
+            movie = QMovie(file_path)
+            file_item.icon_source['current'] = MovieIcon(movie, self.image_size)
+
         file_item.apply(icon_label)
 
         file_name_label.setText('\u200B'.join(file_item.file_name))

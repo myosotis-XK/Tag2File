@@ -190,7 +190,6 @@ class ThumbnailExtractor:
         """从文件提取缩略图，统一返回 PIL.Image 对象"""
         try:
             mime_type, _ = mimetypes.guess_type(file_path)
-            
             if not mime_type:
                 return None
             

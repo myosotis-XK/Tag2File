@@ -223,18 +223,19 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
             img_byte_array.seek(0)
             
             thumb_data = img_byte_array
-            thumb_mime = 'image/png'
-            return thumb_data, thumb_mime
+            return thumb_data, 'image/png'
         else:
             return None, None
 
     if mime_type == 'image/gif':
         # --- 特殊处理 GIF 文件 ---
         with Image.open(file_path) as img:
-            with open(file_path, 'rb') as f:
-                thumb_data = BytesIO(f.read())
-            thumb_mime = 'image/gif'
-            return thumb_data, thumb_mime
+            out = BytesIO()
+            # save 时指定 loop=0 强制无限循环
+            # save_all=True 确保保留所有帧
+            img.save(out, format='GIF', save_all=True, loop=0, disposal=2)
+            out.seek(0)
+            return out, 'image/gif'
     
     cache_path = get_cache_path(file_path, size)
     

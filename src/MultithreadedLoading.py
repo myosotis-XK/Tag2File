@@ -3,6 +3,7 @@ from PyQt5.QtGui import QPixmap, QPainterPath, QPen, QFont, QColor, QPainter, QI
 from PyQt5.QtWidgets import QLabel
 from PIL import Image
 import os
+import mimetypes
 from .utils import get_cache_path, thumbnailExtractor
 from .Iconsource import *
 
@@ -19,9 +20,10 @@ class StarImageLoader(QRunnable):
 
     def change_pixmap_size(self, file_path):
         file_item = self.father.file_items[file_path]
-        pixmap = file_item.icon_source['current'].source
-        pixmap = pixmap.scaled(self.father.image_size, self.father.image_size, Qt.KeepAspectRatio)
-        file_item.icon_source['current'] = PixmapIcon(pixmap)
+        source = file_item.icon_source['current'].source
+        if isinstance(source, QPixmap):
+            pixmap = source.scaled(self.father.image_size, self.father.image_size, Qt.KeepAspectRatio)
+            file_item.icon_source['current'] = PixmapIcon(pixmap)
         label = self.father.labels.get(file_path)
         if label:
             icon_label = label.findChild(QLabel)
@@ -31,6 +33,9 @@ class StarImageLoader(QRunnable):
         for file_path in self.file_paths:
             if not self.runing:
                 break
+            mime_type, _ = mimetypes.guess_type(file_path)
+            if mime_type == "image/gif":
+                continue
             if (self.use_cache or not os.path.exists(file_path)) and self.check_cache(file_path):
                 continue
             self.change_pixmap_size(file_path)
@@ -41,8 +46,8 @@ class StarImageLoader(QRunnable):
         file_item = self.father.file_items[file_path]
         image_size = self.father.image_size
         if image_size in file_item.icon_source:
-            pixmap = file_item.icon_source[image_size].source
-            self.updateLabelIcon(pixmap, file_path)
+            icon_source = file_item.icon_source[image_size]
+            self.updateLabelIcon(icon_source, file_path)
             return True
 
         # 检查磁盘缓存
@@ -60,19 +65,20 @@ class StarImageLoader(QRunnable):
                     print(f"无法删除损坏的缓存: {del_err}")  
                     pass
                 pixmap = None
-            self.updateLabelIcon(pixmap, file_path)
+            self.updateLabelIcon(PixmapIcon(pixmap), file_path)
             return True
         if not os.path.exists(file_path):
             pixmap = QPixmap(self.father.image_size, self.father.image_size)
             pixmap.fill(Qt.transparent)
-            self.updateLabelIcon(pixmap, file_path)
+            self.updateLabelIcon(PixmapIcon(pixmap), file_path)
 
         return False
 
-    def updateLabelIcon(self, pixmap, file_path):
+    def updateLabelIcon(self, icon_source: IconSource, file_path: str):
         file_item = self.father.file_items[file_path]
         file_item.icon = True
-        file_item.icon_source[self.father.image_size] = PixmapIcon(pixmap)
+        file_item.icon_source[self.father.image_size] = icon_source
+        pixmap = icon_source.source
         if not os.path.exists(file_path):
             if not pixmap:
                 pixmap = QPixmap(self.father.image_size, self.father.image_size)
@@ -135,44 +141,45 @@ class ImageLoader(QRunnable):
         self.father = father
         self.max_size = father.image_size
         self.file_path = file_path
+
     def run(self):
         try:
-            pixmap = None
+            source = None
             file_item = self.father.file_items[self.file_path]
             file_item.icon = True
-            pil_image = thumbnailExtractor.extract_thumbnail(self.file_path, self.max_size)
-            if pil_image:
-                pixmap = self.pil_to_pixmap(pil_image)
-            if pixmap:
-                file_item.icon_source['current'] = PixmapIcon(pixmap)
+            try:
+                pil_image = thumbnailExtractor.extract_thumbnail(self.file_path, self.max_size)
+                if pil_image:
+                    pixmap = self.pil_to_pixmap(pil_image)
+                    source = PixmapIcon(pixmap)
+                    self.save_to_disk_cache(pixmap)
+            finally:
+                file_item.icon_source[self.max_size] = source
+            
+            if source:
+                file_item.icon_source['current'] = source
                 label = self.father.labels.get(self.file_path)
                 if label:
                     icon_label = label.findChild(QLabel, "icon_label")
                     file_item.apply(icon_label)
-                # 将缩略图存入缓存
-                self.save_to_disk_cache(pixmap)
-            file_item.icon_source[self.max_size] = PixmapIcon(pixmap)
 
         except Exception as e:
             print(f"加载文件 {self.file_path} 时出现错误: {e}")
 
     def pil_to_pixmap(self, pil_image: Image.Image) -> QPixmap:
         """将 PIL Image 转换为 QPixmap"""
-        try:
-            if pil_image.mode != 'RGBA':
-                pil_image = pil_image.convert('RGBA')
-            qimage = QImage(
-                pil_image.tobytes(),
-                pil_image.width,
-                pil_image.height,
-                pil_image.width * 4,
-                QImage.Format_RGBA8888
-            )
-            return QPixmap.fromImage(qimage)
-        except Exception as e:
-            print(f"转换 PIL 到 QPixmap 失败: {e}")
-            return None
+        if pil_image.mode != 'RGBA':
+            pil_image = pil_image.convert('RGBA')
+        qimage = QImage(
+            pil_image.tobytes(),
+            pil_image.width,
+            pil_image.height,
+            pil_image.width * 4,
+            QImage.Format_RGBA8888
+        )
+        return QPixmap.fromImage(qimage)
 
     def save_to_disk_cache(self, pixmap):
+        """将图像保存到磁盘缓存"""
         cache_path = get_cache_path(self.file_path, self.max_size)
         pixmap.save(cache_path, "PNG")
