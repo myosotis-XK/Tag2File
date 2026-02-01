@@ -3,13 +3,14 @@ from .MultithreadedLoading import *
 from .DictManage import *
 from .ImageViewer import *
 from .FileSelectionComponent import FileSelectionComponent
+from .Iconsource import *
 import os
 import subprocess
 import shutil
 import random
 from PyQt5.QtWidgets import QWidget, QScrollBar, QLabel, QMenu, QAction, QVBoxLayout, QRubberBand, \
 QApplication, QTextEdit, QPushButton, QFileIconProvider, QMessageBox, QStyleOptionSlider, QInputDialog
-from PyQt5.QtGui import QPixmap, QFont, QIcon, QPainter, QCursor, QDragEnterEvent, QDropEvent, \
+from PyQt5.QtGui import QPixmap, QMovie, QFont, QIcon, QPainter, QCursor, QDragEnterEvent, QDropEvent, \
     QMouseEvent, QFontMetrics, QPalette, QColor
 from PyQt5.QtCore import Qt, QThreadPool, QPoint, QRect, QSize, QTimer, QFileInfo
 import time
@@ -69,7 +70,7 @@ class FileItem():
         self.file_date = file_date
 
         self.icon: bool = False
-        self.pixmap: dict[str, QPixmap] = None
+        self.icon_source: dict[str, IconSource] = None
 
         self.specifid = 0
         self.selected = 0
@@ -93,6 +94,11 @@ class FileItem():
         total_lines = min(num_lines, max_lines)  # 限制最大行数
         name_height = total_lines * self.single_line_height  # 总高度
         return name_height + int(label_width*self.SPACING_RATE)
+    
+    def apply(self, label: QLabel, key='current'):
+        icon = self.icon_source.get(key)
+        if icon:
+            icon.apply(label)
 
 
 class FileShowArea(QWidget):
@@ -350,7 +356,7 @@ class FileShowArea(QWidget):
             if self.image_size not in self.extension_icon:
                 self.extension_icon[self.image_size] = {}
             self.extension_icon[self.image_size][file_extension] = pixmap
-        file_item.pixmap = {'current': pixmap}
+        file_item.icon_source = {'current': PixmapIcon(pixmap)}
         self.file_items[file_path] = file_item
         self.file_items_cache[file_path] = file_item
 
@@ -441,7 +447,7 @@ class FileShowArea(QWidget):
         icon_label.file_path = file_path
         file_name_label.file_path = file_path
         
-        icon_label.setPixmap(file_item.pixmap['current'])
+        file_item.apply(icon_label)
 
         file_name_label.setText('\u200B'.join(file_item.file_name))
         file_name_label.setFixedHeight(file_item.name_height)

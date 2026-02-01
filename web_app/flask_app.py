@@ -722,8 +722,6 @@ class RouteFilter(logging.Filter):
             status = int(match.group('status'))  # 200
             return path, status
         else:
-            with open(r'D:\Tag2File\temp.txt', 'w', encoding='utf-8') as f:
-                f.write(log_message)
             raise ValueError("Log message does not match expected format")
 
     def filter(self, record):

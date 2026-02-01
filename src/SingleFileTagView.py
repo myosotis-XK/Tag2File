@@ -101,7 +101,7 @@ class SingleFileTagView(QScrollArea, Observer):
             file_item = self.TagFileShowArea.file_items[self.current_file_path]
             self.pixmap = QPixmap(self.current_file_path)
             if self.pixmap.isNull():
-                self.pixmap = file_item.pixmap['current']
+                self.pixmap = file_item.icon_source['current'].source
             message = (
                 f"<b>{file_item.file_name}</b><br><br>"
                 f"<b>文件路径: </b>&nbsp; {file_item.file_path}<br><br>"

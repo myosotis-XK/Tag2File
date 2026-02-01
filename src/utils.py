@@ -205,8 +205,6 @@ class ThumbnailExtractor:
             if thumbnail_image:
                 # 后处理
                 thumbnail_image.thumbnail((image_size, image_size), Image.Resampling.LANCZOS)
-                if thumbnail_image.mode != 'RGB':
-                    thumbnail_image = thumbnail_image.convert('RGB')
             
             return thumbnail_image
         except Exception as e:
