@@ -906,7 +906,6 @@ class FileShowArea(QWidget):
                 key=nkey,
                 reverse=(self.current_sort_order == "desc")
             )
-
             ## windows api
             # import ctypes
             # from functools import cmp_to_key
@@ -1412,6 +1411,10 @@ class FileShowArea(QWidget):
     def recycleFileLabel(self, file_path):
         """将单个文件标签从显示中移除并放回标签池"""
         label = self.labels.pop(file_path)
+        icon_label = label.findChild(QLabel, "icon_label")
+        if icon_label.movie():
+            icon_label.movie().stop()
+        icon_label.setMovie(None)
         label.hide()
         self.label_pool.append(label)
 
