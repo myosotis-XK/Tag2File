@@ -567,7 +567,7 @@ def _sort_files(file_items: list[tuple[str, int, float]], sort_key: str = None, 
     """根据当前排序设置对文件路径列表进行排序"""
     if sort_key == "name":
         # 自然排序
-        nkey = natsort_keygen(key=lambda item: item[0])
+        nkey = natsort_keygen(key=lambda item: os.path.basename(item[0]))
         file_items.sort(
             key=nkey,
             reverse=(sort_order == "desc")
