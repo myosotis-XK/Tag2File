@@ -15,7 +15,7 @@ import warnings
 import traceback
 warnings.filterwarnings('ignore')
 
-from src.utils import get_cache_path, root, config
+from src.utils import get_cache_path, root, config, thumbnailExtractor
 
 TEMPLATES_DIR = os.path.join(root, "web_app", "frontend", "templates")
 STATIC_DIR = os.path.join(root, "web_app", "frontend", "static")
@@ -254,77 +254,28 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
 
     # 2. 生成缩略图
     try:
-        if mime_type.startswith('image/'):
-            # --- 普通图片处理 ---
-            with Image.open(file_path) as img:
-                img.thumbnail((size, size))
-                if 'icc_profile' in img.info:
-                    del img.info['icc_profile']
-                img_byte_array = BytesIO()
-                img.save(img_byte_array, format='PNG') 
-                img_byte_array.seek(0)
-                thumb_data = img_byte_array
-                thumb_mime = 'image/png'
-                
-        elif mime_type == 'audio/mpeg':
-            # --- MP3 封面处理 (使用 mutagen) ---
-            audio = MP3(file_path, ID3=ID3)
-            if audio and audio.tags:
-                for tag in audio.tags.keys():
-                    if tag.startswith('APIC:'):
-                        apic = audio.tags[tag]
-                        img_byte_array = BytesIO(apic.data)
-                        with Image.open(img_byte_array) as img:
-                            img.thumbnail((size, size))
-                            final_byte_array = BytesIO()
-                            img.save(final_byte_array, format='PNG')
-                            final_byte_array.seek(0)
-                            thumb_data = final_byte_array
-                            thumb_mime = 'image/png'
-                        break
-            
-        elif mime_type.startswith('video/') or mime_type == 'video/mp4':
-            # --- 视频文件处理 (使用 cv2 提取第一帧) ---
-            video = cv2.VideoCapture(file_path)
-            if video.isOpened():
-                success, frame = video.read()
-                video.release()
-                
-                if success:
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    img = Image.fromarray(frame_rgb)
-                    img.thumbnail((size, size))
-                    
-                    img_byte_array = BytesIO()
-                    img.save(img_byte_array, format='PNG')
-                    img_byte_array.seek(0)
-                    thumb_data = img_byte_array
-                    thumb_mime = 'image/png'
-
-        else:
-            pil_img = get_file_icon(file_path, size)
-            
-            if pil_img:
-                img_byte_array = BytesIO()
-                pil_img.save(img_byte_array, format='PNG') 
-                img_byte_array.seek(0)
-                
-                thumb_data = img_byte_array
-                thumb_mime = 'image/png'
+        img = thumbnailExtractor.extract_thumbnail(file_path, size)
+        if img is None:
+            img = get_file_icon(file_path, size)
+            if img is None:
+                return None, None
+        img_byte_array = BytesIO()
+        img.save(img_byte_array, format='PNG')
+        thumb_data = img_byte_array
+        thumb_mime = 'image/png'
                     
     except Exception as e:
         print(f"❌ 生成文件 {file_path} 的缩略图失败: {e}")
         return None, None
 
-    if thumb_data and use_cache:
+    if thumb_data:
         try:
             with open(cache_path, 'wb') as f:
                 f.write(thumb_data.getvalue())
-            # 重置 BytesIO 对象的指针到开头，以便调用者读取
-            thumb_data.seek(0)
         except Exception as e:
             print(f"❌ 写入缓存文件 {cache_path} 失败: {e}")
 
+    thumb_data.seek(0) # 重置 BytesIO 对象的指针到开头，以便调用者读取
     return thumb_data, thumb_mime
 
 def get_user_setting(user_id, setting_type, default_value=None):
@@ -761,14 +712,18 @@ class RouteFilter(logging.Filter):
         self.excluded_codes = excluded_codes
     
         self.pattern = re.compile(r'"[A-Z]+ (?P<path>\S+) HTTP/[\d.]+" (?P<status>\d{3})')
+        self.ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
 
     def extract_path_and_status(self, log_message):
+        log_message = self.ansi_escape.sub('', log_message)
         match = self.pattern.search(log_message)
         if match:
             path = match.group('path')      # '/static/file.js'
             status = int(match.group('status'))  # 200
             return path, status
         else:
+            with open(r'D:\Tag2File\temp.txt', 'w', encoding='utf-8') as f:
+                f.write(log_message)
             raise ValueError("Log message does not match expected format")
 
     def filter(self, record):
@@ -787,7 +742,7 @@ class RouteFilter(logging.Filter):
 
 # 添加过滤器到werkzeug日志
 werkzeug_logger = logging.getLogger('werkzeug')
-route_filter = RouteFilter(['/static/', '/open_file/', '/get_thumb/'])
+route_filter = RouteFilter(['/static/', '/open_file?', '/get_thumb?'])
 werkzeug_logger.addFilter(route_filter)
 
 if __name__ == '__main__':

@@ -1,6 +1,15 @@
 import os
 import sys
 import re
+import cv2
+import random
+from PIL import Image, UnidentifiedImageError
+Image.MAX_IMAGE_PIXELS = 1_000_000_000
+from io import BytesIO
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3
+import mimetypes
+mimetypes.add_type("image/webp", ".webp")
 import hashlib
 import configparser
 from PyQt5.QtGui import QFont
@@ -167,3 +176,121 @@ def get_file_type(file_path):
         elif mime_type.startswith('audio'):
             return "音频"
     return "其他"
+
+
+# ——————————————————————————提取缩略图————————————————————————————————————
+
+class ThumbnailExtractor:
+    """通用的缩略图提取工具"""
+    
+    def __init__(self):
+        pass
+    
+    def extract_thumbnail(self, file_path: str, image_size: int) -> Image.Image:
+        """从文件提取缩略图，统一返回 PIL.Image 对象"""
+        try:
+            mime_type, _ = mimetypes.guess_type(file_path)
+            
+            if not mime_type:
+                return None
+            
+            thumbnail_image = None
+            if mime_type.startswith('image'):
+                thumbnail_image = self._extract_image(file_path)
+            elif mime_type == 'audio/mpeg':
+                thumbnail_image = self._extract_mp3_cover(file_path)
+            elif mime_type.startswith('video/'):
+                thumbnail_image = self._extract_video_frame(file_path)
+            
+            if thumbnail_image:
+                # 后处理
+                thumbnail_image.thumbnail((image_size, image_size), Image.Resampling.LANCZOS)
+                if thumbnail_image.mode != 'RGB':
+                    thumbnail_image = thumbnail_image.convert('RGB')
+            
+            return thumbnail_image
+        except Exception as e:
+            from traceback import print_exc
+            print_exc()            
+            print(f"提取缩略图失败 {file_path}: {e}")
+            return None
+    
+    def _extract_image(self, file_path: str) -> Image.Image:
+        """提取图片文件的缩略图"""
+        try:
+            with Image.open(file_path) as img:
+                # 移除 ICC 配置以减少警告
+                if 'icc_profile' in img.info:
+                    img.info.pop('icc_profile')
+                return img.copy()
+        except (UnidentifiedImageError, OSError) as e:
+            print(f"无法打开图像文件 {file_path}: {e}")
+            return None
+    
+    def _extract_mp3_cover(self, file_path: str) -> Image.Image:
+        """提取 MP3 封面"""
+        try:
+            audio = MP3(file_path, ID3=ID3)
+            if audio.tags:
+                for tag in audio.tags.keys():
+                    if tag.startswith('APIC:'):
+                        apic = audio.tags[tag]
+                        img_data = BytesIO(apic.data)
+                        with Image.open(img_data) as img:
+                            return img.copy()
+        except Exception as e:
+            print(f"提取 MP3 封面失败 {file_path}: {e}")
+            return None
+    
+    def _extract_video_frame(self, file_path: str) -> Image.Image:
+        """从视频中提取关键帧"""
+        video = None
+        try:
+            video = cv2.VideoCapture(file_path)
+            if not video.isOpened():
+                return None
+            
+            total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            # 先尝试读取第 1 帧
+            success, frame = video.read()
+            # 如果第 1 帧是黑屏或模糊，尝试读取中间帧
+            if not success or frame.mean() < 10:
+                target_frame = self._select_smart_frame(video, total_frames)
+                video.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+                success, frame = video.read()
+            
+            if not success:
+                video.set(cv2.CAP_PROP_POS_FRAMES, 5) # 跳过前几帧
+                for _ in range(10): # 连续尝试读 10 帧，直到有一帧成功
+                    success, frame = video.read()
+                    if success: break
+            
+            # 转换为 PIL Image
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pil_img = Image.fromarray(frame_rgb)
+            return pil_img
+            
+        except Exception as e:
+            print(f"提取视频帧失败 {file_path}: {e}")
+            return None
+        finally:
+            if video:
+                video.release()
+    
+    def _select_smart_frame(self, video_cap, total_frames: int) -> int:
+        """智能选择视频帧位置"""
+        if total_frames <= 10:
+            return 0
+        
+        # 策略：避开前10%的黑屏和最后20%的字幕
+        start_frame = int(total_frames * 0.1)
+        end_frame = int(total_frames * 0.5)
+        
+        # 确保有足够的范围
+        if end_frame - start_frame < 10:
+            return total_frames // 2
+        
+        return random.randint(start_frame, end_frame)
+    
+thumbnailExtractor = ThumbnailExtractor()
