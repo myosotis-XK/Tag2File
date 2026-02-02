@@ -144,7 +144,7 @@ class ImageLoader(QRunnable):
 
     def run(self):
         try:
-            source = None
+            source = IconSource()
             file_item = self.father.file_items[self.file_path]
             file_item.icon = True
             try:

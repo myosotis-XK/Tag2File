@@ -7,7 +7,7 @@ class IconSource:
         self.source = None
 
     def apply(self, label: QLabel):
-        raise NotImplementedError
+        pass
     
 class PixmapIcon(IconSource):
     def __init__(self, pixmap: QPixmap):
