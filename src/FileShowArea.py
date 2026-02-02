@@ -95,10 +95,15 @@ class FileItem():
         name_height = total_lines * self.single_line_height  # 总高度
         return name_height + int(label_width*self.SPACING_RATE)
     
-    def apply(self, label: QLabel, key='current'):
-        icon = self.icon_source.get(key)
+    def apply(self, label: QLabel):
+        icon = self.icon_source.get('current')
         if icon:
             icon.apply(label)
+
+    def release(self, label: QLabel):
+        icon = self.icon_source.get('current')
+        if icon:
+            icon.release(label)
 
 
 class FileShowArea(QWidget):
@@ -1411,10 +1416,9 @@ class FileShowArea(QWidget):
     def recycleFileLabel(self, file_path):
         """将单个文件标签从显示中移除并放回标签池"""
         label = self.labels.pop(file_path)
+        file_item = self.file_items[file_path]
         icon_label = label.findChild(QLabel, "icon_label")
-        if icon_label.movie():
-            icon_label.movie().stop()
-        icon_label.setMovie(None)
+        file_item.release(icon_label)
         label.hide()
         self.label_pool.append(label)
 

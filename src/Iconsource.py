@@ -1,12 +1,15 @@
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtGui import QPixmap, QMovie
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSize, QTimer
 
 class IconSource:
     def __init__(self):
         self.source = None
 
     def apply(self, label: QLabel):
+        pass
+
+    def release(self, label: QLabel):
         pass
     
 class PixmapIcon(IconSource):
@@ -28,6 +31,10 @@ class MovieIcon(IconSource):
         label.setMovie(self.source)
         self.source.start()
 
+    def release(self, label: QLabel):
+        label.setMovie(None)
+        self.source.stop()
+
     def scaled_movie(self, max_size: int):
         self.source.jumpToFrame(0)
         rect = self.source.frameRect()
@@ -39,3 +46,45 @@ class MovieIcon(IconSource):
             new_h = max_size
             new_w = int(w * max_size / h)
         self.source.setScaledSize(QSize(new_w, new_h))
+
+class PixmapSequenceIcon(IconSource):
+    def __init__(self, pixmaps: list[QPixmap], interval=80):
+        """
+        __init__ 在后台线程，仅做数据准备
+        """
+        self.frames = pixmaps
+        self.source = self.frames[0]
+        self.interval = interval
+        self.index = 0
+
+        # UI objects 延后创建
+        self.timer = None
+        self.label = None
+
+    def apply(self, label: QLabel):
+        """
+        UI 线程调用
+        """
+
+        self.label = label
+
+        # 首帧
+        self.label.setPixmap(self.frames[0])
+
+        # QTimer 必须在 UI 线程创建
+        self.timer = QTimer(label)
+        self.timer.setInterval(self.interval)
+        self.timer.timeout.connect(self._next_frame)
+        self.timer.start()
+
+    def release(self, label: QLabel):
+        if self.timer:
+            self.timer.stop()
+            self.timer.timeout.disconnect()
+            self.timer.deleteLater()
+            self.timer = None
+        self.label = None
+
+    def _next_frame(self):
+        self.index = (self.index + 1) % len(self.frames)
+        self.label.setPixmap(self.frames[self.index])
