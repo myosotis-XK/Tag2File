@@ -156,10 +156,11 @@ class ImageLoader(QRunnable):
             
             if source:
                 file_item.icon_source['current'] = source
-                label = self.father.labels.get(self.file_path)
-                if label:
-                    icon_label = label.findChild(QLabel, "icon_label")
-                    file_item.apply(icon_label)
+                if isinstance(source, PixmapIcon):
+                    label = self.father.labels.get(self.file_path)
+                    if label:
+                        icon_label = label.findChild(QLabel, "icon_label")
+                        file_item.apply(icon_label)
 
         except Exception as e:
             print(f"加载文件 {self.file_path} 时出现错误: {e}")
