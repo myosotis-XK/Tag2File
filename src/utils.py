@@ -3,7 +3,7 @@ import sys
 import re
 import cv2
 import random
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageSequence, UnidentifiedImageError
 Image.MAX_IMAGE_PIXELS = 1_000_000_000
 from io import BytesIO
 from mutagen.mp3 import MP3
@@ -180,13 +180,22 @@ def get_file_type(file_path):
 
 # ——————————————————————————提取缩略图————————————————————————————————————
 
+class ThumbnailSequence:
+    """存储缩略图序列及其间隔时间"""
+    def __init__(self, frames: list[Image.Image] | Image.Image, durations: list[int] = None):
+        if isinstance(frames, Image.Image):
+            frames = [frames]
+        self.frames = frames
+        self.durations = durations
+        self.animated = len(frames) > 1
+
 class ThumbnailExtractor:
     """通用的缩略图提取工具"""
     
     def __init__(self):
         pass
     
-    def extract_thumbnail(self, file_path: str, image_size: int) -> Image.Image:
+    def extract_thumbnail(self, file_path: str, image_size: int) -> ThumbnailSequence:
         """从文件提取缩略图，统一返回 PIL.Image 对象"""
         try:
             mime_type, _ = mimetypes.guess_type(file_path)
@@ -196,19 +205,22 @@ class ThumbnailExtractor:
             thumbnail_image = None
             if mime_type.startswith('image'):
                 thumbnail_image = self._extract_image(file_path)
+            elif mime_type == 'image/gif':
+                frames, durations = self._extract_gif(file_path)
+                if len(frames) == 0:
+                    return None
+                frames = [frame.thumbnail((image_size, image_size), Image.Resampling.LANCZOS) for frame in frames]
+                return ThumbnailSequence(frames, durations)
             elif mime_type == 'audio/mpeg':
                 thumbnail_image = self._extract_mp3_cover(file_path)
             elif mime_type.startswith('video/'):
                 thumbnail_image = self._extract_video_frame(file_path)
             
             if thumbnail_image:
-                # 后处理
                 thumbnail_image.thumbnail((image_size, image_size), Image.Resampling.LANCZOS)
-            
-            return thumbnail_image
+            return ThumbnailSequence(thumbnail_image)
+        
         except Exception as e:
-            from traceback import print_exc
-            print_exc()            
             print(f"提取缩略图失败 {file_path}: {e}")
             return None
     
@@ -223,6 +235,29 @@ class ThumbnailExtractor:
         except (UnidentifiedImageError, OSError) as e:
             print(f"无法打开图像文件 {file_path}: {e}")
             return None
+        
+    def _extract_gif(self, file_path: str) -> tuple[list[Image.Image], list[int]]:
+        """提取 GIF 所有帧 + 帧间隔"""
+
+        frames: list[Image.Image] = []
+        durations: list[int] = []
+
+        try:
+            with Image.open(file_path) as gif:
+
+                for frame in ImageSequence.Iterator(gif):
+                    frame = frame.convert("RGBA")
+
+                    frames.append(frame.copy())
+
+                    # duration 单位是 ms
+                    durations.append(frame.info.get("duration", 100))
+
+            return frames, durations
+
+        except Exception as e:
+            print(f"GIF 提取失败 {file_path}: {e}")
+            return [], []
     
     def _extract_mp3_cover(self, file_path: str) -> Image.Image:
         """提取 MP3 封面"""

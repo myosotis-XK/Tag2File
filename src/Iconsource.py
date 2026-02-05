@@ -1,6 +1,8 @@
+from PIL import Image
 from PyQt5.QtWidgets import QLabel
-from PyQt5.QtGui import QPixmap, QMovie
+from PyQt5.QtGui import QPixmap, QMovie, QImage
 from PyQt5.QtCore import QSize, QTimer
+from src.utils import ThumbnailSequence
 
 class IconSource:
     def __init__(self):
@@ -11,14 +13,30 @@ class IconSource:
 
     def release(self, label: QLabel):
         pass
+
+    @staticmethod
+    def pil_to_pixmap(pil_image: Image.Image) -> QPixmap:
+        if pil_image.mode != 'RGBA':
+            pil_image = pil_image.convert('RGBA')
+
+        qimage = QImage(
+            pil_image.tobytes(),
+            pil_image.width,
+            pil_image.height,
+            pil_image.width * 4,
+            QImage.Format_RGBA8888
+        )
+
+        return QPixmap.fromImage(qimage)
     
 class PixmapIcon(IconSource):
-    def __init__(self, pixmap: QPixmap):
+    def __init__(self, image: Image.Image):
         super().__init__()
-        self.source = pixmap
+        self.source = self.pil_to_pixmap(image)
 
     def apply(self, label: QLabel):
         label.setPixmap(self.source)
+
 
 class MovieIcon(IconSource):
     def __init__(self, movie: QMovie, max_size: int):
@@ -48,43 +66,45 @@ class MovieIcon(IconSource):
         self.source.setScaledSize(QSize(new_w, new_h))
 
 class PixmapSequenceIcon(IconSource):
-    def __init__(self, pixmaps: list[QPixmap], interval=80):
-        """
-        __init__ 在后台线程，仅做数据准备
-        """
-        self.frames = pixmaps
-        self.source = self.frames[0]
-        self.interval = interval
+    def __init__(self, sequence: ThumbnailSequence):
+        super().__init__()
+        self.frames = []
         self.index = 0
 
-        # UI objects 延后创建
+        for frame in sequence.frames:
+            self.frames.append(self.pil_to_pixmap(frame))
+
+        # GIF 使用原始 duration，否则默认 80ms
+        if sequence.durations:
+            self.intervals = sequence.durations
+        else:
+            self.intervals = [80] * len(self.frames)
+
+        self.source = self.frames[0]
+
         self.timer = None
         self.label = None
 
     def apply(self, label: QLabel):
-        """
-        UI 线程调用
-        """
-
         self.label = label
 
-        # 首帧
         self.label.setPixmap(self.frames[0])
 
-        # QTimer 必须在 UI 线程创建
         self.timer = QTimer(label)
-        self.timer.setInterval(self.interval)
         self.timer.timeout.connect(self._next_frame)
-        self.timer.start()
+        self.timer.start(self.intervals[0])
 
-    def release(self, label: QLabel):
-        if self.timer:
-            self.timer.stop()
-            self.timer.timeout.disconnect()
-            self.timer.deleteLater()
-            self.timer = None
+    def release(self, label: QLabel): 
+        if self.timer: 
+            self.timer.stop() 
+            self.timer.timeout.disconnect() 
+            self.timer.deleteLater() 
+            self.timer = None 
         self.label = None
 
     def _next_frame(self):
         self.index = (self.index + 1) % len(self.frames)
         self.label.setPixmap(self.frames[self.index])
+
+        # 更新下一帧间隔
+        self.timer.setInterval(self.intervals[self.index])
