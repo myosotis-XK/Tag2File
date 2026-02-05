@@ -1,9 +1,8 @@
 from PyQt5.QtCore import QRunnable, Qt, QPointF, QThreadPool
-from PyQt5.QtGui import QPixmap, QPainterPath, QPen, QFont, QColor, QPainter, QImage
+from PyQt5.QtGui import QPixmap, QPainterPath, QPen, QFont, QColor, QPainter
 from PyQt5.QtWidgets import QLabel
 from PIL import Image
 import os
-import mimetypes
 from .utils import get_cache_path, thumbnailExtractor
 from .Iconsource import *
 
@@ -33,9 +32,6 @@ class StarImageLoader(QRunnable):
         for file_path in self.file_paths:
             if not self.runing:
                 break
-            mime_type, _ = mimetypes.guess_type(file_path)
-            if mime_type == "image/gif":
-                continue
             if (self.use_cache or not os.path.exists(file_path)) and self.check_cache(file_path):
                 continue
             self.change_pixmap_size(file_path)
@@ -55,22 +51,22 @@ class StarImageLoader(QRunnable):
         if os.path.exists(cache_path):
             try:
                 pixmap = QPixmap(cache_path)
+                self.updateLabelIcon(PixmapIcon(pixmap), file_path)
+                return True
             except Exception as e:
-                try:  
-                    # 考虑记录删除的情况  
+                try:
+                    print(f"缓存文件{cache_path}无法加载: {e}")
                     if os.path.exists(cache_path):  # 再次检查避免竞态条件  
                         os.remove(cache_path)  
                         print(f"已删除损坏的缓存文件: {cache_path}")  
                 except Exception as del_err:  
-                    print(f"无法删除损坏的缓存: {del_err}")  
-                    pass
-                pixmap = None
-            self.updateLabelIcon(PixmapIcon(pixmap), file_path)
-            return True
-        if not os.path.exists(file_path):
+                    print(f"错误缓存文件处理失败: {del_err}")
+
+        if not os.path.exists(file_path): # 可理解为不存在的文件都对应有空QPixmap cache
             pixmap = QPixmap(self.father.image_size, self.father.image_size)
             pixmap.fill(Qt.transparent)
             self.updateLabelIcon(PixmapIcon(pixmap), file_path)
+            return True
 
         return False
 
@@ -93,7 +89,8 @@ class StarImageLoader(QRunnable):
         else:
             self.change_pixmap_size(file_path)
 
-    def draw_text_on_pixmap(self, pixmap, text):
+    @staticmethod
+    def draw_text_on_pixmap(pixmap, text):
         pixmap = pixmap.copy()
         painter = QPainter(pixmap)
         
@@ -135,7 +132,6 @@ class StarImageLoader(QRunnable):
 
 class ImageLoader(QRunnable):
     """负责加载单个文件图标的任务类"""
-
     def __init__(self, father, file_path:str):
         super().__init__()
         self.father = father
@@ -148,11 +144,13 @@ class ImageLoader(QRunnable):
             file_item = self.father.file_items[self.file_path]
             file_item.icon = True
             try:
-                pil_image = thumbnailExtractor.extract_thumbnail(self.file_path, self.max_size)
-                if pil_image:
-                    pixmap = self.pil_to_pixmap(pil_image)
-                    source = PixmapIcon(pixmap)
-                    self.save_to_disk_cache(pixmap)
+                thumbnailSequence = thumbnailExtractor.extract_thumbnail(self.file_path, self.max_size)
+                if thumbnailSequence.animated:
+                    source = PixmapSequenceIcon(thumbnailSequence)
+                else:
+                    image = thumbnailSequence.frames[0]
+                    source = PixmapIcon(image)
+                    self.save_to_disk_cache(image)
             finally:
                 file_item.icon_source[self.max_size] = source
             
@@ -166,20 +164,7 @@ class ImageLoader(QRunnable):
         except Exception as e:
             print(f"加载文件 {self.file_path} 时出现错误: {e}")
 
-    def pil_to_pixmap(self, pil_image: Image.Image) -> QPixmap:
-        """将 PIL Image 转换为 QPixmap"""
-        if pil_image.mode != 'RGBA':
-            pil_image = pil_image.convert('RGBA')
-        qimage = QImage(
-            pil_image.tobytes(),
-            pil_image.width,
-            pil_image.height,
-            pil_image.width * 4,
-            QImage.Format_RGBA8888
-        )
-        return QPixmap.fromImage(qimage)
-
-    def save_to_disk_cache(self, pixmap):
+    def save_to_disk_cache(self, image: Image.Image):
         """将图像保存到磁盘缓存"""
         cache_path = get_cache_path(self.file_path, self.max_size)
-        pixmap.save(cache_path, "PNG")
+        image.save(cache_path, "PNG")
