@@ -416,7 +416,7 @@ class FileShowArea(QWidget):
             if self.starImageLoader:
                 self.starImageLoader.runing = False
             self.threadpool.clear()
-            self.starImageLoader = StarImageLoader(self, threadpool, self.signalEmit, file_paths, use_cache)
+            self.starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
             self.startLoadingImagesThreadpool.start(self.starImageLoader)
         if threadpool is self.threadpool0:
             if use_cache:
@@ -424,7 +424,7 @@ class FileShowArea(QWidget):
                     if self.file_items[file_path].icon:
                         file_paths.remove(file_path)
             if len(file_paths) > 0:
-                starImageLoader = StarImageLoader(self, threadpool, self.signalEmit, file_paths, use_cache)
+                starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
                 self.startLoadingImagesThreadpool.start(starImageLoader)
 
     # 设置文件标签
@@ -479,7 +479,10 @@ class FileShowArea(QWidget):
         '''
         更新布局
         '''
-        total_files = len(self.file_items)  # 获取标签数量
+        file_paths = self.file_paths
+        file_items = self.file_items
+
+        total_files = len(file_items)  # 获取标签数量
 
         fixed_width = 4*self.LABEL_SPACING + self.v_scroll.width() # 保证左端至少有4倍间距的空白
         area_width = self.width() - fixed_width 
@@ -490,6 +493,7 @@ class FileShowArea(QWidget):
             [None for _ in range(num_columns)] 
             for _ in range(num_rows)
         ]
+        labels_rect = self.labels_rect
 
         if num_columns > total_files or num_columns == 1:
             HORIZONTAL_SPACING = self.LABEL_SPACING
@@ -510,8 +514,8 @@ class FileShowArea(QWidget):
         for row in range(num_rows-1):
             max_file_name_height = 0  # 每行最大文件名高度
             for col in range(num_columns):
-                file_path = self.file_paths[index]
-                file_item = self.file_items[file_path]
+                file_path = file_paths[index]
+                file_item = file_items[file_path]
                 # 记录最大文件名高度
                 name_height = file_item.name_height
                 if name_height > max_file_name_height:
@@ -520,7 +524,7 @@ class FileShowArea(QWidget):
                 x = x_offsets[col]
                 y = y_offsets[row] + file_name_height_all
                 file_item.label_pos = (x, y)
-                self.labels_rect[row][col] = (file_item.label_pos, file_item.label_size, file_path)
+                labels_rect[row][col] = (file_item.label_pos, file_item.label_size, file_path)
                 index += 1  # 下一个文件
             # 每行循环结束累加最大 name_height
             file_name_height_all += max_file_name_height
@@ -529,14 +533,14 @@ class FileShowArea(QWidget):
         last_row_cols = total_files - index
         max_file_name_height = 0
         for col in range(last_row_cols):
-            file_path = self.file_paths[index]
-            file_item = self.file_items[file_path]
+            file_path = file_paths[index]
+            file_item = file_items[file_path]
             if file_item.name_height > max_file_name_height:
                 max_file_name_height = file_item.name_height
             x = x_offsets[col]
             y = y_offsets[last_row_index] + file_name_height_all
             file_item.label_pos = (x, y)
-            self.labels_rect[last_row_index][col] = (file_item.label_pos, file_item.label_size, file_path)
+            labels_rect[last_row_index][col] = (file_item.label_pos, file_item.label_size, file_path)
             index += 1
         file_name_height_all += max_file_name_height
 
@@ -1458,8 +1462,10 @@ class FileShowArea(QWidget):
 
     # 获取区域内label
     def get_rect_label(self, rect: QRect):
+        labels_rect = self.labels_rect
+
         file_paths: set[str] = set()
-        if len(self.labels_rect) == 0:
+        if len(labels_rect) == 0:
             return file_paths
         begin_pos = rect.topLeft()
         end_pos = rect.bottomRight()
@@ -1467,44 +1473,44 @@ class FileShowArea(QWidget):
         begin_row = begin_pos.y() // (self.label_width + self.LABEL_SPACING)
         begin_row = max(0, min(begin_row, self.max_row-1))
             # 寻找鼠标下方离鼠标最近的底部所在行
-        while begin_row != 0 and self.labels_rect[begin_row-1][0][0][1] + self.labels_rect[begin_row-1][0][1][1] > begin_pos.y():
+        while begin_row != 0 and labels_rect[begin_row-1][0][0][1] + labels_rect[begin_row-1][0][1][1] > begin_pos.y():
             begin_row -= 1
             # 当处在最后一行之外，越过
-        if self.labels_rect[begin_row][0][0][1] + self.labels_rect[begin_row][0][1][1] < begin_pos.y():
+        if labels_rect[begin_row][0][0][1] + labels_rect[begin_row][0][1][1] < begin_pos.y():
             begin_row += 1
         # 计算结束行
         end_row = end_pos.y() // (self.label_width + self.LABEL_SPACING)
         end_row = max(0, min(end_row, self.max_row-1))
             # 寻找鼠标下方离鼠标最近的顶部所在行 
-        while end_row != 0 and self.labels_rect[end_row-1][0][0][1] > end_pos.y():
+        while end_row != 0 and labels_rect[end_row-1][0][0][1] > end_pos.y():
             end_row -= 1
             # 当没处在最后一行之外时上移一行
-        if self.labels_rect[end_row][0][0][1] > end_pos.y():
+        if labels_rect[end_row][0][0][1] > end_pos.y():
             end_row -= 1
 
         # 计算开始列
         begin_col = begin_pos.x() // (self.label_width + self.LABEL_SPACING)
         begin_col = max(0, min(begin_col, self.max_col-1))
             # 寻找鼠标右方离鼠标最近的右边所在列
-        while begin_col != 0 and self.labels_rect[0][begin_col-1][0][0] + self.labels_rect[0][begin_col-1][1][0] > begin_pos.x():
+        while begin_col != 0 and labels_rect[0][begin_col-1][0][0] + labels_rect[0][begin_col-1][1][0] > begin_pos.x():
             begin_col -= 1
             # 当处在最后一列之外，越过
-        if self.labels_rect[0][begin_col][0][0] + self.labels_rect[0][begin_col][1][0] < begin_pos.x():
+        if labels_rect[0][begin_col][0][0] + labels_rect[0][begin_col][1][0] < begin_pos.x():
             begin_col += 1
         # 计算结束列
         end_col = end_pos.x() // (self.label_width + self.LABEL_SPACING)
         end_col = max(0, min(end_col, self.max_col-1))
             # 寻找鼠标右方离鼠标最近的左边所在行列
-        while end_col != 0 and self.labels_rect[0][end_col-1][0][0] > end_pos.x():
+        while end_col != 0 and labels_rect[0][end_col-1][0][0] > end_pos.x():
             end_col -= 1
             # 当没处在最后一列之外时左移一列
-        if self.labels_rect[0][end_col][0][0] > end_pos.x():
+        if labels_rect[0][end_col][0][0] > end_pos.x():
             end_col -= 1
 
         # 选择标签
         for row in range(begin_row,end_row+1):
             for col in range(begin_col,end_col+1):
-                label = self.labels_rect[row][col]
+                label = labels_rect[row][col]
                 if label:
                     file_paths.add(label[2])
         return file_paths

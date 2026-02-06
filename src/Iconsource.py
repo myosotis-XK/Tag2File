@@ -90,7 +90,6 @@ class PixmapSequenceIcon(IconSource):
         self.label = None
 
     def apply(self, label: QLabel):
-        print(f"Applying PixmapSequenceIcon with {len(self.frames)} frames")
         self.label = label
 
         self.label.setPixmap(self.frames[0])

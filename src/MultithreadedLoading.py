@@ -7,17 +7,17 @@ from .utils import get_cache_path, thumbnailExtractor
 from .Iconsource import *
 
 class StarImageLoader(QRunnable):
-    def __init__(self, fathet, threadpool:QThreadPool, signalEmit, file_paths:list=None, use_cache=True):
+    def __init__(self, fathet, threadpool:QThreadPool, file_paths:list=None, use_cache=True):
         super().__init__()
         self.father = fathet
         self.image_size = fathet.image_size
+        self.signalEmit = fathet.signalEmit
         self.threadpool = threadpool
         if file_paths is None:
             file_paths = []
         self.file_paths = file_paths
         self.use_cache = use_cache
         self.runing = True
-        self.signalEmit = signalEmit
 
     def change_current_pixmap_size(self, file_path):
         file_item = self.father.file_items[file_path]
@@ -32,14 +32,21 @@ class StarImageLoader(QRunnable):
             file_item.apply(icon_label)
 
     def run(self):
+        father = self.father
+        signalEmit = self.signalEmit
+        threadpool = self.threadpool
+        use_cache = self.use_cache
+        change_current_pixmap_size = self.change_current_pixmap_size
+        check_cache = self.check_cache
+
         for file_path in self.file_paths:
             if not self.runing:
                 break
-            if (self.use_cache or not os.path.exists(file_path)) and self.check_cache(file_path):
+            if (use_cache or not os.path.exists(file_path)) and check_cache(file_path):
                 continue
-            self.change_current_pixmap_size(file_path)
-            loader = ImageLoader(self.father, file_path, self.signalEmit)
-            self.threadpool.start(loader)
+            change_current_pixmap_size(file_path)
+            loader = ImageLoader(father, file_path, signalEmit)
+            threadpool.start(loader)
 
     def check_cache(self, file_path):
         # 检查内存缓存
