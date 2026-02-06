@@ -203,22 +203,26 @@ class ThumbnailExtractor:
                 return None
             
             thumbnail_image = None
-            if mime_type.startswith('image'):
-                thumbnail_image = self._extract_image(file_path)
-            elif mime_type == 'image/gif':
+
+            if mime_type == 'image/gif':
                 frames, durations = self._extract_gif(file_path)
                 if len(frames) == 0:
                     return None
-                frames = [frame.thumbnail((image_size, image_size), Image.Resampling.LANCZOS) for frame in frames]
+                for frame in frames:
+                    frame.thumbnail((image_size, image_size), Image.Resampling.LANCZOS)
                 return ThumbnailSequence(frames, durations)
+            elif mime_type.startswith('image'):
+                thumbnail_image = self._extract_image(file_path)
             elif mime_type == 'audio/mpeg':
                 thumbnail_image = self._extract_mp3_cover(file_path)
             elif mime_type.startswith('video/'):
                 thumbnail_image = self._extract_video_frame(file_path)
+            else:
+                return None
             
             if thumbnail_image:
                 thumbnail_image.thumbnail((image_size, image_size), Image.Resampling.LANCZOS)
-            return ThumbnailSequence(thumbnail_image)
+                return ThumbnailSequence(thumbnail_image)
         
         except Exception as e:
             print(f"提取缩略图失败 {file_path}: {e}")
@@ -252,7 +256,6 @@ class ThumbnailExtractor:
 
                     # duration 单位是 ms
                     durations.append(frame.info.get("duration", 100))
-
             return frames, durations
 
         except Exception as e:

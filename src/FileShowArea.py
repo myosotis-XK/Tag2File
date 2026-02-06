@@ -1,25 +1,25 @@
-from .utils import *
-from .MultithreadedLoading import *
-from .DictManage import *
-from .ImageViewer import *
-from .FileSelectionComponent import FileSelectionComponent
-from .Iconsource import *
 import os
 import subprocess
 import shutil
 import random
+import concurrent.futures
 from PyQt5.QtWidgets import QWidget, QScrollBar, QLabel, QMenu, QAction, QVBoxLayout, QRubberBand, \
-QApplication, QTextEdit, QPushButton, QFileIconProvider, QMessageBox, QStyleOptionSlider, QInputDialog
-from PyQt5.QtGui import QPixmap, QMovie, QFont, QIcon, QPainter, QCursor, QDragEnterEvent, QDropEvent, \
-    QMouseEvent, QFontMetrics, QPalette, QColor
-from PyQt5.QtCore import Qt, QThreadPool, QPoint, QRect, QSize, QTimer, QFileInfo
+QApplication, QTextEdit, QPushButton, QMessageBox, QStyleOptionSlider, QInputDialog, QFileDialog
+from PyQt5.QtGui import QPixmap, QFont, QIcon, QPainter, QCursor, QDragEnterEvent, QDropEvent, \
+QMouseEvent, QFontMetrics, QPalette, QColor
+from PyQt5.QtCore import Qt, QThreadPool, QPoint, QRect, QSize, QTimer
 import time
 from functools import partial
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-import concurrent.futures
 from natsort import natsort_keygen
+from src.utils import *
+from src.Iconsource import *
+from src.MultithreadedLoading import StarImageLoader
+from src.DictManage import DictManage
+from src.ImageViewer import MultiImageViewer
+from src.FileSelectionComponent import FileSelectionComponent
 
 default_value = {
     'SMALL_SIZE': 50,  # 小图标大小
@@ -295,17 +295,20 @@ class FileShowArea(QWidget):
         while self.threadpool0.activeThreadCount() > 0:
             time.sleep(0.1)
 
+        # 回收标签
+        for file_path in list(self.labels.keys()):
+            self.recycleFileLabel(file_path)
+
+        # 删除文件对象
         del_file_paths = set(self.file_paths) - set(file_paths)
         for file_path in del_file_paths:
-            del self.file_items[file_path]
+            self.file_items.pop(file_path, None)
 
         self.select_labels_keys -= del_file_paths
         if self.now_select_label_key in del_file_paths:
             self.now_select_label_key = None
 
         # 初始化变量
-        for file_path in list(self.labels.keys()):
-            self.recycleFileLabel(file_path)
         self.ctrl_select_labels_keys.clear()
         self.visible_labels_keys.clear()
         new_file_paths = set(file_paths) - set(self.file_paths)
@@ -347,21 +350,8 @@ class FileShowArea(QWidget):
             self.file_items[file_path] = file_item
             return
         file_item = FileItem(file_path, file_path_meta_data[1], file_path_meta_data[2], self.label_width)
-        # 获取文件图标
-        file_extension = os.path.splitext(file_path)[1]
-        try:
-            pixmap = self.extension_icon[self.image_size][file_extension]
-        except KeyError:
-            icon_provider = QFileIconProvider()
-            file_icon = icon_provider.icon(QFileInfo(file_path))
-            pixmap = file_icon.pixmap(self.image_size, self.image_size)
-            # 缩放图标，并保持宽高比
-            pixmap = pixmap.scaled(self.image_size, self.image_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            # 将图标添加到缓存
-            if self.image_size not in self.extension_icon:
-                self.extension_icon[self.image_size] = {}
-            self.extension_icon[self.image_size][file_extension] = pixmap
-        file_item.icon_source = {'current': PixmapIcon(pixmap)}
+        source = get_file_init_icon_source(file_path, self.image_size)
+        file_item.icon_source = {'current': source}
         self.file_items[file_path] = file_item
         self.file_items_cache[file_path] = file_item
 

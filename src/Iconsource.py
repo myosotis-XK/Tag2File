@@ -1,7 +1,8 @@
+import os
 from PIL import Image
-from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLabel, QFileIconProvider
 from PyQt5.QtGui import QPixmap, QMovie, QImage
-from PyQt5.QtCore import QSize, QTimer
+from PyQt5.QtCore import QFileInfo, QSize, QTimer
 from src.utils import ThumbnailSequence
 
 class IconSource:
@@ -30,9 +31,12 @@ class IconSource:
         return QPixmap.fromImage(qimage)
     
 class PixmapIcon(IconSource):
-    def __init__(self, image: Image.Image):
+    def __init__(self, image: Image.Image | QPixmap):
         super().__init__()
-        self.source = self.pil_to_pixmap(image)
+        if isinstance(image, Image.Image):
+            self.source = self.pil_to_pixmap(image)
+        elif isinstance(image, QPixmap):
+            self.source = image
 
     def apply(self, label: QLabel):
         label.setPixmap(self.source)
@@ -68,6 +72,7 @@ class MovieIcon(IconSource):
 class PixmapSequenceIcon(IconSource):
     def __init__(self, sequence: ThumbnailSequence):
         super().__init__()
+        print(f"Creating PixmapSequenceIcon with {len(sequence.frames)} frames and intervals: {sequence.durations}")
         self.frames = []
         self.index = 0
 
@@ -86,6 +91,7 @@ class PixmapSequenceIcon(IconSource):
         self.label = None
 
     def apply(self, label: QLabel):
+        print(f"Applying PixmapSequenceIcon with {len(self.frames)} frames")
         self.label = label
 
         self.label.setPixmap(self.frames[0])
@@ -108,3 +114,20 @@ class PixmapSequenceIcon(IconSource):
 
         # 更新下一帧间隔
         self.timer.setInterval(self.intervals[self.index])
+
+extension_icon_source_cache = {}
+def get_file_init_icon_source(file_path: str, image_size: int) -> IconSource:
+    """根据文件类型获取初始图标，并缩放到指定大小"""
+    file_extension = os.path.splitext(file_path)[1]
+    try:
+        source = extension_icon_source_cache[image_size][file_extension]
+    except KeyError:
+        icon_provider = QFileIconProvider()
+        file_icon = icon_provider.icon(QFileInfo(file_path))
+        pixmap = file_icon.pixmap(image_size, image_size)
+        source = PixmapIcon(pixmap)
+        # 将图标添加到缓存
+        if image_size not in extension_icon_source_cache:
+            extension_icon_source_cache[image_size] = {}
+        extension_icon_source_cache[image_size][file_extension] = source
+    return source

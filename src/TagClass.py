@@ -365,7 +365,7 @@ class Tag:
         return self
 
 
-def parse_set_expression(expression):
+def parse_set_expression(expression) -> Tag:
     # 定义运算符模式，包括补集
     operators = r'[∩∪\(\)\']'
     
@@ -398,6 +398,70 @@ def parse_set_expression(expression):
         print(f"表达式解析错误: {e}")
         result = False
     return result
+
+# 自定义表达式解析，不使用eval
+# def parse_set_expression_stack(expression):
+#     """
+#     将集合表达式解析为 Tag 对象，支持 ∩ ∪ - ' () 
+#     """
+#     # 定义运算符优先级
+#     precedence = {'-': 3, '∩': 2, '∪': 1, '(': 0}
+    
+#     # token化
+#     token_pattern = r"[∩∪\-\(\)']|[A-Za-z_][A-Za-z0-9_]*"
+#     tokens = re.findall(token_pattern, expression)
+    
+#     # 字典缓存 Tag 对象
+#     tag_dict = {}
+    
+#     # 栈
+#     op_stack = []
+#     value_stack = []
+    
+#     def apply_operator(op):
+#         """弹出 value_stack 顶两个元素，应用运算符，再压回栈"""
+#         if op == "'":  # 补集
+#             val = value_stack.pop()
+#             value_stack.append(val.Change_Complement())
+#         else:
+#             right = value_stack.pop()
+#             left = value_stack.pop()
+#             if op == '∩':
+#                 value_stack.append(left & right)
+#             elif op == '∪':
+#                 value_stack.append(left | right)
+#             elif op == '-':
+#                 value_stack.append(left - right)
+    
+#     for token in tokens:
+#         if re.match(r"[A-Za-z_][A-Za-z0-9_]*", token):  # 集合名
+#             if token not in tag_dict:
+#                 tag_dict[token] = Tag(token)
+#             value_stack.append(tag_dict[token])
+#         elif token == '(':
+#             op_stack.append(token)
+#         elif token == ')':
+#             while op_stack and op_stack[-1] != '(':
+#                 apply_operator(op_stack.pop())
+#             op_stack.pop()  # 弹出 '('
+#         elif token == "'":  # 补集，优先级最高
+#             apply_operator(token)
+#         elif token in precedence:
+#             while op_stack and precedence[op_stack[-1]] >= precedence[token]:
+#                 apply_operator(op_stack.pop())
+#             op_stack.append(token)
+#         else:
+#             raise ValueError(f"未知 token: {token}")
+    
+#     # 处理剩余操作符
+#     while op_stack:
+#         apply_operator(op_stack.pop())
+    
+#     if len(value_stack) != 1:
+#         raise ValueError("表达式解析错误")
+    
+#     return value_stack[0]
+
 
 # 获取tag对应文件路径
 def get_tag_files(tag_expression: str, DictManage, special_tags_status: list[tuple[str, int]]=None) -> list[tuple[str, int, float]]:

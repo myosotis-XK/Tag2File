@@ -5,7 +5,6 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QGraphicsView, QGraphics
                             QVBoxLayout, QWidget, QShortcut, QPushButton)  
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QFont, QColor, QKeySequence, QCursor, QBrush
 from PyQt5.QtCore import Qt, QRectF, QTimer, QPropertyAnimation, QEasingCurve
-import concurrent.futures
 import threading
 
 class ZoomIndicator(QLabel):  
