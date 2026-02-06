@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QWidget, QScrollBar, QLabel, QMenu, QAction, QVBoxLa
 QApplication, QTextEdit, QPushButton, QMessageBox, QStyleOptionSlider, QInputDialog, QFileDialog
 from PyQt5.QtGui import QPixmap, QFont, QIcon, QPainter, QCursor, QDragEnterEvent, QDropEvent, \
 QMouseEvent, QFontMetrics, QPalette, QColor
-from PyQt5.QtCore import Qt, QThreadPool, QPoint, QRect, QSize, QTimer
+from PyQt5.QtCore import Qt, QThreadPool, QPoint, QRect, QSize, QTimer, QObject, pyqtSignal
 import time
 from functools import partial
 from datetime import datetime
@@ -106,6 +106,9 @@ class FileItem():
             icon.release(label)
 
 
+class SignalEmit(QObject):
+    finished = pyqtSignal(str)
+
 class FileShowArea(QWidget):
     file_status_map = {  # 指定, 选中, 悬停  specifid, selected, hover
         (0,0,0): (Border.NONE, Background.TRANSPARENT),
@@ -185,6 +188,10 @@ class FileShowArea(QWidget):
         self.threadpool.setMaxThreadCount(1)
         self.threadpool0 = QThreadPool()
         # self.threadpool0.setMaxThreadCount(4)
+
+        # 信号槽
+        self.signalEmit = SignalEmit()
+        self.signalEmit.finished.connect(self.applyPixmapSequenceIcon)
         
         self.initFileView()
         self.update_scrollbars()
@@ -409,7 +416,7 @@ class FileShowArea(QWidget):
             if self.starImageLoader:
                 self.starImageLoader.runing = False
             self.threadpool.clear()
-            self.starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
+            self.starImageLoader = StarImageLoader(self, threadpool, self.signalEmit, file_paths, use_cache)
             self.startLoadingImagesThreadpool.start(self.starImageLoader)
         if threadpool is self.threadpool0:
             if use_cache:
@@ -417,7 +424,7 @@ class FileShowArea(QWidget):
                     if self.file_items[file_path].icon:
                         file_paths.remove(file_path)
             if len(file_paths) > 0:
-                starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
+                starImageLoader = StarImageLoader(self, threadpool, self.signalEmit, file_paths, use_cache)
                 self.startLoadingImagesThreadpool.start(starImageLoader)
 
     # 设置文件标签
@@ -458,6 +465,14 @@ class FileShowArea(QWidget):
         label.setStyleSheet(style)
         label.show()
         self.labels[file_path] = label
+
+    def applyPixmapSequenceIcon(self, file_path: str):
+        if file_path not in self.file_items or file_path not in self.labels:
+            return
+        file_item = self.file_items[file_path]
+        label = self.labels[file_path]
+        icon_label = label.findChild(QLabel, "icon_label")
+        file_item.apply(icon_label)
 
     # 更新布局
     def updateLayout(self):

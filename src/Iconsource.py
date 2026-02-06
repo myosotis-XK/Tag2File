@@ -72,7 +72,6 @@ class MovieIcon(IconSource):
 class PixmapSequenceIcon(IconSource):
     def __init__(self, sequence: ThumbnailSequence):
         super().__init__()
-        print(f"Creating PixmapSequenceIcon with {len(sequence.frames)} frames and intervals: {sequence.durations}")
         self.frames = []
         self.index = 0
 

@@ -7,7 +7,7 @@ from .utils import get_cache_path, thumbnailExtractor
 from .Iconsource import *
 
 class StarImageLoader(QRunnable):
-    def __init__(self, fathet, threadpool:QThreadPool, file_paths:list=None, use_cache=True):
+    def __init__(self, fathet, threadpool:QThreadPool, signalEmit, file_paths:list=None, use_cache=True):
         super().__init__()
         self.father = fathet
         self.image_size = fathet.image_size
@@ -17,6 +17,7 @@ class StarImageLoader(QRunnable):
         self.file_paths = file_paths
         self.use_cache = use_cache
         self.runing = True
+        self.signalEmit = signalEmit
 
     def change_current_pixmap_size(self, file_path):
         file_item = self.father.file_items[file_path]
@@ -37,7 +38,7 @@ class StarImageLoader(QRunnable):
             if (self.use_cache or not os.path.exists(file_path)) and self.check_cache(file_path):
                 continue
             self.change_current_pixmap_size(file_path)
-            loader = ImageLoader(self.father, file_path)
+            loader = ImageLoader(self.father, file_path, self.signalEmit)
             self.threadpool.start(loader)
 
     def check_cache(self, file_path):
@@ -124,11 +125,12 @@ class StarImageLoader(QRunnable):
 
 class ImageLoader(QRunnable):
     """负责加载单个文件图标的任务类"""
-    def __init__(self, father, file_path:str):
+    def __init__(self, father, file_path:str, signalEmit):
         super().__init__()
         self.father = father
         self.image_size = father.image_size
         self.file_path = file_path
+        self.signalEmit = signalEmit
 
     def run(self):
         try:
@@ -156,6 +158,8 @@ class ImageLoader(QRunnable):
                 if label:
                     icon_label = label.findChild(QLabel, "icon_label")
                     file_item.apply(icon_label)
+            elif isinstance(source, PixmapSequenceIcon):
+                self.signalEmit.finished.emit(file_path)
             
 
         except Exception as e:
