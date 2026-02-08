@@ -532,7 +532,11 @@ class FileShowArea(QWidget):
         self._content_size = QSize(content_width, content_height)
         if self._offset.y() > self._content_size.height() - self.height():
             self._offset.setY(max(0, self._content_size.height() - self.height()))
-        self.update_scrollbars()
+        # 记录滚动条百分位
+        v_scroll_value = self.v_scroll.value()
+        v_scroll_percentage = v_scroll_value / self.v_scroll.maximum() if self.v_scroll.maximum() != 0 else 0
+        self.update_scrollbars() # 更新滚动条最大值
+        self.v_scroll.setValue(int(v_scroll_percentage * self.v_scroll.maximum())) # 恢复滚动条百分位
         self.lazy_load()
 
     # 懒加载
@@ -869,13 +873,8 @@ class FileShowArea(QWidget):
             file_item.icon = False
             file_item.update_label_size(self.label_width)
 
-        # 记录滚动条百分比位置
-        v_scroll_value = self.v_scroll.value()
-        v_scroll_percentage = v_scroll_value / self.v_scroll.maximum() if self.v_scroll.maximum() != 0 else 0
         # 更新布局
         self.updateLayout()
-        # 恢复滚动条位置
-        self.v_scroll.setValue(int(v_scroll_percentage * self.v_scroll.maximum()))
         
   
     # 改变排序方式
