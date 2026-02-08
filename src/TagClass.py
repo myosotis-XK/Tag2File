@@ -477,7 +477,7 @@ def get_tag_files(tag_expression: str, DictManage, special_tags_status: list[tup
         special_tags_status: list[tuple[str, int]] = DictManage.get_all_special_tags_status()
     for spcial_tag, ischecked in special_tags_status:
         if not ischecked:
-            if spcial_tag in ["图片","视频","音频","其他"]:
+            if spcial_tag in ["GIF", "图片","视频","音频","其他"]:
                 result_files = {file_item for file_item in result_files if get_file_type(file_item[0]) != spcial_tag}
             else:
                 result_files = result_files - DictManage.query('tag', spcial_tag, 'file')
