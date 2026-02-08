@@ -239,8 +239,9 @@ class ThumbnailExtractor:
         except (UnidentifiedImageError, OSError) as e:
             print(f"无法打开图像文件 {file_path}: {e}")
             return None
-        
-    def _extract_gif(self, file_path: str) -> tuple[list[Image.Image], list[int]]:
+    
+    @staticmethod
+    def _extract_gif(file_path: str) -> tuple[list[Image.Image], list[int]]:
         """提取 GIF 所有帧 + 帧间隔"""
 
         frames: list[Image.Image] = []
@@ -253,16 +254,18 @@ class ThumbnailExtractor:
                     frame = frame.convert("RGBA")
 
                     frames.append(frame.copy())
-
-                    # duration 单位是 ms
-                    durations.append(frame.info.get("duration", 100))
+                    duration = frame.info.get("duration")
+                    if duration is None or duration == 0:
+                        duration = 80
+                    durations.append(duration)
             return frames, durations
 
         except Exception as e:
             print(f"GIF 提取失败 {file_path}: {e}")
             return [], []
     
-    def _extract_mp3_cover(self, file_path: str) -> Image.Image:
+    @staticmethod
+    def _extract_mp3_cover(file_path: str) -> Image.Image:
         """提取 MP3 封面"""
         try:
             audio = MP3(file_path, ID3=ID3)
@@ -277,7 +280,8 @@ class ThumbnailExtractor:
             print(f"提取 MP3 封面失败 {file_path}: {e}")
             return None
     
-    def _extract_video_frame(self, file_path: str) -> Image.Image:
+    @staticmethod
+    def _extract_video_frame(file_path: str) -> Image.Image:
         """从视频中提取关键帧"""
         video = None
         try:
@@ -291,7 +295,11 @@ class ThumbnailExtractor:
             success, frame = video.read()
             # 如果第 1 帧是黑屏或模糊，尝试读取中间帧
             if not success or frame.mean() < 10:
-                target_frame = self._select_smart_frame(video, total_frames)
+                # 策略：从10%到50%的时间范围中随机选择
+                start_frame = int(total_frames * 0.1)
+                end_frame = int(total_frames * 0.5)
+                target_frame = random.randint(start_frame, end_frame)
+
                 video.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
                 success, frame = video.read()
             
@@ -312,20 +320,5 @@ class ThumbnailExtractor:
         finally:
             if video:
                 video.release()
-    
-    def _select_smart_frame(self, video_cap, total_frames: int) -> int:
-        """智能选择视频帧位置"""
-        if total_frames <= 10:
-            return 0
-        
-        # 策略：避开前10%的黑屏和最后20%的字幕
-        start_frame = int(total_frames * 0.1)
-        end_frame = int(total_frames * 0.5)
-        
-        # 确保有足够的范围
-        if end_frame - start_frame < 10:
-            return total_frames // 2
-        
-        return random.randint(start_frame, end_frame)
     
 thumbnailExtractor = ThumbnailExtractor()

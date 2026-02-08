@@ -79,7 +79,12 @@ class StarImageLoader(QRunnable):
     def updateLabelIcon(self, file_item):
         file_path = file_item.file_path
         file_item.icon = True
-        pixmap = file_item.icon_source[self.image_size].source
+        icon = file_item.icon_source[self.image_size]
+        if isinstance(icon, PixmapSequenceIcon):
+            file_item.icon_source['current'] = icon
+            self.signalEmit.finished.emit(file_path)
+            return
+        pixmap = icon.source
         if not os.path.exists(file_path):
             pixmap = self.draw_text_on_pixmap(pixmap, "文件不存在")
         file_item.icon_source['current'] = PixmapIcon(pixmap)
@@ -143,32 +148,26 @@ class ImageLoader(QRunnable):
         try:
             file_path = self.file_path
             image_size = self.image_size
-            source = None
+            icon = None
             file_item = self.father.file_items[file_path]
             file_item.icon = True
             thumbnailSequence = thumbnailExtractor.extract_thumbnail(file_path, image_size)
             if thumbnailSequence:
                 if thumbnailSequence.animated:
-                    source = PixmapSequenceIcon(thumbnailSequence)
+                    icon = PixmapSequenceIcon(thumbnailSequence)
                 else:
                     image = thumbnailSequence.frames[0]
-                    source = PixmapIcon(image)
+                    icon = PixmapIcon(image)
                     self.save_to_disk_cache(image)
 
-            if source is None:
-                source = get_file_init_icon_source(file_path, image_size)
+            if icon is None:
+                icon = get_file_init_icon(file_path, image_size)
 
-            file_item.icon_source['current'] = source
-            file_item.icon_source[image_size] = source
-            if isinstance(source, PixmapIcon):
-                label = self.father.labels.get(self.file_path)
-                if label:
-                    icon_label = label.findChild(QLabel, "icon_label")
-                    file_item.apply(icon_label)
-            elif isinstance(source, PixmapSequenceIcon):
-                self.signalEmit.finished.emit(file_path)
-            
-
+            file_item.icon_source['current'] = icon
+            file_item.icon_source[image_size] = icon
+            self.signalEmit.finished.emit(file_path)
+        except KeyError:
+            pass
         except Exception as e:
             print(f"加载文件 {self.file_path} 时出现错误: {e}")
 

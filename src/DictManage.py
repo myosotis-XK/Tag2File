@@ -207,7 +207,6 @@ class DataAPI():
         with self._lock, self.conn:
             cur = self.conn.cursor()
             row = cur.execute("SELECT id FROM file WHERE name=?", (old_name,)).fetchone()
-            cur.close()
             if not row:
                 cur.close()
                 return

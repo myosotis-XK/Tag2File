@@ -357,7 +357,7 @@ class FileShowArea(QWidget):
             self.file_items[file_path] = file_item
             return
         file_item = FileItem(file_path, file_path_meta_data[1], file_path_meta_data[2], self.label_width)
-        source = get_file_init_icon_source(file_path, self.image_size)
+        source = get_file_init_icon(file_path, self.image_size)
         file_item.icon_source = {'current': source}
         self.file_items[file_path] = file_item
         self.file_items_cache[file_path] = file_item
@@ -1233,14 +1233,14 @@ class FileShowArea(QWidget):
         # 不使用缓存加载
         file_meta_datas = []
         for file_path in self.select_labels_keys:
+            if file_path in self.labels:
+                self.recycleFileLabel(file_path)
             self.file_items.pop(file_path)
             self.file_items_cache.pop(file_path)
             st = os.stat(file_path)
             size_bytes = st.st_size
             mtime = st.st_mtime
             file_meta_datas.append((file_path, size_bytes, mtime))
-            if file_path in self.labels:
-                self.recycleFileLabel(file_path)
         self.createFileItem(file_meta_datas)
         self.startLoadingImages(self.threadpool0, list(self.select_labels_keys), use_cache=False)
         self.select_labels_keys.clear()

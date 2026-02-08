@@ -90,20 +90,31 @@ class PixmapSequenceIcon(IconSource):
         self.label = None
 
     def apply(self, label: QLabel):
+        self.release(label)
+
         self.label = label
+        label.setPixmap(self.frames[0])
 
-        self.label.setPixmap(self.frames[0])
-
-        self.timer = QTimer(label)
-        self.timer.timeout.connect(self._next_frame)
-        self.timer.start(self.intervals[0])
+        # 创建并关联 timer
+        timer = QTimer(label)
+        timer.timeout.connect(self._next_frame)
+        timer.start(self.intervals[0])
+        label.timer = timer
 
     def release(self, label: QLabel): 
-        if self.timer: 
-            self.timer.stop() 
-            self.timer.timeout.disconnect() 
-            self.timer.deleteLater() 
-            self.timer = None 
+        if hasattr(label, 'timer') and label.timer:
+            try:
+                label.timer.stop()
+            except Exception:  # 处理可能的运行时错误
+                pass
+            try:
+                label.timer.timeout.disconnect()
+            except Exception:  # 处理可能的断开连接错误
+                pass
+            try:
+                label.timer.deleteLater() 
+            except Exception:  # 处理可能的资源释放错误
+                pass
         self.label = None
 
     def _next_frame(self):
@@ -111,10 +122,10 @@ class PixmapSequenceIcon(IconSource):
         self.label.setPixmap(self.frames[self.index])
 
         # 更新下一帧间隔
-        self.timer.setInterval(self.intervals[self.index])
+        self.label.timer.setInterval(self.intervals[self.index])
 
 extension_icon_source_cache = {}
-def get_file_init_icon_source(file_path: str, image_size: int) -> IconSource:
+def get_file_init_icon(file_path: str, image_size: int) -> IconSource:
     """根据文件类型获取初始图标，并缩放到指定大小"""
     file_extension = os.path.splitext(file_path)[1]
     try:
