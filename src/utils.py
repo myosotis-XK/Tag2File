@@ -3,6 +3,7 @@ import sys
 import re
 import cv2
 import random
+import numpy as np
 from PIL import Image, ImageSequence, UnidentifiedImageError
 Image.MAX_IMAGE_PIXELS = 1_000_000_000
 from io import BytesIO
@@ -293,8 +294,13 @@ class ThumbnailExtractor:
             
             # 先尝试读取第 1 帧
             success, frame = video.read()
+
             # 如果第 1 帧是黑屏或模糊，尝试读取中间帧
-            if not success or frame.mean() < 10:
+            total = frame.size
+            black_pixels = np.count_nonzero(frame < 10)
+            white_pixels = np.count_nonzero(frame > 245)
+            bw_ratio = (black_pixels + white_pixels) / total
+            if not success or bw_ratio >= 0.8:
                 # 策略：从10%到50%的时间范围中随机选择
                 start_frame = int(total_frames * 0.1)
                 end_frame = int(total_frames * 0.5)
@@ -320,5 +326,24 @@ class ThumbnailExtractor:
         finally:
             if video:
                 video.release()
+
+    import cv2
+    
+
+    def is_mostly_black_and_white(frame, threshold=0.8):
+        # 转灰度
+        if frame.ndim == 3:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = frame
+
+        total = gray.size
+
+        black_pixels = np.count_nonzero(gray < 10)
+        white_pixels = np.count_nonzero(gray > 245)
+
+        bw_ratio = (black_pixels + white_pixels) / total
+
+        return bw_ratio >= threshold
     
 thumbnailExtractor = ThumbnailExtractor()

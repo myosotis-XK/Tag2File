@@ -98,12 +98,17 @@ class FileItem():
     def apply(self, label: QLabel):
         icon = self.icon_source.get('current')
         if icon:
+            self.release(label)
             icon.apply(label)
 
     def release(self, label: QLabel):
-        icon = self.icon_source.get('current')
-        if icon:
-            icon.release(label)
+        if hasattr(label, 'timer') and label.timer:
+            timer: QTimer = label.timer
+            label.timer = None
+
+            timer.stop()
+            timer.timeout.disconnect()
+            timer.deleteLater()
 
 
 class SignalEmit(QObject):
@@ -184,14 +189,11 @@ class FileShowArea(QWidget):
         # 线程池
         self.startLoadingImagesThreadpool = QThreadPool()
         self.threadpool = QThreadPool()
-        self.starImageLoader = None
-        self.threadpool.setMaxThreadCount(1)
-        self.threadpool0 = QThreadPool()
-        # self.threadpool0.setMaxThreadCount(4)
+        # self.threadpool.setMaxThreadCount(4)
 
         # 信号槽
         self.signalEmit = SignalEmit()
-        self.signalEmit.finished.connect(self.applyPixmapSequenceIcon)
+        self.signalEmit.finished.connect(self.applyIconSource)
         
         self.initFileView()
         self.update_scrollbars()
@@ -260,16 +262,10 @@ class FileShowArea(QWidget):
     def closeEvent(self, event):
         # 清空图片加载任务
         while self.startLoadingImagesThreadpool.activeThreadCount() > 0:
-            self.starImageLoader.runing = False
             time.sleep(0.1)
         self.threadpool.clear()
-        self.threadpool0.clear()
         for widget in self.child_widget:
             widget.close()
-        while self.threadpool.activeThreadCount() > 0:
-            time.sleep(0.1)
-        while self.threadpool0.activeThreadCount() > 0:
-            time.sleep(0.1)
         # 调用父类的 closeEvent 以确保主窗口正常关闭
         for image_viewer in self.image_viewers:
             image_viewer.close()
@@ -292,15 +288,8 @@ class FileShowArea(QWidget):
 
         # 线程处理
         while self.startLoadingImagesThreadpool.activeThreadCount() > 0:
-            if self.starImageLoader:
-                self.starImageLoader.runing = False
             time.sleep(0.1)
         self.threadpool.clear()
-        self.threadpool0.clear()
-        while self.threadpool.activeThreadCount() > 0:
-            time.sleep(0.1)
-        while self.threadpool0.activeThreadCount() > 0:
-            time.sleep(0.1)
 
         # 回收标签
         for file_path in list(self.labels.keys()):
@@ -403,29 +392,21 @@ class FileShowArea(QWidget):
         return label
 
     # 加载文件缩略图
-    def startLoadingImages(self, threadpool:QThreadPool, file_paths:list=None, use_cache=True):
+    def startLoadingImages(self, file_paths:list=None, use_cache=True):
         '''
         开始加载输入文件缩略图
-        :param threadpool: 线程池
         :param file_paths: 文件路径列表, None时加载所有文件
         :param use_cache: 是否使用缓存
         '''
         if file_paths is None:
             file_paths = self.file_paths.copy()
-        if threadpool is self.threadpool:
-            if self.starImageLoader:
-                self.starImageLoader.runing = False
-            self.threadpool.clear()
-            self.starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
-            self.startLoadingImagesThreadpool.start(self.starImageLoader)
-        if threadpool is self.threadpool0:
-            if use_cache:
-                for file_path in file_paths[:]:
-                    if self.file_items[file_path].icon:
-                        file_paths.remove(file_path)
-            if len(file_paths) > 0:
-                starImageLoader = StarImageLoader(self, threadpool, file_paths, use_cache)
-                self.startLoadingImagesThreadpool.start(starImageLoader)
+        if use_cache:
+            for file_path in file_paths[:]:
+                if self.file_items[file_path].icon:
+                    file_paths.remove(file_path)
+        if len(file_paths) > 0:
+            starImageLoader = StarImageLoader(self, self.threadpool, file_paths, use_cache)
+            self.startLoadingImagesThreadpool.start(starImageLoader)
 
     # 设置文件标签
     def setFileQLabel(self, file_path: str):
@@ -448,7 +429,6 @@ class FileShowArea(QWidget):
         label.file_path = file_path
         icon_label.file_path = file_path
         file_name_label.file_path = file_path
-        
         file_item.apply(icon_label)
 
         file_name_label.setText('\u200B'.join(file_item.file_name))
@@ -466,7 +446,7 @@ class FileShowArea(QWidget):
         label.show()
         self.labels[file_path] = label
 
-    def applyPixmapSequenceIcon(self, file_path: str):
+    def applyIconSource(self, file_path: str):
         if file_path not in self.file_items or file_path not in self.labels:
             return
         file_item = self.file_items[file_path]
@@ -557,9 +537,16 @@ class FileShowArea(QWidget):
 
     # 懒加载
     def lazy_load(self):
-        self.threadpool0.clear()
-        # 计算self.content_widget可见范围
+        self.threadpool.clear()
+        # 计算self.content_widget可见范围，扩展高度为50%
         visible_rect = QRect(self._offset, self._offset + self.rect().bottomRight())
+        extra_h = int(visible_rect.height() * 0.5)
+        visible_rect.adjust( # 只在上下方向扩展
+            0,               # left
+            -extra_h,        # top
+            0,               # right
+            extra_h          # bottom
+        )
         visible_labels_keys = self.get_rect_label(visible_rect)
         # 隐藏不可见label
         no_visible_labels_keys = self.visible_labels_keys - visible_labels_keys
@@ -576,7 +563,7 @@ class FileShowArea(QWidget):
                 label.move(QPoint(file_item.label_pos[0], file_item.label_pos[1]) - self._offset)
                 label.show()
         self.visible_labels_keys = visible_labels_keys
-        self.startLoadingImages(self.threadpool0, list(visible_labels_keys))
+        self.startLoadingImages(list(visible_labels_keys))
         self.v_scroll.raise_()
         self.h_scroll.raise_()
         self.corner.raise_()
@@ -865,9 +852,7 @@ class FileShowArea(QWidget):
         self.LABEL_INNER_SPACING = int(self.image_size * self.SPACING_RATE)
         self.label_width = self.image_size + 2*self.LABEL_INNER_SPACING
         while self.startLoadingImagesThreadpool.activeThreadCount() > 0:
-            self.starImageLoader.runing = False
             time.sleep(0.1)
-        self.threadpool.clear()  # 清空当前线程池中的任务
 
         for file_path in list(self.labels.keys()):
             self.recycleFileLabel(file_path)
@@ -884,10 +869,14 @@ class FileShowArea(QWidget):
             file_item.icon = False
             file_item.update_label_size(self.label_width)
 
+        # 记录滚动条百分比位置
+        v_scroll_value = self.v_scroll.value()
+        v_scroll_percentage = v_scroll_value / self.v_scroll.maximum() if self.v_scroll.maximum() != 0 else 0
+        # 更新布局
         self.updateLayout()
-        while self.threadpool.activeThreadCount() > 0:
-            time.sleep(0.1)        
-        self.startLoadingImages(self.threadpool)  # 重新加载当前文件夹中的图片
+        # 恢复滚动条位置
+        self.v_scroll.setValue(int(v_scroll_percentage * self.v_scroll.maximum()))
+        
   
     # 改变排序方式
     def setSortKeyAndOrder(self, action: str, value: str):
@@ -900,11 +889,9 @@ class FileShowArea(QWidget):
                 self.current_sort_order = value  # 更新当前排序顺序
                 self.file_paths.reverse()  # 反转文件路径列表
                 config.set('FileShowArea', 'current_sort_order', value)  # 更新config对象
-            save_config()  # 保存配置
+        save_config()  # 保存配置
 
         self.updateLayout()  # 更新布局以反映新的顺序
-        self.threadpool.clear()
-        self.startLoadingImages(self.threadpool)
 
     def _sort_files(self, file_paths: list=None):
         if file_paths is None:
@@ -1237,12 +1224,16 @@ class FileShowArea(QWidget):
                 self.recycleFileLabel(file_path)
             self.file_items.pop(file_path)
             self.file_items_cache.pop(file_path)
-            st = os.stat(file_path)
-            size_bytes = st.st_size
-            mtime = st.st_mtime
+            try:
+                st = os.stat(file_path)
+                size_bytes = st.st_size
+                mtime = st.st_mtime
+            except FileNotFoundError:
+                size_bytes = 0
+                mtime = 0
             file_meta_datas.append((file_path, size_bytes, mtime))
         self.createFileItem(file_meta_datas)
-        self.startLoadingImages(self.threadpool0, list(self.select_labels_keys), use_cache=False)
+        self.startLoadingImages(list(self.select_labels_keys), use_cache=False)
         self.select_labels_keys.clear()
         self.updateLayout()
 

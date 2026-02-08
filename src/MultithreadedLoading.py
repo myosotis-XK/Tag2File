@@ -17,7 +17,6 @@ class StarImageLoader(QRunnable):
             file_paths = []
         self.file_paths = file_paths
         self.use_cache = use_cache
-        self.runing = True
 
     def change_current_pixmap_size(self, file_path):
         file_item = self.father.file_items[file_path]
@@ -40,8 +39,6 @@ class StarImageLoader(QRunnable):
         check_cache = self.check_cache
 
         for file_path in self.file_paths:
-            if not self.runing:
-                break
             if (use_cache or not os.path.exists(file_path)) and check_cache(file_path):
                 continue
             change_current_pixmap_size(file_path)

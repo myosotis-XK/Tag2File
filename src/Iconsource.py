@@ -12,9 +12,6 @@ class IconSource:
     def apply(self, label: QLabel):
         pass
 
-    def release(self, label: QLabel):
-        pass
-
     @staticmethod
     def pil_to_pixmap(pil_image: Image.Image) -> QPixmap:
         if pil_image.mode != 'RGBA':
@@ -41,34 +38,6 @@ class PixmapIcon(IconSource):
     def apply(self, label: QLabel):
         label.setPixmap(self.source)
 
-
-class MovieIcon(IconSource):
-    def __init__(self, movie: QMovie, max_size: int):
-        super().__init__()
-        movie.finished.connect(movie.start)
-        self.source = movie
-        self.scaled_movie(max_size)
-
-    def apply(self, label: QLabel):
-        label.setMovie(self.source)
-        self.source.start()
-
-    def release(self, label: QLabel):
-        label.setMovie(None)
-        self.source.stop()
-
-    def scaled_movie(self, max_size: int):
-        self.source.jumpToFrame(0)
-        rect = self.source.frameRect()
-        w, h = rect.width(), rect.height()
-        if w > h:
-            new_w = max_size
-            new_h = int(h * max_size / w)
-        else:
-            new_h = max_size
-            new_w = int(w * max_size / h)
-        self.source.setScaledSize(QSize(new_w, new_h))
-
 class PixmapSequenceIcon(IconSource):
     def __init__(self, sequence: ThumbnailSequence):
         super().__init__()
@@ -90,8 +59,6 @@ class PixmapSequenceIcon(IconSource):
         self.label = None
 
     def apply(self, label: QLabel):
-        self.release(label)
-
         self.label = label
         label.setPixmap(self.frames[0])
 
@@ -101,28 +68,14 @@ class PixmapSequenceIcon(IconSource):
         timer.start(self.intervals[0])
         label.timer = timer
 
-    def release(self, label: QLabel): 
-        if hasattr(label, 'timer') and label.timer:
-            try:
-                label.timer.stop()
-            except Exception:  # 处理可能的运行时错误
-                pass
-            try:
-                label.timer.timeout.disconnect()
-            except Exception:  # 处理可能的断开连接错误
-                pass
-            try:
-                label.timer.deleteLater() 
-            except Exception:  # 处理可能的资源释放错误
-                pass
-        self.label = None
-
     def _next_frame(self):
+        timer: QTimer = getattr(self.label, "timer", None)
+        if timer is None:
+            return
         self.index = (self.index + 1) % len(self.frames)
         self.label.setPixmap(self.frames[self.index])
-
         # 更新下一帧间隔
-        self.label.timer.setInterval(self.intervals[self.index])
+        timer.setInterval(self.intervals[self.index])
 
 extension_icon_source_cache = {}
 def get_file_init_icon(file_path: str, image_size: int) -> IconSource:

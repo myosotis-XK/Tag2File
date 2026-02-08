@@ -107,7 +107,8 @@ class TagView(QMainWindow, Observer):
         self.splitter.setSizes([350, 200])
 
     def observer_update(self):
-        self.tag_scroll_area.setWidget(self.create_tag_widget())
+        tag_widget = self.create_tag_widget()
+        self.tag_scroll_area.setWidget(tag_widget)
 
     def closeEvent(self, event):
         self.TagFileShowArea.closeEvent(event)
@@ -151,7 +152,6 @@ class TagView(QMainWindow, Observer):
                 label.setContextMenuPolicy(Qt.CustomContextMenu)  # 允许自定义右键菜单
                 label.customContextMenuRequested.connect(lambda pos, label=label: self.show_tag_context_menu(pos, label))  # 绑定右键菜单事件
                 tag_layout.addWidget(label)
-
         tag_widget = QWidget()
         tag_widget.setLayout(tag_layout)
         return tag_widget
@@ -164,7 +164,7 @@ class TagView(QMainWindow, Observer):
             self.TagFileShowArea.createFileItem(file_meta_datas)
             self.TagFileShowArea._sort_files()
             self.TagFileShowArea.updateLayout()
-            self.TagFileShowArea.startLoadingImages(self.TagFileShowArea.threadpool, new_file_paths)
+            self.TagFileShowArea.startLoadingImages(new_file_paths)
 
 
     # ——————————————————————Tag相关操作————————————————————————————
