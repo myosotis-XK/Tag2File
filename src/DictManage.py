@@ -476,6 +476,22 @@ class DataAPI():
                         del self.file_cache[file_id]
             cur.close()
 
+    def create_tag(self, tag: str) -> int:
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+            cur.execute(
+                "SELECT COALESCE(MAX(order_index), -1)+1 FROM tag WHERE category_id=?",
+                (self.uncategorized_id,)
+            )
+            order_index = cur.fetchone()[0]
+            cur.execute(
+                "INSERT INTO tag (name, category_id, order_index) VALUES (?, ?, ?)",
+                (tag, self.uncategorized_id, order_index)
+            )
+            tag_id = cur.lastrowid
+            cur.close()
+        return tag_id    
+
     def delete_tag(self, tag: str, file_paths: list[str]):
         with self._lock, self.conn:
             cur = self.conn.cursor()
@@ -636,16 +652,7 @@ class DataAPI():
             cur.execute("SELECT id, category_id FROM tag WHERE name=?", (tag,))
             row = cur.fetchone()
             if row is None:
-                cur.execute(
-                    "SELECT COALESCE(MAX(order_index), -1)+1 FROM tag WHERE category_id=?",
-                    (self.uncategorized_id,)
-                )
-                order_index = cur.fetchone()[0]
-                cur.execute(
-                    "INSERT INTO tag (name, category_id, order_index) VALUES (?, ?, ?)",
-                    (tag, self.uncategorized_id, order_index)
-                )
-                tag_id = cur.lastrowid
+                tag_id = self.create_tag(tag)
             else:
                 tag_id = row[0]
 
@@ -831,6 +838,10 @@ class DictManage():
         self.dataAPI.reorder_categories(new_order)
         self.notify_observers()
 
+
+    def create_tag(self, tag: str) -> None:
+        self.dataAPI.create_tag(tag)
+        self.notify_observers()
 
     def delete_tag(self, tag: str, file_paths: list[str]) -> None:
         self.dataAPI.delete_tag(tag, file_paths)

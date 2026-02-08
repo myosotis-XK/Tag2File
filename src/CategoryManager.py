@@ -289,13 +289,11 @@ class CategoryManager(QDialog, Observer):
                 if tag not in existing_tags:
                     if not self.cherk_tag(tag):
                         return
-                    self.DictManage.add_tag(tag, [])  
+                    self.DictManage.create_tag(tag)  
                 if tag not in self.DictManage.query('category', category, 'tag'):  
                     self.current_tag = tag  # 记住新添加的标签  
                     self.DictManage.change_tag_category(tag, category)  
-                    self.onCategoryChanged(category)  
-                else:  
-                    QMessageBox.warning(self, "警告", "标签已存在于此类别！")  
+                    self.onCategoryChanged(category)
 
     def removeTag(self):  
         currentCategory = self.categoryList.currentItem()  
