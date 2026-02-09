@@ -1508,10 +1508,10 @@ class FileShowArea(QWidget):
     # 设置文件css
     def set_file_css(self, file_item: FileItem):
         border, background = self.file_status_map.get((file_item.specifid, file_item.selected, file_item.hover))
-        label = self.labels.get(file_item.file_path)
         if border != file_item.border or background != file_item.background:
             file_item.border = border
             file_item.background = background
+            label = self.labels.get(file_item.file_path)
             if label:
                 style = f"""
                 QLabel#{label.objectName()} {{

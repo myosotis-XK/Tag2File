@@ -107,8 +107,12 @@ class TagView(QMainWindow, Observer):
         self.splitter.setSizes([350, 200])
 
     def observer_update(self):
+        # 记录滚动条位置
+        scroll_value = self.tag_scroll_area.verticalScrollBar().value()
         tag_widget = self.create_tag_widget()
         self.tag_scroll_area.setWidget(tag_widget)
+        # 恢复滚动条位置
+        self.tag_scroll_area.verticalScrollBar().setValue(scroll_value)
 
     def closeEvent(self, event):
         self.TagFileShowArea.closeEvent(event)
@@ -317,16 +321,14 @@ class TagView(QMainWindow, Observer):
         if self.TagFileShowArea.isVisible():
             self.model = 'single'
             # 清空选中标签
-            for file_path in self.TagFileShowArea.select_labels_keys:
-                label = self.TagFileShowArea.labels[file_path]
-                updateStyle(label, "background-color: transparent;")
-            file_path = None
-            if not self.TagFileShowArea.now_select_label_key is None:
-                file_path = self.TagFileShowArea.now_select_label_key
-                self.TagFileShowArea.now_select_label_key = None
-                if file_path in self.TagFileShowArea.labels:
-                    label = self.TagFileShowArea.labels[file_path]
-                    updateStyle(label, "border: none;")
+            file_path = self.TagFileShowArea.now_select_label_key
+            self.TagFileShowArea.now_select_label_key = None
+            if not file_path is None:
+                file_item = self.TagFileShowArea.file_items[file_path]
+                file_item.specifid = 0
+                if len(self.TagFileShowArea.select_labels_keys) == 1:
+                    file_item.selected = 0
+                self.TagFileShowArea.set_file_css(file_item)
             self.TagFileShowArea.hide()
             self.splitter.replaceWidget(0, self.SingleFileTagView)
             self.SingleFileTagView.show()
@@ -338,13 +340,11 @@ class TagView(QMainWindow, Observer):
             self.splitter.replaceWidget(0, self.TagFileShowArea)
             self.TagFileShowArea.show()
             if not self.SingleFileTagView.current_file_path is None and self.SingleFileTagView.current_file_path in self.TagFileShowArea.labels:
-                
                 file_path = self.SingleFileTagView.current_file_path
                 file_item = self.TagFileShowArea.file_items[file_path]
                 self.TagFileShowArea.now_select_label_key = file_path
-                if file_path in self.TagFileShowArea.select_labels_keys:
-                    label = self.TagFileShowArea.labels[file_path]
-                    updateStyle(label, "border: 1px solid #99d1ff;")
+                file_item.specifid = 1
+                self.TagFileShowArea.set_file_css(file_item)
                 # 滚动条滚动到当前标签
                 self.TagFileShowArea.v_scroll.setValue(file_item.label_pos[1])
             self.switch_view_button.setText("多文件视图")
