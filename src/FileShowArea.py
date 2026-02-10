@@ -19,6 +19,7 @@ from src.Iconsource import *
 from src.MultithreadedLoading import StarImageLoader
 from src.DictManage import DictManage
 from src.ImageViewer import MultiImageViewer
+from src.audio import ModernPlayer
 from src.FileSelectionComponent import FileSelectionComponent
 
 default_value = {
@@ -971,24 +972,32 @@ class FileShowArea(QWidget):
         if not os.path.exists(file_path):
             QMessageBox.warning(self, "文件不存在", f"无法打开文件：\n{file_path}\n文件已不存在。")
             return
-        # 支持的图片格式  
-        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']  
-        
-        # 检查文件扩展名  
-        ext = os.path.splitext(file_path)[1].lower()  
-        
-        if not default and ext in supported_formats:  
+        # 支持的图片格式
+        supported_image_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
+        # 支持的音频格式
+        supported_audio_formats = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma']
+
+        # 检查文件扩展名
+        ext = os.path.splitext(file_path)[1].lower()
+
+        if not default and ext in supported_image_formats:
             # 文件是图片，使用MultiImageViewer显示
             image_viewer = MultiImageViewer()  # 保存为实例变量以防止被垃圾回收
             self.image_viewers.append(image_viewer)
             image_viewer.destroyed.connect(lambda: self.image_viewers.remove(image_viewer))
             image_viewer.load_image_files(self.file_paths.copy(), file_path)
             image_viewer.show()
-        else:  
-            # 非图片文件，使用默认应用打开  
-            try:  
-                os.startfile(file_path)  
-            except Exception as e:  
+        elif not default and ext in supported_audio_formats:
+            # 文件是音频，使用自定义音频播放器
+            audio_player = ModernPlayer(file_path)
+            self.image_viewers.append(audio_player)  # 复用 image_viewers 列表保存引用
+            audio_player.destroyed.connect(lambda: self.image_viewers.remove(audio_player))
+            audio_player.show()
+        else:
+            # 其他文件，使用默认应用打开
+            try:
+                os.startfile(file_path)
+            except Exception as e:
                 QMessageBox.critical(self, "打开文件失败", f"无法打开文件：\n{file_path}\n错误：{e}")
         
     # 右键菜单

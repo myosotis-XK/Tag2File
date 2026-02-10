@@ -17,7 +17,7 @@ class DataAPI():
     # 类型注解
     conn: sqlite3.Connection
     uncategorized_id: int
-    _lock: threading.Lock
+    _lock: threading.RLock
     ini_color: str
     tag2file_cache: dict[str, set[int]]
     file_cache: dict[int, tuple[str, int, float]]
@@ -109,7 +109,8 @@ class DataAPI():
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT UNIQUE NOT NULL,
                         size_bytes INTEGER DEFAULT 0,
-                        mtime REAL DEFAULT 0
+                        mtime REAL DEFAULT 0,
+                        extra_data TEXT
                     );
                 """)
 
@@ -132,7 +133,19 @@ class DataAPI():
                     );
                 """)
 
-                # 5️⃣ 插入默认数据
+                # marker_preset 表（音频标记预设）
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS marker_preset (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT UNIQUE NOT NULL,
+                        color TEXT NOT NULL,
+                        emoji TEXT,
+                        order_index INTEGER NOT NULL,
+                        is_builtin INTEGER DEFAULT 0
+                    );
+                """)
+
+                # 插入默认数据
                 cur.execute(
                     """
                         INSERT OR IGNORE INTO category (name, color, order_index, is_special)
@@ -154,15 +167,16 @@ class DataAPI():
                     """
                         INSERT OR IGNORE INTO category (name, color, order_index, is_special)
                         VALUES (?, ?, 1, 0);
-                    """, 
+                    """,
                     ("未分类", self.ini_color)
                 )
 
-                # 6️⃣ 索引（性能关键）
+                # 索引
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tag_category ON tag(category_id);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tag_file_tag ON tag_file(tag_id);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tag_file_file ON tag_file(file_id);")
-                
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_marker_preset_order ON marker_preset(order_index);")
+
                 cur.close()
         finally:
             conn.close()
@@ -717,6 +731,213 @@ class DataAPI():
             if tag in self.tag2file_cache:
                 self.tag2file_cache[tag] |= set(existing_files.values())
 
+    # ========== 通用 extra_data 管理方法 ==========
+
+    def get_file_extra_data(self, file_path: str, key: str = None):
+        """
+        获取文件的 extra_data
+        :param file_path: 文件路径
+        :param key: 可选，指定获取的键（如 "audio_marker"）
+        :return: 如果指定 key，返回该 key 的值；否则返回整个 extra_data 字典
+        """
+        import json
+
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+            cur.execute("SELECT extra_data FROM file WHERE name=?", (file_path,))
+            row = cur.fetchone()
+            cur.close()
+
+            if not row or not row[0]:
+                return None if key else {}
+
+            try:
+                extra_data = json.loads(row[0])
+                if key:
+                    return extra_data.get(key)
+                return extra_data
+            except json.JSONDecodeError:
+                return None if key else {}
+
+    def set_file_extra_data(self, file_path: str, key: str, value):
+        """
+        设置文件 extra_data 的某个 key 的值（覆盖整个 key）
+        :param file_path: 文件路径
+        :param key: 要设置的键
+        :param value: 要设置的值（会被序列化为 JSON）
+        """
+        import json
+
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+
+            # 获取现有 extra_data
+            cur.execute("SELECT extra_data FROM file WHERE name=?", (file_path,))
+            row = cur.fetchone()
+
+            if not row:
+                cur.close()
+                print(f"File not found: {file_path}")
+                return
+
+            # 解析现有数据
+            try:
+                extra_data = json.loads(row[0]) if row[0] else {}
+            except json.JSONDecodeError:
+                extra_data = {}
+
+            # 设置新值
+            extra_data[key] = value
+
+            # 保存回数据库
+            self.conn.execute(
+                "UPDATE file SET extra_data=? WHERE name=?",
+                (json.dumps(extra_data, ensure_ascii=False), file_path)
+            )
+            cur.close()
+
+    def update_file_extra_data(self, file_path: str, key: str, value):
+        """
+        更新文件 extra_data（合并而非覆盖）
+        如果 value 是字典，会合并到现有数据中
+        :param file_path: 文件路径
+        :param key: 要更新的键
+        :param value: 要更新的值
+        """
+        import json
+
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+
+            # 获取现有 extra_data
+            cur.execute("SELECT extra_data FROM file WHERE name=?", (file_path,))
+            row = cur.fetchone()
+
+            if not row:
+                cur.close()
+                return
+
+            # 解析现有数据
+            try:
+                extra_data = json.loads(row[0]) if row[0] else {}
+            except json.JSONDecodeError:
+                extra_data = {}
+
+            # 合并数据
+            if key in extra_data and isinstance(extra_data[key], dict) and isinstance(value, dict):
+                extra_data[key].update(value)
+            else:
+                extra_data[key] = value
+
+            # 保存回数据库
+            self.conn.execute(
+                "UPDATE file SET extra_data=? WHERE name=?",
+                (json.dumps(extra_data, ensure_ascii=False), file_path)
+            )
+            cur.close()
+
+    def delete_file_extra_data(self, file_path: str, key: str = None):
+        """
+        删除 extra_data 的某个 key 或整个 extra_data
+        :param file_path: 文件路径
+        :param key: 可选，指定要删除的键；如果为 None，删除整个 extra_data
+        """
+        import json
+
+        with self._lock, self.conn:
+            if key is None:
+                # 删除整个 extra_data
+                self.conn.execute("UPDATE file SET extra_data=NULL WHERE name=?", (file_path,))
+            else:
+                # 删除特定 key
+                cur = self.conn.cursor()
+                cur.execute("SELECT extra_data FROM file WHERE name=?", (file_path,))
+                row = cur.fetchone()
+
+                if not row or not row[0]:
+                    cur.close()
+                    return
+
+                try:
+                    extra_data = json.loads(row[0])
+                    if key in extra_data:
+                        del extra_data[key]
+                        self.conn.execute(
+                            "UPDATE file SET extra_data=? WHERE name=?",
+                            (json.dumps(extra_data, ensure_ascii=False) if extra_data else None, file_path)
+                        )
+                except json.JSONDecodeError:
+                    pass
+
+                cur.close()
+
+    # ========== 标记预设管理方法 ==========
+
+    def get_all_marker_presets(self):
+        """
+        获取所有标记预设
+        :return: [(id, name, color, emoji, order_index, is_builtin), ...]
+        """
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+            cur.execute(
+                "SELECT id, name, color, emoji, order_index, is_builtin FROM marker_preset ORDER BY order_index"
+            )
+            presets = cur.fetchall()
+            cur.close()
+            return presets
+
+    def create_marker_preset(self, name: str, color: str, emoji: str = ""):
+        """
+        创建自定义标记预设
+        :param name: 预设名称
+        :param color: 颜色（十六进制）
+        :param emoji: 可选的 emoji 图标
+        :return: 新创建的预设 ID
+        """
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+
+            # 获取当前最大 order_index
+            cur.execute("SELECT MAX(order_index) FROM marker_preset")
+            max_order = cur.fetchone()[0]
+            next_order = (max_order or 0) + 1
+
+            # 插入新预设
+            cur.execute(
+                """
+                INSERT INTO marker_preset (name, color, emoji, order_index, is_builtin)
+                VALUES (?, ?, ?, ?, 0)
+                """,
+                (name, color, emoji, next_order)
+            )
+            preset_id = cur.lastrowid
+            cur.close()
+
+            return preset_id
+
+    def delete_marker_preset(self, preset_id: int):
+        """
+        删除非内置预设
+        :param preset_id: 预设 ID
+        """
+        with self._lock, self.conn:
+            # 检查是否为内置预设
+            cur = self.conn.cursor()
+            cur.execute("SELECT is_builtin FROM marker_preset WHERE id=?", (preset_id,))
+            row = cur.fetchone()
+
+            if not row:
+                cur.close()
+                return
+
+            if row[0] == 1:
+                cur.close()
+                raise ValueError("Cannot delete builtin preset")
+
+            # 删除预设
+            self.conn.execute("DELETE FROM marker_preset WHERE id=?", (preset_id,))
+            cur.close()
 
 
 class Observer(QObject):
@@ -872,3 +1093,80 @@ class DictManage():
     def add_tag(self, tag: str, file_paths: list[str]) -> None:
         self.dataAPI.add_tag(tag, file_paths)
         self.notify_observers()
+
+    # ========== 音频标记业务方法 ==========
+
+    def get_audio_markers(self, file_path: str):
+        """
+        获取指定音频文件的所有标记
+        :param file_path: 文件路径
+        :return: 标记列表 [{'id', 'type', 'time'/'start'/'end', 'label', 'color', 'preset_id', 'created_at'}, ...]
+        """
+        markers = self.dataAPI.get_file_extra_data(file_path, "audio_marker")
+        return markers if markers else []
+
+    def add_audio_marker(self, file_path: str, marker_data: dict):
+        """
+        添加单个音频标记
+        :param file_path: 文件路径
+        :param marker_data: 标记数据字典 {'type', 'time'/'start'/'end', 'label', 'color', 'preset_id'}
+        :return: 新标记的 ID
+        """
+        import time
+
+        markers = self.get_audio_markers(file_path)
+
+        # 生成新 ID
+        new_id = max([m.get('id', 0) for m in markers], default=0) + 1
+
+        # 添加元数据
+        marker_data['id'] = new_id
+        marker_data['created_at'] = time.time()
+
+        # 添加到列表
+        markers.append(marker_data)
+
+        # 保存
+        self.dataAPI.set_file_extra_data(file_path, "audio_marker", markers)
+
+        return new_id
+
+    def update_audio_marker(self, file_path: str, marker_id: int, **kwargs):
+        """
+        更新指定 ID 的音频标记
+        :param file_path: 文件路径
+        :param marker_id: 标记 ID
+        :param kwargs: 要更新的字段（如 label, color, time, start, end 等）
+        """
+        markers = self.get_audio_markers(file_path)
+
+        # 查找并更新标记
+        for marker in markers:
+            if marker.get('id') == marker_id:
+                marker.update(kwargs)
+                break
+
+        # 保存
+        self.dataAPI.set_file_extra_data(file_path, "audio_marker", markers)
+
+    def delete_audio_marker(self, file_path: str, marker_id: int):
+        """
+        删除指定 ID 的音频标记
+        :param file_path: 文件路径
+        :param marker_id: 标记 ID
+        """
+        markers = self.get_audio_markers(file_path)
+
+        # 过滤掉要删除的标记
+        markers = [m for m in markers if m.get('id') != marker_id]
+
+        # 保存
+        self.dataAPI.set_file_extra_data(file_path, "audio_marker", markers)
+
+    def get_all_marker_presets(self):
+        """
+        获取所有音频标记预设
+        :return: 预设列表 [{'id', 'name', 'color', 'emoji', 'order_index', 'is_builtin'}, ...]
+        """
+        presets = self.dataAPI.get_all_marker_presets()
+        return presets if presets else []

@@ -2,11 +2,13 @@
 __pycache__/
 *.code-workspace
 .vscode/
+CLAUDE.md
 
 # 数据文件夹
 log/
 data/tagbase
 data/cache
+data/audio
 config/
 
 # 自定义其他文件
@@ -24,3 +26,5 @@ dist/
 *.exe
 web_app/users.db
 qy.py
+generate_test_audio.py
+migrate_database.py
