@@ -587,27 +587,27 @@ class ModernPlayer(QMainWindow):
         # 标记菜单
         marker_menu = menubar.addMenu("标记")
 
+        # 显示标记列表动作
+        show_markers_action = marker_menu.addAction("📋 显示标记列表")
+        show_markers_action.triggered.connect(self.show_marker_list)
+
         # 管理预设动作
-        manage_presets_action = marker_menu.addAction("📋 管理预设")
+        manage_presets_action = marker_menu.addAction("⚙️ 管理预设")
         manage_presets_action.triggered.connect(self.open_preset_manager)
 
         widget = QWidget()
         self.setCentralWidget(widget)
         layout = QVBoxLayout(widget)
 
-        # 主内容区域：歌词视图和标记列表并排显示
-        content_layout = QHBoxLayout()
-
-        # 左侧：歌词视图
-        self.lrc_view = LrcView()
-        content_layout.addWidget(self.lrc_view, 2)  # 占2份宽度
-
-        # 右侧：标记列表面板
+        # 创建标记列表面板（不添加到主布局，作为独立窗口）
         self.marker_list_panel = MarkerListPanel()
-        self.marker_list_panel.setMaximumWidth(350)  # 限制最大宽度
-        content_layout.addWidget(self.marker_list_panel, 1)  # 占1份宽度
+        self.marker_list_panel.setWindowFlags(Qt.Window)
+        self.marker_list_panel.setWindowTitle("标记列表")
+        self.marker_list_panel.resize(350, 500)
 
-        layout.addLayout(content_layout)
+        # 歌词视图（全宽显示）
+        self.lrc_view = LrcView()
+        layout.addWidget(self.lrc_view)
 
         # 进度条
         self.slider = MarkerSlider(Qt.Horizontal)
@@ -762,6 +762,12 @@ class ModernPlayer(QMainWindow):
         """标记被编辑或删除后刷新进度条显示"""
         # 重新加载标记数据到进度条
         self.slider._reload_markers()
+
+    def show_marker_list(self):
+        """显示标记列表面板"""
+        self.marker_list_panel.show()
+        self.marker_list_panel.raise_()
+        self.marker_list_panel.activateWindow()
 
     def open_preset_manager(self):
         """打开标记预设管理对话框"""
