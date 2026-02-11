@@ -1,18 +1,21 @@
 import sys
 import os
 import re
+import threading
+import random
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
                              QPushButton, QWidget, QSlider, QLabel, QScrollArea, QStyle,
-                             QStyleOptionSlider, QMessageBox, QMenu)
+                             QStyleOptionSlider, QMessageBox, QMenu, QShortcut)
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtCore import Qt, QUrl, QPoint, QTime
-from PyQt5.QtGui import QPainter, QColor, QMouseEvent
+from PyQt5.QtGui import QPainter, QColor, QMouseEvent, QKeySequence
 
 from .MarkerEditDialog import MarkerEditDialog
 from .DictManage import DictManage
 from .MarkerListPanel import MarkerListPanel
 from .MarkerPresetManager import MarkerPresetManager
+from .PlaylistPanel import PlaylistPanel
 
 # 格式化毫秒为 00:00 格式
 def format_time(ms):
@@ -559,13 +562,23 @@ class LrcView(QScrollArea):
 
 # --- 3. 主窗口 ---
 class ModernPlayer(QMainWindow):
-    def __init__(self, path):
+    def __init__(self, path, audio_files=None):
         super().__init__()
         self.setWindowTitle("高级音频播放器")
         self.resize(500, 600)
         self.DictManage = DictManage()
         self.player = QMediaPlayer()
         self.path = path
+
+        # 播放列表相关
+        self.filter_lock = threading.Lock()
+        self.audio_files = []  # 有效音频文件列表
+        self.current_index = -1  # 当前音频索引
+        self.current_file = path  # 当前音频文件路径
+
+        # 播放模式：0=顺序播放，1=随机播放，2=单曲循环
+        self.play_mode = 0
+
         self.init_ui()
 
         # 连接信号
@@ -574,11 +587,23 @@ class ModernPlayer(QMainWindow):
         self.player.stateChanged.connect(self.on_state_changed)
         self.slider.sliderMoved.connect(self.set_position)
         self.player.error.connect(self.on_player_error)
+        self.player.mediaStatusChanged.connect(self.on_media_status_changed)
 
         # 连接标记列表面板信号
         self.marker_list_panel.marker_clicked.connect(self.on_marker_jump)
         self.marker_list_panel.marker_edited.connect(self.on_marker_changed)
         self.marker_list_panel.marker_deleted.connect(self.on_marker_changed)
+
+        # 连接播放列表面板信号
+        self.playlist_panel.audio_selected.connect(self.on_playlist_audio_selected)
+        # self.playlist_panel.set_playlist(self.audio_files, self.current_index)
+
+        # 设置键盘快捷键
+        self.setup_shortcuts()
+
+        # 加载音频文件列表（在UI初始化之后）
+        file_list = audio_files if audio_files else [path]
+        self.load_audio_files(file_list, path)
 
     def init_ui(self):
         # 创建菜单栏
@@ -597,7 +622,7 @@ class ModernPlayer(QMainWindow):
 
         widget = QWidget()
         self.setCentralWidget(widget)
-        layout = QVBoxLayout(widget)
+        main_layout = QVBoxLayout(widget)
 
         # 创建标记列表面板（不添加到主布局，作为独立窗口）
         self.marker_list_panel = MarkerListPanel()
@@ -605,7 +630,18 @@ class ModernPlayer(QMainWindow):
         self.marker_list_panel.setWindowTitle("标记列表")
         self.marker_list_panel.resize(350, 500)
 
-        # 歌词视图（全宽显示）
+        # 创建水平布局容器（左侧内容区 + 播放列表）
+        content_layout = QHBoxLayout()
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(10)
+
+        # 左侧：歌词和控制区域的容器
+        self.left_container = QWidget()
+        self.left_container.setMinimumWidth(350)
+        layout = QVBoxLayout(self.left_container)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # 歌词视图
         self.lrc_view = LrcView()
         layout.addWidget(self.lrc_view)
 
@@ -621,48 +657,202 @@ class ModernPlayer(QMainWindow):
         time_layout.addWidget(self.time_label)
         layout.addLayout(time_layout)
 
-        # 控制按钮
-        btn_layout = QHBoxLayout()
-        self.btn_play = QPushButton("▶ 播放")
+        # 控制按钮区域 - 主流播放器样式
+        control_layout = QHBoxLayout()
+        control_layout.setSpacing(5)
+
+        # 左侧：播放模式按钮
+        self.btn_mode = QPushButton("🔁")
+        self.btn_mode.setFixedSize(40, 40)
+        self.btn_mode.setToolTip("顺序播放")
+        self.btn_mode.clicked.connect(self.toggle_play_mode)
+        self.btn_mode.setStyleSheet("""
+            QPushButton {
+                font-size: 18px;
+                border: none;
+                border-radius: 20px;
+                background-color: transparent;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 0.1);
+            }
+        """)
+        control_layout.addWidget(self.btn_mode)
+
+        # 弹簧 - 左侧空间
+        control_layout.addStretch()
+
+        # 中间：播放控制按钮组
+        playback_layout = QHBoxLayout()
+        playback_layout.setSpacing(10)
+
+        # 上一首按钮
+        self.btn_previous = QPushButton("⏮")
+        self.btn_previous.setFixedSize(40, 40)
+        self.btn_previous.setToolTip("上一首")
+        self.btn_previous.clicked.connect(self.play_previous)
+        self.btn_previous.setStyleSheet("""
+            QPushButton {
+                font-size: 18px;
+                border: none;
+                border-radius: 20px;
+                background-color: rgba(0, 0, 0, 0.05);
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 0.15);
+            }
+        """)
+        playback_layout.addWidget(self.btn_previous)
+
+        # 播放/暂停按钮（大一点，更突出）
+        self.btn_play = QPushButton("▶")
+        self.btn_play.setFixedSize(55, 55)
+        self.btn_play.setToolTip("播放")
         self.btn_play.clicked.connect(self.toggle_play)
-        self.btn_play.setFixedHeight(35)
-        btn_layout.addWidget(self.btn_play)
+        self.btn_play.setStyleSheet("""
+            QPushButton {
+                font-size: 24px;
+                border: none;
+                border-radius: 27px;
+                background-color: rgba(52, 152, 219, 0.8);
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: rgba(52, 152, 219, 1.0);
+            }
+        """)
+        playback_layout.addWidget(self.btn_play)
 
-        # 音量控制
-        volume_layout = QHBoxLayout()
-        volume_label = QLabel("🔊")
-        volume_label.setStyleSheet("font-size: 16px;")
-        volume_layout.addWidget(volume_label)
+        # 下一首按钮
+        self.btn_next = QPushButton("⏭")
+        self.btn_next.setFixedSize(40, 40)
+        self.btn_next.setToolTip("下一首")
+        self.btn_next.clicked.connect(self.play_next)
+        self.btn_next.setStyleSheet("""
+            QPushButton {
+                font-size: 18px;
+                border: none;
+                border-radius: 20px;
+                background-color: rgba(0, 0, 0, 0.05);
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 0.15);
+            }
+        """)
+        playback_layout.addWidget(self.btn_next)
 
-        self.volume_slider = QSlider(Qt.Horizontal)
-        self.volume_slider.setRange(0, 100)
-        self.volume_slider.setValue(50)
-        self.volume_slider.setMaximumWidth(100)
-        self.volume_slider.valueChanged.connect(self.on_volume_changed)
-        volume_layout.addWidget(self.volume_slider)
+        control_layout.addLayout(playback_layout)
 
-        self.volume_label_value = QLabel("50%")
-        self.volume_label_value.setStyleSheet("font-size: 12px; color: #555;")
-        self.volume_label_value.setMinimumWidth(35)
-        volume_layout.addWidget(self.volume_label_value)
+        # 弹簧 - 右侧空间
+        control_layout.addStretch()
 
-        btn_layout.addLayout(volume_layout)
-        layout.addLayout(btn_layout)
+        # 右侧：音量和播放列表按钮
+        right_controls_layout = QHBoxLayout()
+        right_controls_layout.setSpacing(5)
+
+        # 音量按钮
+        self.btn_volume = QPushButton("🔊")
+        self.btn_volume.setFixedSize(40, 40)
+        self.btn_volume.setToolTip("音量")
+        self.btn_volume.clicked.connect(self.toggle_volume_slider)
+        self.btn_volume.setStyleSheet("""
+            QPushButton {
+                font-size: 18px;
+                border: none;
+                border-radius: 20px;
+                background-color: transparent;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 0.1);
+            }
+        """)
+        right_controls_layout.addWidget(self.btn_volume)
+
+        # 播放列表按钮
+        self.btn_playlist = QPushButton("☰")
+        self.btn_playlist.setFixedSize(40, 40)
+        self.btn_playlist.setToolTip("播放列表")
+        self.btn_playlist.clicked.connect(self.show_playlist)
+        self.btn_playlist.setStyleSheet("""
+            QPushButton {
+                font-size: 18px;
+                border: none;
+                border-radius: 20px;
+                background-color: transparent;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 0.1);
+            }
+        """)
+        right_controls_layout.addWidget(self.btn_playlist)
+
+        control_layout.addLayout(right_controls_layout)
+
+        layout.addLayout(control_layout)
+
+        # 将左侧容器添加到水平布局
+        content_layout.addWidget(self.left_container)
+
+        # 右侧：播放列表面板（侧边展开，默认隐藏）
+        self.playlist_panel = PlaylistPanel()
+        self.playlist_panel.setFixedWidth(350)  # 固定宽度
+        self.playlist_panel.hide()
+        content_layout.addWidget(self.playlist_panel)
+
+        # 将水平布局添加到主布局
+        main_layout.addLayout(content_layout)
+
+        # 创建弹出音量面板
+        self.volume_popup = QWidget(self, Qt.Popup | Qt.FramelessWindowHint)
+        self.volume_popup.setStyleSheet("""
+            QWidget {
+                background-color: rgba(52, 62, 78, 0.95);
+                border-radius: 8px;
+                padding: 10px;
+            }
+        """)
+
+        popup_layout = QVBoxLayout(self.volume_popup)
+        popup_layout.setContentsMargins(10, 10, 10, 10)
+        popup_layout.setSpacing(5)
+
+        # 音量值标签
+        self.volume_value_label = QLabel("50")
+        self.volume_value_label.setAlignment(Qt.AlignCenter)
+        self.volume_value_label.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
+        popup_layout.addWidget(self.volume_value_label)
+
+        # 竖向滑块
+        self.volume_slider_vertical = QSlider(Qt.Vertical)
+        self.volume_slider_vertical.setRange(0, 100)
+        self.volume_slider_vertical.setValue(50)
+        self.volume_slider_vertical.setFixedHeight(120)
+        self.volume_slider_vertical.valueChanged.connect(self.on_volume_changed)
+        popup_layout.addWidget(self.volume_slider_vertical)
+
+        self.volume_popup.setFixedSize(60, 170)
+        self.volume_popup.hide()
 
         # 设置初始音量
         self.player.setVolume(50)
 
-        # 加载媒体
-        self.load_media()
+    def load_media(self, path=None):
+        if path is None:
+            path = self.path
+        else:
+            self.path = path
 
-    def load_media(self):
-        path = self.path
         if not os.path.exists(path):
             QMessageBox.warning(self, "文件错误", f"文件不存在:\n{path}")
             return
 
         try:
             self.player.setMedia(QMediaContent(QUrl.fromLocalFile(os.path.abspath(path))))
+
+            # 更新窗口标题显示当前播放的文件
+            file_name = os.path.basename(path)
+            total_files = len(self.audio_files)
+            self.setWindowTitle(f"高级音频播放器 - {file_name} ({self.current_index + 1}/{total_files})")
 
             # 通用的歌词文件路径处理，支持所有音频格式
             lrc_path = os.path.splitext(path)[0] + '.lrc'
@@ -710,11 +900,13 @@ class ModernPlayer(QMainWindow):
             self.player.play()
 
     def on_state_changed(self, state):
-        """根据播放状态更新按钮文本"""
+        """根据播放状态更新按钮图标"""
         if state == QMediaPlayer.PlayingState:
-            self.btn_play.setText("⏸ 暂停")
+            self.btn_play.setText("⏸")
+            self.btn_play.setToolTip("暂停")
         else:
-            self.btn_play.setText("▶ 播放")
+            self.btn_play.setText("▶")
+            self.btn_play.setToolTip("播放")
 
     def on_position_changed(self, ms):
         if not self.slider.isSliderDown():
@@ -739,7 +931,17 @@ class ModernPlayer(QMainWindow):
     def on_volume_changed(self, value):
         """音量改变时的回调"""
         self.player.setVolume(value)
-        self.volume_label_value.setText(f"{value}%")
+
+        # 更新音量值标签
+        self.volume_value_label.setText(str(value))
+
+        # 更新音量按钮图标
+        if value == 0:
+            self.btn_volume.setText("🔇")
+        elif value < 50:
+            self.btn_volume.setText("🔉")
+        else:
+            self.btn_volume.setText("🔊")
 
     def on_player_error(self):
         """播放器错误处理"""
@@ -758,7 +960,7 @@ class ModernPlayer(QMainWindow):
                     self.player.setPosition(marker['start'])
                 break
 
-    def on_marker_changed(self, marker_id):
+    def on_marker_changed(self):
         """标记被编辑或删除后刷新进度条显示"""
         # 重新加载标记数据到进度条
         self.slider._reload_markers()
@@ -769,10 +971,280 @@ class ModernPlayer(QMainWindow):
         self.marker_list_panel.raise_()
         self.marker_list_panel.activateWindow()
 
+    def show_playlist(self):
+        """切换播放列表的显示/隐藏"""
+        if self.playlist_panel.isVisible():
+            # 隐藏播放列表
+            playlist_width = self.playlist_panel.width()
+
+            # 隐藏面板
+            self.playlist_panel.hide()
+
+            # 缩小窗口宽度
+            current_width = self.width()
+            self.left_container.setFixedWidth(self.left_container.width())
+            self.setFixedWidth(current_width - playlist_width - 10)
+            self.left_container.setMinimumWidth(350)
+            self.left_container.setMaximumWidth(16777215)
+            self.setMinimumWidth(370)
+            self.setMaximumWidth(16777215)
+
+        else:
+            self.playlist_panel.set_playlist(self.audio_files, self.current_index)
+            playlist_width = 360  # 播放列表加间隔的固定宽度
+
+            # 获取当前窗口几何信息
+            current_width = self.width()
+            current_x = self.x()
+
+            # 获取屏幕可用宽度
+            screen = QApplication.desktop().availableGeometry(self)
+            screen_right = screen.x() + screen.width()
+
+            # 计算新宽度
+            new_width = current_width + playlist_width
+
+            # 检查窗口右边界是否会超出屏幕
+            if current_x + new_width <= screen_right:
+                self.setFixedWidth(new_width)
+                self.setMinimumWidth(720)
+                self.setMaximumWidth(16777215)
+
+            self.playlist_panel.show()
+            
+
+    def toggle_volume_slider(self):
+        """切换音量面板的显示/隐藏"""
+        if self.volume_popup.isVisible():
+            self.volume_popup.hide()
+        else:
+            # 计算弹出位置（音量按钮正上方）
+            btn_global_pos = self.btn_volume.mapToGlobal(QPoint(0, 0))
+            popup_x = btn_global_pos.x() - (self.volume_popup.width() - self.btn_volume.width()) // 2
+            popup_y = btn_global_pos.y() - self.volume_popup.height() - 10
+            self.volume_popup.move(popup_x, popup_y)
+            self.volume_popup.show()
+
+    def toggle_play_mode(self):
+        """切换播放模式：顺序播放 -> 随机播放 -> 单曲循环"""
+        self.play_mode = (self.play_mode + 1) % 3
+
+        if self.play_mode == 0:
+            # 顺序播放
+            self.btn_mode.setText("🔁")
+            self.btn_mode.setToolTip("顺序播放")
+        elif self.play_mode == 1:
+            # 随机播放
+            self.btn_mode.setText("🔀")
+            self.btn_mode.setToolTip("随机播放")
+        else:
+            # 单曲循环
+            self.btn_mode.setText("🔂")
+            self.btn_mode.setToolTip("单曲循环")
+
+    def on_playlist_audio_selected(self, index):
+        """播放列表中选择了某个音频"""
+        self.play_audio_at_index(index)
+        self.player.play()
+
     def open_preset_manager(self):
         """打开标记预设管理对话框"""
         dialog = MarkerPresetManager(self)
         dialog.exec_()
+
+    def setup_shortcuts(self):
+        """设置键盘快捷键"""
+        # 左方向键 - 上一首
+        self.shortcut_prev = QShortcut(QKeySequence(Qt.Key_Left), self)
+        self.shortcut_prev.activated.connect(self.play_previous)
+
+        # 右方向键 - 下一首
+        self.shortcut_next = QShortcut(QKeySequence(Qt.Key_Right), self)
+        self.shortcut_next.activated.connect(self.play_next)
+
+        # 空格键 - 播放/暂停
+        self.shortcut_play = QShortcut(QKeySequence(Qt.Key_Space), self)
+        self.shortcut_play.activated.connect(self.toggle_play)
+
+    def play_previous(self):
+        """播放上一首（根据播放模式）"""
+        if not self.audio_files or len(self.audio_files) == 0:
+            return
+
+        with self.filter_lock:
+            # 同步当前索引（防止文件列表被过滤后索引错位）
+            if self.current_index >= len(self.audio_files) or self.audio_files[self.current_index] != self.current_file:
+                try:
+                    self.current_index = self.audio_files.index(self.current_file)
+                except:
+                    self.current_index = 0
+
+            # 根据播放模式计算上一首的索引
+            if self.play_mode == 0:
+                # 顺序播放：循环到上一首
+                prev_index = (self.current_index - 1) % len(self.audio_files)
+            elif self.play_mode == 1:
+                # 随机播放：随机选择（排除当前歌曲）
+                if len(self.audio_files) > 1:
+                    candidates = list(range(len(self.audio_files)))
+                    candidates.remove(self.current_index)
+                    prev_index = random.choice(candidates)
+                else:
+                    prev_index = self.current_index
+            else:
+                # 单曲循环（play_mode == 2）：允许手动切换
+                prev_index = (self.current_index - 1) % len(self.audio_files)
+
+        # 播放上一首
+        self.play_audio_at_index(prev_index)
+        self.player.play()
+
+    def play_next(self):
+        """播放下一首（根据播放模式）"""
+        if not self.audio_files or len(self.audio_files) == 0:
+            return
+
+        with self.filter_lock:
+            # 同步当前索引（防止文件列表被过滤后索引错位）
+            if self.current_index >= len(self.audio_files) or self.audio_files[self.current_index] != self.current_file:
+                try:
+                    self.current_index = self.audio_files.index(self.current_file)
+                except:
+                    self.current_index = 0
+
+            # 根据播放模式计算下一首的索引
+            if self.play_mode == 0:
+                # 顺序播放
+                next_index = (self.current_index + 1) % len(self.audio_files)
+            elif self.play_mode == 1:
+                # 随机播放
+                if len(self.audio_files) > 1:
+                    candidates = list(range(len(self.audio_files)))
+                    candidates.remove(self.current_index)
+                    next_index = random.choice(candidates)
+                else:
+                    next_index = self.current_index
+            else:
+                # 单曲循环（play_mode == 2）：允许手动切换到下一首
+                next_index = (self.current_index + 1) % len(self.audio_files)
+
+        # 播放下一首
+        self.play_audio_at_index(next_index)
+        self.player.play()
+
+    def on_media_status_changed(self, status):
+        """媒体状态改变时的回调"""
+        # 当当前音频播放结束时，根据播放模式处理
+        if status == QMediaPlayer.EndOfMedia:
+            if self.play_mode == 2:
+                # 单曲循环：重新播放当前歌曲
+                self.player.setPosition(0)
+                self.player.play()
+            else:
+                # 顺序播放或随机播放：播放下一首
+                self.play_next()
+
+    def _filter_file(self, file_path):
+        """过滤文件列表，仅保留音频文件"""
+        supported_formats = ['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.wma', '.ape']
+
+        if not os.path.exists(file_path):
+            with self.filter_lock:
+                try:
+                    self.audio_files.remove(file_path)
+                except:
+                    pass
+            return
+
+        # 检查文件扩展名
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext not in supported_formats:
+            with self.filter_lock:
+                try:
+                    self.audio_files.remove(file_path)
+                except:
+                    pass
+
+    def _start_background_filtering(self, file_paths):
+        """在后台线程中执行文件过滤"""
+        def filter_task():
+            BATCH_SIZE = 10000
+            batches = [file_paths[i:i + BATCH_SIZE] for i in range(0, len(file_paths), BATCH_SIZE)]
+            for batch in batches:
+                for path in batch:
+                    self._filter_file(path)
+                # 每处理完一个批次，更新UI
+                self._update_filter_results()
+
+        # 创建并启动线程
+        self.filter_thread = threading.Thread(target=filter_task, daemon=True)
+        self.filter_thread.start()
+
+    def _update_filter_results(self):
+        """在主线程中更新过滤结果"""
+        if not self.audio_files and self.current_index == -1:
+            self.setWindowTitle("高级音频播放器 - 正在加载...")
+        else:
+            self.update_title()
+
+    def load_audio_files(self, file_paths: list, show_file_path=None):
+        """加载音频文件列表，过滤非音频文件"""
+        if self.current_index != -1 and show_file_path is None:
+            show_file_path = self.audio_files[self.current_index]
+
+        # 初始化文件列表
+        self.audio_files = file_paths.copy()
+
+        # 在后台线程中执行过滤
+        self._start_background_filtering(file_paths)
+
+        if show_file_path is not None:
+            try:
+                index = self.audio_files.index(show_file_path)
+                self.play_audio_at_index(index)
+            except:
+                pass
+
+        if self.current_index == -1:
+            # 如果有有效音频，播放第一首
+            if self.audio_files:
+                self.play_audio_at_index(0)
+            else:
+                self.setWindowTitle("高级音频播放器 - 正在加载...")
+
+    def play_audio_at_index(self, index):
+        """播放指定索引的音频"""
+        if not self.audio_files or index < 0 or index >= len(self.audio_files):
+            return False
+
+        # 加载并播放音频
+        file_path = self.audio_files[index]
+        self.current_file = file_path
+        self.current_index = index
+        self.load_media(file_path)
+
+        # 更新播放列表面板的当前索引
+        if hasattr(self, 'playlist_panel'):
+            self.playlist_panel.update_current_index(index)
+
+        return True
+
+    def update_title(self):
+        """更新窗口标题"""
+        if self.current_index >= 0 and self.audio_files:
+            with self.filter_lock:
+                # 同步当前索引
+                if self.current_index >= len(self.audio_files) or self.audio_files[self.current_index] != self.current_file:
+                    try:
+                        self.current_index = self.audio_files.index(self.current_file)
+                    except:
+                        self.current_index = 0
+
+            file_name = os.path.basename(self.current_file)
+            total_files = len(self.audio_files)
+            self.setWindowTitle(f"高级音频播放器 - {file_name} ({self.current_index + 1}/{total_files})")
+        else:
+            self.setWindowTitle("高级音频播放器")
 
 
 if __name__ == "__main__":
