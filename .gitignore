@@ -11,13 +11,6 @@ data/cache
 data/audio
 config/
 
-# 自定义其他文件
-爬虫/
-自动打标/
-system/
-test.py
-temp.py
-
 # 打包相关
 build/
 dist/
@@ -28,3 +21,10 @@ web_app/users.db
 qy.py
 generate_test_audio.py
 migrate_database.py
+
+# 自定义其他文件
+爬虫/
+自动打标/
+system/
+*test.py
+*temp.py

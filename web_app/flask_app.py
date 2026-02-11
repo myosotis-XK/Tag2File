@@ -253,7 +253,8 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
 
     # 2. 生成缩略图
     try:
-        img = thumbnailExtractor.extract_thumbnail(file_path, size)
+        thumbnailSequence = thumbnailExtractor.extract_thumbnail(file_path, size)
+        img = thumbnailSequence.frames[0]
         if img is None:
             img = get_file_icon(file_path, size)
             if img is None:
