@@ -11,11 +11,11 @@ from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtCore import Qt, QUrl, QPoint, QTime
 from PyQt5.QtGui import QPainter, QColor, QMouseEvent, QKeySequence
 
-from .MarkerEditDialog import MarkerEditDialog
-from .DictManage import DictManage
-from .MarkerListPanel import MarkerListPanel
-from .MarkerPresetManager import MarkerPresetManager
-from .PlaylistPanel import PlaylistPanel
+from .marker_edit_dialog import MarkerEditDialog
+from src.DictManage import DictManage
+from .marker_list_panel import MarkerListPanel
+from .marker_preset_manager import MarkerPresetManager
+from .playlist_panel import PlaylistPanel
 
 # 格式化毫秒为 00:00 格式
 def format_time(ms):

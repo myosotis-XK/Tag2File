@@ -117,7 +117,7 @@ class MarkerListPanel(QWidget):
             return
 
         try:
-            from .DictManage import DictManage
+            from src.DictManage import DictManage
 
             dict_manage = DictManage()
             self.markers_data = dict_manage.get_audio_markers(self.audio_file_path)
@@ -186,8 +186,8 @@ class MarkerListPanel(QWidget):
 
     def edit_marker(self, marker):
         """编辑标记"""
-        from .MarkerEditDialog import MarkerEditDialog
-        from .DictManage import DictManage
+        from .marker_edit_dialog import MarkerEditDialog
+        from src.DictManage import DictManage
 
         # 获取预设列表
         dict_manage = DictManage()
@@ -229,7 +229,7 @@ class MarkerListPanel(QWidget):
 
         if reply == QMessageBox.Yes:
             try:
-                from .DictManage import DictManage
+                from src.DictManage import DictManage
 
                 dict_manage = DictManage()
                 dict_manage.delete_audio_marker(self.audio_file_path, marker['id'])

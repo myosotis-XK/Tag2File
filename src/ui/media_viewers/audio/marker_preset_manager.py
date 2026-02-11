@@ -12,7 +12,7 @@ class MarkerPresetManager(QDialog):
         self.setWindowTitle("标记预设管理")
         self.resize(500, 400)
 
-        from .DictManage import DictManage
+        from src.DictManage import DictManage
         self.dict_manage = DictManage()
 
         self.init_ui()

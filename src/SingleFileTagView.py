@@ -3,7 +3,7 @@ from PyQt5.QtGui import QPixmap, QColor, QFont
 from PyQt5.QtCore import Qt, QPoint, QRect, QSize, QFileInfo
 from datetime import datetime
 from .DictManage import *
-from .ImageViewer import *
+from src.ui.media_viewers import *
 from .FileShowArea import TagFileShowArea
 
 class SingleFileTagView(QScrollArea, Observer):

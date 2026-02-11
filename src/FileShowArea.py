@@ -18,8 +18,7 @@ from src.utils import *
 from src.Iconsource import *
 from src.MultithreadedLoading import StarImageLoader
 from src.DictManage import DictManage
-from src.ImageViewer import MultiImageViewer
-from src.audio import ModernPlayer
+from src.ui.media_viewers import MultiImageViewer, ModernPlayer
 from src.FileSelectionComponent import FileSelectionComponent
 
 default_value = {
