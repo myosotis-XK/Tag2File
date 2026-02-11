@@ -1,6 +1,5 @@
-from .utils import *
+from src.utils import *
 import os
-import shutil
 import time
 import configparser
 

@@ -4,14 +4,14 @@ from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QPus
 from PyQt5.QtGui import QColor
 import socket
 import qrcode
-from .utils import *
-from .core.DictManage import *
+from src.utils import *
+from src.core.DictManage import *
+from src.models.TagClass import *
 from .FileShowArea import *
 from .TagView import *
-from .TagClass import *
-from .CategoryManager import *
-from .TagbaseManager import *
 from .TagInput import TagInputWidget
+from .TagbaseManager import *
+from .CategoryManager import *
 
 class WebUsagePopup(QWidget):
     def __init__(self, url):

@@ -1,12 +1,21 @@
-from src.utils import set_application_font
-from src import StartTask
+
+import sys
+import threading
+import multiprocessing
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
-import sys
-import multiprocessing
-# 导入Flask应用
+
+if hasattr(QApplication, 'setAttribute'):
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+app = QApplication(sys.argv)
+
+from src.utils import set_application_font
+from src.core import StartTask
 from web_app.flask_app import app as flask_app
-import threading
+from src.ui.MainWindow import Tag2File
+
+
 def start_flask_server_thread():
     flask_thread = threading.Thread(
         target=lambda: flask_app.run(host='0.0.0.0', port=10252, threaded=True, debug=False, use_reloader=False)
@@ -26,15 +35,8 @@ def start_task_processing():
 
 if __name__ == '__main__':
     multiprocessing.freeze_support()  # 支持 Windows 下的多进程启动
-
-    if hasattr(QApplication, 'setAttribute'):
-        QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-        QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-    app = QApplication(sys.argv)
     set_application_font()
-    from src import MainWindow
-    viewer = MainWindow.Tag2File()
+    viewer = Tag2File()
     start_task_processing()
     start_flask_server_thread()
-
     sys.exit(app.exec_())

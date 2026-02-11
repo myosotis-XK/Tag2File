@@ -1,6 +1,6 @@
 from .FileShowArea import *
 from .SingleFileTagView import *
-from .core.DictManage import *
+from src.core.DictManage import *
 from PyQt5.QtWidgets import QSplitter, QHBoxLayout, QLineEdit, QMessageBox, QInputDialog, QMainWindow
 from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation
 from PyQt5.QtGui import QColor

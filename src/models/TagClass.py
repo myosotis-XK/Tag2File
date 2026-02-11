@@ -303,7 +303,7 @@ class InputTagLabel(QLabel):
         # 传递滚动事件给父级
         self.parent().wheelEvent(event)
 
-from .utils import *
+from ..utils import *
 class Tag:
     def __init__(self, tag):
         self.tag = tag # 保存集合名字符串

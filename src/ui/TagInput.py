@@ -1,8 +1,8 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
                              QPushButton, QFrame, QLineEdit, QCompleter)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QEvent, QStringListModel
-from .TagClass import InputTagLabel
-from .core.DictManage import *
+from src.models.TagClass import InputTagLabel
+from src.core.DictManage import *
 
 class HScrollArea(QScrollArea):
     def __init__(self):

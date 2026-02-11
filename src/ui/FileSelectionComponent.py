@@ -1,5 +1,5 @@
-from .utils import format_file_size
-from src.ui.media_viewers import MultiImageViewer
+from src.utils import format_file_size
+from .media_viewers import MultiImageViewer
 
 import os
 import time

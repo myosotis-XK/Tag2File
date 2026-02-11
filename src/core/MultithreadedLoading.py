@@ -3,8 +3,8 @@ from PyQt5.QtGui import QPixmap, QPainterPath, QPen, QFont, QColor, QPainter
 from PyQt5.QtWidgets import QLabel
 from PIL import Image
 import os
-from .utils import get_cache_path, thumbnailExtractor
-from .models import PixmapIcon, PixmapSequenceIcon, get_file_init_icon
+from src.utils import get_cache_path, thumbnailExtractor
+from src.models import PixmapIcon, PixmapSequenceIcon, get_file_init_icon
 
 class StarImageLoader(QRunnable):
     def __init__(self, fathet, threadpool:QThreadPool, file_paths:list=None, use_cache=True):

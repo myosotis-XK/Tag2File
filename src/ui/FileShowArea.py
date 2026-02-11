@@ -15,10 +15,10 @@ from typing import Optional
 from natsort import natsort_keygen
 from src.utils import *
 from src.models import FileItem, Border, Background, get_file_init_icon
-from src.MultithreadedLoading import StarImageLoader
 from src.core.DictManage import DictManage
-from src.ui.media_viewers import MultiImageViewer, ModernPlayer
-from src.FileSelectionComponent import FileSelectionComponent
+from src.core.MultithreadedLoading import StarImageLoader
+from .media_viewers import MultiImageViewer, ModernPlayer
+from .FileSelectionComponent import FileSelectionComponent
 
 default_value = {
     'SMALL_SIZE': 50,  # 小图标大小

@@ -1,18 +1,20 @@
-from flask import Flask, Response, request, g, send_file, render_template, send_from_directory, jsonify, make_response, abort
-import urllib.parse
-from PIL import Image
-from io import BytesIO
 import os
 import json
 import mimetypes
+import warnings
+import traceback
+import urllib.parse
+from flask import Flask, Response, request, session, g, \
+send_file, render_template, render_template_string, send_from_directory, jsonify, make_response, abort, redirect, url_for
+from PIL import Image
+from io import BytesIO
+from functools import wraps
 from PyQt5.QtWidgets import QFileIconProvider
 from PyQt5.QtCore import QFileInfo, QSize, QBuffer, QByteArray, QIODevice
 from PyQt5.QtGui import QIcon
-import warnings
-import traceback
-warnings.filterwarnings('ignore')
-
 from src.utils import get_cache_path, root, config, thumbnailExtractor
+
+warnings.filterwarnings('ignore')
 
 TEMPLATES_DIR = os.path.join(root, "web_app", "frontend", "templates")
 STATIC_DIR = os.path.join(root, "web_app", "frontend", "static")
@@ -23,8 +25,7 @@ app = Flask(
 )
 app.json.ensure_ascii = False
 
-from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session
-from functools import wraps
+
 
 app.secret_key = 'a_very_secret_key_change_this'  # 用于加密 session cookie
 
@@ -85,7 +86,7 @@ def handle_global_exception(e):
     return jsonify(response), status_code  
 
 import shelve
-from src.TagClass import get_tag_files
+from src.models.TagClass import get_tag_files
 
 def load_tagbase_data(tagbase_path: str) -> dict:
     """

@@ -1,10 +1,10 @@
+import os
+import re
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QLabel, 
                             QPushButton, QInputDialog, QFileDialog, QMessageBox, QLineEdit, QMenu)
 from PyQt5.QtCore import Qt
-from .utils import *
-from .core.DictManage import DictManage
-import os
-import re
+from src.utils import *
+from src.core.DictManage import DictManage
 
 class TagbaseManager(QDialog):
     def __init__(self, father=None):
