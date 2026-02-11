@@ -659,9 +659,16 @@ class ModernPlayer(QMainWindow):
 
         # 控制按钮区域 - 主流播放器样式
         control_layout = QHBoxLayout()
-        control_layout.setSpacing(5)
+        control_layout.setSpacing(0)
 
-        # 左侧：播放模式按钮
+        # 左侧弹簧 - 推动中央按钮组居中
+        control_layout.addStretch()
+
+        # 中央：所有主要控制按钮组（模式、上一首、播放、下一首、音量）
+        central_controls_layout = QHBoxLayout()
+        central_controls_layout.setSpacing(8)
+
+        # 播放模式按钮
         self.btn_mode = QPushButton("🔁")
         self.btn_mode.setFixedSize(40, 40)
         self.btn_mode.setToolTip("顺序播放")
@@ -677,14 +684,7 @@ class ModernPlayer(QMainWindow):
                 background-color: rgba(0, 0, 0, 0.1);
             }
         """)
-        control_layout.addWidget(self.btn_mode)
-
-        # 弹簧 - 左侧空间
-        control_layout.addStretch()
-
-        # 中间：播放控制按钮组
-        playback_layout = QHBoxLayout()
-        playback_layout.setSpacing(10)
+        central_controls_layout.addWidget(self.btn_mode)
 
         # 上一首按钮
         self.btn_previous = QPushButton("⏮")
@@ -696,13 +696,13 @@ class ModernPlayer(QMainWindow):
                 font-size: 18px;
                 border: none;
                 border-radius: 20px;
-                background-color: rgba(0, 0, 0, 0.05);
+                background-color: transparent;
             }
             QPushButton:hover {
-                background-color: rgba(0, 0, 0, 0.15);
+                background-color: rgba(0, 0, 0, 0.1);
             }
         """)
-        playback_layout.addWidget(self.btn_previous)
+        central_controls_layout.addWidget(self.btn_previous)
 
         # 播放/暂停按钮（大一点，更突出）
         self.btn_play = QPushButton("▶")
@@ -721,7 +721,7 @@ class ModernPlayer(QMainWindow):
                 background-color: rgba(52, 152, 219, 1.0);
             }
         """)
-        playback_layout.addWidget(self.btn_play)
+        central_controls_layout.addWidget(self.btn_play)
 
         # 下一首按钮
         self.btn_next = QPushButton("⏭")
@@ -733,22 +733,13 @@ class ModernPlayer(QMainWindow):
                 font-size: 18px;
                 border: none;
                 border-radius: 20px;
-                background-color: rgba(0, 0, 0, 0.05);
+                background-color: transparent;
             }
             QPushButton:hover {
-                background-color: rgba(0, 0, 0, 0.15);
+                background-color: rgba(0, 0, 0, 0.1);
             }
         """)
-        playback_layout.addWidget(self.btn_next)
-
-        control_layout.addLayout(playback_layout)
-
-        # 弹簧 - 右侧空间
-        control_layout.addStretch()
-
-        # 右侧：音量和播放列表按钮
-        right_controls_layout = QHBoxLayout()
-        right_controls_layout.setSpacing(5)
+        central_controls_layout.addWidget(self.btn_next)
 
         # 音量按钮
         self.btn_volume = QPushButton("🔊")
@@ -766,9 +757,14 @@ class ModernPlayer(QMainWindow):
                 background-color: rgba(0, 0, 0, 0.1);
             }
         """)
-        right_controls_layout.addWidget(self.btn_volume)
+        central_controls_layout.addWidget(self.btn_volume)
 
-        # 播放列表按钮
+        control_layout.addLayout(central_controls_layout)
+
+        # 右侧弹簧 - 推动中央按钮组居中
+        control_layout.addStretch()
+
+        # 播放列表按钮（独立在右侧，不影响中央对齐）
         self.btn_playlist = QPushButton("☰")
         self.btn_playlist.setFixedSize(40, 40)
         self.btn_playlist.setToolTip("播放列表")
@@ -784,9 +780,7 @@ class ModernPlayer(QMainWindow):
                 background-color: rgba(0, 0, 0, 0.1);
             }
         """)
-        right_controls_layout.addWidget(self.btn_playlist)
-
-        control_layout.addLayout(right_controls_layout)
+        control_layout.addWidget(self.btn_playlist)
 
         layout.addLayout(control_layout)
 
@@ -808,13 +802,13 @@ class ModernPlayer(QMainWindow):
             QWidget {
                 background-color: rgba(52, 62, 78, 0.95);
                 border-radius: 8px;
-                padding: 10px;
+                padding: 15px 10px 20px 10px;
             }
         """)
 
         popup_layout = QVBoxLayout(self.volume_popup)
-        popup_layout.setContentsMargins(10, 10, 10, 10)
-        popup_layout.setSpacing(5)
+        popup_layout.setContentsMargins(0, 0, 0, 0)
+        popup_layout.setSpacing(8)
 
         # 音量值标签
         self.volume_value_label = QLabel("50")
