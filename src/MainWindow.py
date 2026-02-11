@@ -1,16 +1,17 @@
+import sys  
+from io import BytesIO
+from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QPushButton, QTreeWidgetItem, QApplication, QSystemTrayIcon
+from PyQt5.QtGui import QColor
+import socket
+import qrcode
 from .utils import *
-from .DictManage import *
+from .core.DictManage import *
 from .FileShowArea import *
 from .TagView import *
 from .TagClass import *
 from .CategoryManager import *
 from .TagbaseManager import *
 from .TagInput import TagInputWidget
-import sys  
-from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QPushButton, QTreeWidgetItem, QApplication, QSystemTrayIcon
-from PyQt5.QtGui import QColor
-import socket
-import qrcode
 
 class WebUsagePopup(QWidget):
     def __init__(self, url):

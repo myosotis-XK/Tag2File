@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget, QTr
                             QPushButton, QInputDialog, QFileDialog, QMessageBox, QLineEdit, QMenu)
 from PyQt5.QtCore import Qt
 from .utils import *
-from .DictManage import DictManage
+from .core.DictManage import DictManage
 import os
 import re
 

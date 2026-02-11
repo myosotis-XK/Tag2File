@@ -1,8 +1,8 @@
 import os
 from PIL import Image
 from PyQt5.QtWidgets import QLabel, QFileIconProvider
-from PyQt5.QtGui import QPixmap, QMovie, QImage
-from PyQt5.QtCore import QFileInfo, QSize, QTimer
+from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtCore import QFileInfo, QTimer
 from src.utils import ThumbnailSequence
 
 class IconSource:

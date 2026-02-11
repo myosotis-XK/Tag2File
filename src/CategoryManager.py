@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
                              QPushButton, QInputDialog, QMessageBox, QColorDialog, 
                              QSplitter, QWidget, QLabel, QDesktopWidget, QMenu) 
 from PyQt5.QtCore import Qt  
-from .DictManage import *  
+from .core.DictManage import *  
 
 class CategoryManager(QDialog, Observer):  
     def __init__(self):

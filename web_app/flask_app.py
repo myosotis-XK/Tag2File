@@ -5,9 +5,6 @@ from io import BytesIO
 import os
 import json
 import mimetypes
-from mutagen.mp3 import MP3
-from mutagen.id3 import ID3
-import cv2
 from PyQt5.QtWidgets import QFileIconProvider
 from PyQt5.QtCore import QFileInfo, QSize, QBuffer, QByteArray, QIODevice
 from PyQt5.QtGui import QIcon
@@ -382,7 +379,7 @@ def serve_root():
 def favicon():
     return send_from_directory(os.path.join(root, 'data', 'icon', 'app'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
-from src.DictManage import DataAPI
+from src.core.DictManage import DataAPI
 @app.route('/get_init', methods=['GET'])
 @login_required
 def get_init():

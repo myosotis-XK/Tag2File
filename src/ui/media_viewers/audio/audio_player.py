@@ -12,7 +12,7 @@ from PyQt5.QtCore import Qt, QUrl, QPoint, QTime
 from PyQt5.QtGui import QPainter, QColor, QMouseEvent, QKeySequence
 
 from .marker_edit_dialog import MarkerEditDialog
-from src.DictManage import DictManage
+from src.core.DictManage import DictManage
 from .marker_list_panel import MarkerListPanel
 from .marker_preset_manager import MarkerPresetManager
 from .playlist_panel import PlaylistPanel
