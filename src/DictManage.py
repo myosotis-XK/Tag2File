@@ -33,7 +33,7 @@ class DataAPI():
                 inst.uncategorized_id = None
 
                 # UI & 线程安全
-                inst._lock = threading.Lock()
+                inst._lock = threading.RLock()
 
                 # 配置
                 inst.ini_color = "#c8c8c8"
@@ -658,7 +658,6 @@ class DataAPI():
 
         THRESHOLD = 500      # 小批量阈值
         BATCH_SIZE = 10000   # 批量处理大小
-
         with self._lock, self.conn:
             cur = self.conn.cursor()
 
