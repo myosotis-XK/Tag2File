@@ -1,5 +1,4 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget,
-                             QListWidgetItem, QPushButton, QMessageBox, QMenu)
+from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QMessageBox, QMenu
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
 
@@ -11,7 +10,7 @@ def format_time(ms):
     return time.toString("mm:ss")
 
 
-class MarkerListPanel(QWidget):
+class MarkerListPanel(QListWidget):
     """标记列表面板"""
 
     # 信号定义
@@ -36,23 +35,8 @@ class MarkerListPanel(QWidget):
 
     def init_ui(self):
         """初始化UI"""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(10)
-
-        # 标题
-        title_label = QLabel("📋 标记列表")
-        title_label.setStyleSheet("""
-            font-size: 14px;
-            font-weight: bold;
-            color: #2c3e50;
-            padding: 5px;
-        """)
-        layout.addWidget(title_label)
-
-        # 标记列表
-        self.marker_list = QListWidget()
-        self.marker_list.setStyleSheet("""
+        # 设置样式
+        self.setStyleSheet("""
             QListWidget {
                 border: 1px solid #bdc3c7;
                 border-radius: 5px;
@@ -73,35 +57,11 @@ class MarkerListPanel(QWidget):
         """)
 
         # 双击跳转到标记位置
-        self.marker_list.itemDoubleClicked.connect(self.on_marker_double_clicked)
+        self.itemDoubleClicked.connect(self.on_marker_double_clicked)
 
         # 右键菜单
-        self.marker_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.marker_list.customContextMenuRequested.connect(self.show_context_menu)
-
-        layout.addWidget(self.marker_list)
-
-        # 按钮区域
-        btn_layout = QHBoxLayout()
-
-        refresh_btn = QPushButton("🔄 刷新")
-        refresh_btn.setMinimumHeight(30)
-        refresh_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                font-weight: bold;
-                border-radius: 3px;
-                padding: 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
-        refresh_btn.clicked.connect(self.load_markers)
-        btn_layout.addWidget(refresh_btn)
-
-        layout.addLayout(btn_layout)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
 
     def set_audio_file_path(self, path):
         """设置音频文件路径并重新加载标记"""
@@ -110,7 +70,7 @@ class MarkerListPanel(QWidget):
 
     def load_markers(self):
         """从数据库加载标记"""
-        self.marker_list.clear()
+        self.clear()
         self.markers_data = []
 
         if not self.audio_file_path:
@@ -147,7 +107,7 @@ class MarkerListPanel(QWidget):
                 # 存储标记数据
                 item.setData(Qt.UserRole, marker)
 
-                self.marker_list.addItem(item)
+                self.addItem(item)
 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"加载标记失败:\n{str(e)}")

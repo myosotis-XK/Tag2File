@@ -6,7 +6,7 @@ import random
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
                              QPushButton, QWidget, QSlider, QLabel, QScrollArea, QStyle,
-                             QStyleOptionSlider, QMessageBox, QMenu, QShortcut)
+                             QStyleOptionSlider, QMessageBox, QMenu, QShortcut, QSplitter)
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtCore import Qt, QUrl, QPoint, QTime
 from PyQt5.QtGui import QPainter, QColor, QMouseEvent, QKeySequence
@@ -612,10 +612,6 @@ class ModernPlayer(QMainWindow):
         # 标记菜单
         marker_menu = menubar.addMenu("标记")
 
-        # 显示标记列表动作
-        show_markers_action = marker_menu.addAction("📋 显示标记列表")
-        show_markers_action.triggered.connect(self.show_marker_list)
-
         # 管理预设动作
         manage_presets_action = marker_menu.addAction("⚙️ 管理预设")
         manage_presets_action.triggered.connect(self.open_preset_manager)
@@ -623,23 +619,22 @@ class ModernPlayer(QMainWindow):
         widget = QWidget()
         self.setCentralWidget(widget)
         main_layout = QVBoxLayout(widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # 创建标记列表面板（不添加到主布局，作为独立窗口）
-        self.marker_list_panel = MarkerListPanel()
-        self.marker_list_panel.setWindowFlags(Qt.Window)
-        self.marker_list_panel.setWindowTitle("标记列表")
-        self.marker_list_panel.resize(350, 500)
-
-        # 创建水平布局容器（左侧内容区 + 播放列表）
-        content_layout = QHBoxLayout()
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(10)
+        # 创建水平分割器（左侧内容区 + 右侧面板）
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setHandleWidth(1)
+        splitter.setStyleSheet("""
+            QSplitter::handle {
+                background-color: #ddd;
+            }
+        """)
 
         # 左侧：歌词和控制区域的容器
         self.left_container = QWidget()
         self.left_container.setMinimumWidth(350)
         layout = QVBoxLayout(self.left_container)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(10, 10, 10, 10)
 
         # 歌词视图
         self.lrc_view = LrcView()
@@ -657,14 +652,9 @@ class ModernPlayer(QMainWindow):
         time_layout.addWidget(self.time_label)
         layout.addLayout(time_layout)
 
-        # 控制按钮区域 - 主流播放器样式
+        # 控制按钮区域 - 居中布局
         control_layout = QHBoxLayout()
         control_layout.setSpacing(0)
-
-        # 左侧占位符（与右侧播放列表按钮宽度相同，保持对称）
-        left_spacer = QWidget()
-        left_spacer.setFixedWidth(40)
-        control_layout.addWidget(left_spacer)
 
         # 左侧弹簧 - 推动中央按钮组居中
         control_layout.addStretch()
@@ -768,37 +758,90 @@ class ModernPlayer(QMainWindow):
         # 右侧弹簧 - 推动中央按钮组居中
         control_layout.addStretch()
 
-        # 播放列表按钮（在右侧，与左侧占位符对称）
-        self.btn_playlist = QPushButton("☰")
-        self.btn_playlist.setFixedSize(40, 40)
-        self.btn_playlist.setToolTip("播放列表")
-        self.btn_playlist.clicked.connect(self.show_playlist)
-        self.btn_playlist.setStyleSheet("""
-            QPushButton {
-                font-size: 18px;
-                border: none;
-                border-radius: 20px;
-                background-color: transparent;
-            }
-            QPushButton:hover {
-                background-color: rgba(0, 0, 0, 0.1);
-            }
-        """)
-        control_layout.addWidget(self.btn_playlist)
-
         layout.addLayout(control_layout)
 
-        # 将左侧容器添加到水平布局
-        content_layout.addWidget(self.left_container)
+        # 将左侧容器添加到分割器
+        splitter.addWidget(self.left_container)
 
-        # 右侧：播放列表面板（侧边展开，默认隐藏）
+        # 右侧：面板容器（标记列表 + 播放列表切换）
+        right_panel = QWidget()
+        right_panel.setMinimumWidth(250)
+        right_panel_layout = QVBoxLayout(right_panel)
+        right_panel_layout.setContentsMargins(0, 0, 0, 0)
+        right_panel_layout.setSpacing(0)
+
+        # 切换按钮区域
+        switch_layout = QHBoxLayout()
+        switch_layout.setContentsMargins(0, 0, 0, 0)
+        switch_layout.setSpacing(0)
+
+        # 标记列表按钮
+        self.btn_show_markers = QPushButton("📋 标记")
+        self.btn_show_markers.setCheckable(True)
+        self.btn_show_markers.setChecked(False)
+        self.btn_show_markers.clicked.connect(lambda: self.switch_right_panel(0))
+        self.btn_show_markers.setStyleSheet("""
+            QPushButton {
+                padding: 8px;
+                border: none;
+                background-color: transparent;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 0.05);
+            }
+            QPushButton:checked {
+                background-color: rgba(52, 152, 219, 0.1);
+                border-bottom: 2px solid #3498db;
+                font-weight: bold;
+            }
+        """)
+        switch_layout.addWidget(self.btn_show_markers)
+
+        # 播放列表按钮
+        self.btn_show_playlist = QPushButton("🎵 播放列表")
+        self.btn_show_playlist.setCheckable(True)
+        self.btn_show_playlist.setChecked(True)
+        self.btn_show_playlist.clicked.connect(lambda: self.switch_right_panel(1))
+        self.btn_show_playlist.setStyleSheet("""
+            QPushButton {
+                padding: 8px;
+                border: none;
+                background-color: transparent;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 0.05);
+            }
+            QPushButton:checked {
+                background-color: rgba(52, 152, 219, 0.1);
+                border-bottom: 2px solid #3498db;
+                font-weight: bold;
+            }
+        """)
+        switch_layout.addWidget(self.btn_show_playlist)
+
+        right_panel_layout.addLayout(switch_layout)
+
+        # 创建标记列表面板
+        self.marker_list_panel = MarkerListPanel()
+
+        # 创建播放列表面板
         self.playlist_panel = PlaylistPanel()
-        self.playlist_panel.setFixedWidth(350)  # 固定宽度
-        self.playlist_panel.hide()
-        content_layout.addWidget(self.playlist_panel)
 
-        # 将水平布局添加到主布局
-        main_layout.addLayout(content_layout)
+        # 将两个面板添加到布局（初始只显示播放列表）
+        right_panel_layout.addWidget(self.marker_list_panel)
+        right_panel_layout.addWidget(self.playlist_panel)
+        self.marker_list_panel.hide()
+
+        splitter.addWidget(right_panel)
+
+        # 设置分割器初始比例（左侧占2/3，右侧占1/3）
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 1)
+
+        # 将分割器添加到主布局
+        main_layout.addWidget(splitter)
 
         # 创建弹出音量面板
         self.volume_popup = QWidget(self, Qt.Popup | Qt.FramelessWindowHint)
@@ -966,53 +1009,25 @@ class ModernPlayer(QMainWindow):
         # 重新加载标记数据到进度条
         self.slider._reload_markers()
 
-    def show_marker_list(self):
-        """显示标记列表面板"""
-        self.marker_list_panel.show()
-        self.marker_list_panel.raise_()
-        self.marker_list_panel.activateWindow()
-
-    def show_playlist(self):
-        """切换播放列表的显示/隐藏"""
-        if self.playlist_panel.isVisible():
-            # 隐藏播放列表
-            playlist_width = self.playlist_panel.width()
-
-            # 隐藏面板
+    def switch_right_panel(self, panel_index):
+        """切换右侧面板显示
+        Args:
+            panel_index: 0=标记列表, 1=播放列表
+        """
+        if panel_index == 0:
+            # 显示标记列表
+            self.btn_show_markers.setChecked(True)
+            self.btn_show_playlist.setChecked(False)
+            self.marker_list_panel.show()
             self.playlist_panel.hide()
-
-            # 缩小窗口宽度
-            current_width = self.width()
-            self.left_container.setFixedWidth(self.left_container.width())
-            self.setFixedWidth(current_width - playlist_width - 10)
-            self.left_container.setMinimumWidth(350)
-            self.left_container.setMaximumWidth(16777215)
-            self.setMinimumWidth(370)
-            self.setMaximumWidth(16777215)
-
         else:
-            self.playlist_panel.set_playlist(self.audio_files, self.current_index)
-            playlist_width = 360  # 播放列表加间隔的固定宽度
-
-            # 获取当前窗口几何信息
-            current_width = self.width()
-            current_x = self.x()
-
-            # 获取屏幕可用宽度
-            screen = QApplication.desktop().availableGeometry(self)
-            screen_right = screen.x() + screen.width()
-
-            # 计算新宽度
-            new_width = current_width + playlist_width
-
-            # 检查窗口右边界是否会超出屏幕
-            if current_x + new_width <= screen_right:
-                self.setFixedWidth(new_width)
-                self.setMinimumWidth(720)
-                self.setMaximumWidth(16777215)
-
+            # 显示播放列表
+            self.btn_show_markers.setChecked(False)
+            self.btn_show_playlist.setChecked(True)
+            self.marker_list_panel.hide()
             self.playlist_panel.show()
-            
+            # 更新播放列表
+            self.playlist_panel.set_playlist(self.audio_files, self.current_index)
 
     def toggle_volume_slider(self):
         """切换音量面板的显示/隐藏"""
