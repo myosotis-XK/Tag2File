@@ -121,7 +121,7 @@ class MarkerListPanel(QListWidget):
 
     def show_context_menu(self, position):
         """显示右键菜单"""
-        item = self.marker_list.itemAt(position)
+        item = self.itemAt(position)
         if not item:
             return
 
@@ -135,7 +135,7 @@ class MarkerListPanel(QListWidget):
         edit_action = menu.addAction("📝 编辑")
         delete_action = menu.addAction("🗑️ 删除")
 
-        action = menu.exec_(self.marker_list.mapToGlobal(position))
+        action = menu.exec_(self.mapToGlobal(position))
 
         if action == jump_action:
             self.marker_clicked.emit(marker['id'])

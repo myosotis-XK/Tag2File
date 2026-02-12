@@ -16,6 +16,7 @@ from src.core.DictManage import DictManage
 from .marker_list_panel import MarkerListPanel
 from .marker_preset_manager import MarkerPresetManager
 from .playlist_panel import PlaylistPanel
+from .quick_marker_creator import QuickMarkerCreator
 
 # 格式化毫秒为 00:00 格式
 def format_time(ms):
@@ -765,7 +766,7 @@ class ModernPlayer(QMainWindow):
 
         # 右侧：面板容器（标记列表 + 播放列表切换）
         right_panel = QWidget()
-        right_panel.setMinimumWidth(250)
+        right_panel.setMinimumWidth(280)
         right_panel_layout = QVBoxLayout(right_panel)
         right_panel_layout.setContentsMargins(0, 0, 0, 0)
         right_panel_layout.setSpacing(0)
@@ -778,7 +779,7 @@ class ModernPlayer(QMainWindow):
         # 标记列表按钮
         self.btn_show_markers = QPushButton("📋 标记")
         self.btn_show_markers.setCheckable(True)
-        self.btn_show_markers.setChecked(False)
+        self.btn_show_markers.setChecked(True)
         self.btn_show_markers.clicked.connect(lambda: self.switch_right_panel(0))
         self.btn_show_markers.setStyleSheet("""
             QPushButton {
@@ -799,9 +800,9 @@ class ModernPlayer(QMainWindow):
         switch_layout.addWidget(self.btn_show_markers)
 
         # 播放列表按钮
-        self.btn_show_playlist = QPushButton("🎵 播放列表")
+        self.btn_show_playlist = QPushButton("☰ 播放列表")
         self.btn_show_playlist.setCheckable(True)
-        self.btn_show_playlist.setChecked(True)
+        self.btn_show_playlist.setChecked(False)
         self.btn_show_playlist.clicked.connect(lambda: self.switch_right_panel(1))
         self.btn_show_playlist.setStyleSheet("""
             QPushButton {
@@ -826,13 +827,18 @@ class ModernPlayer(QMainWindow):
         # 创建标记列表面板
         self.marker_list_panel = MarkerListPanel()
 
+        # 创建快速标记创建区域
+        self.quick_marker_creator = QuickMarkerCreator()
+        self.quick_marker_creator.marker_created.connect(self.on_marker_changed)
+
         # 创建播放列表面板
         self.playlist_panel = PlaylistPanel()
 
-        # 将两个面板添加到布局（初始只显示播放列表）
+        # 将组件添加到布局（初始只显示播放列表）
+        right_panel_layout.addWidget(self.quick_marker_creator)
         right_panel_layout.addWidget(self.marker_list_panel)
         right_panel_layout.addWidget(self.playlist_panel)
-        self.marker_list_panel.hide()
+        self.playlist_panel.hide()
 
         splitter.addWidget(right_panel)
 
@@ -908,6 +914,7 @@ class ModernPlayer(QMainWindow):
             # 设置音频文件路径（用于后续创建标记）
             self.slider.set_audio_file_path(normalized_path)
             self.marker_list_panel.set_audio_file_path(normalized_path)
+            self.quick_marker_creator.set_audio_file_path(normalized_path)
 
             # 加载已有标记
             markers_data = self.DictManage.get_audio_markers(normalized_path)
@@ -963,6 +970,10 @@ class ModernPlayer(QMainWindow):
         self.slider.setRange(0, ms)
         self.update_time_label(self.player.position(), ms)
 
+        # 设置快速标记创建器的最大时长限制
+        self.quick_marker_creator.start_time_input.set_max_duration(ms)
+        self.quick_marker_creator.end_time_input.set_max_duration(ms)
+
     def update_time_label(self, current_ms, total_ms):
         """更新时间显示标签"""
         current_time = format_time(current_ms)
@@ -1008,6 +1019,8 @@ class ModernPlayer(QMainWindow):
         """标记被编辑或删除后刷新进度条显示"""
         # 重新加载标记数据到进度条
         self.slider._reload_markers()
+        # 刷新标记列表面板
+        self.marker_list_panel.load_markers()
 
     def switch_right_panel(self, panel_index):
         """切换右侧面板显示
@@ -1018,12 +1031,14 @@ class ModernPlayer(QMainWindow):
             # 显示标记列表
             self.btn_show_markers.setChecked(True)
             self.btn_show_playlist.setChecked(False)
+            self.quick_marker_creator.show()
             self.marker_list_panel.show()
             self.playlist_panel.hide()
         else:
             # 显示播放列表
             self.btn_show_markers.setChecked(False)
             self.btn_show_playlist.setChecked(True)
+            self.quick_marker_creator.hide()
             self.marker_list_panel.hide()
             self.playlist_panel.show()
             # 更新播放列表
