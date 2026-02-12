@@ -139,9 +139,7 @@ class DataAPI():
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT UNIQUE NOT NULL,
                         color TEXT NOT NULL,
-                        emoji TEXT,
-                        order_index INTEGER NOT NULL,
-                        is_builtin INTEGER DEFAULT 0
+                        order_index INTEGER NOT NULL
                     );
                 """)
 
@@ -875,23 +873,22 @@ class DataAPI():
     def get_all_marker_presets(self):
         """
         获取所有标记预设
-        :return: [(id, name, color, emoji, order_index, is_builtin), ...]
+        :return: [(id, name, color, order_index), ...]
         """
         with self._lock, self.conn:
             cur = self.conn.cursor()
             cur.execute(
-                "SELECT id, name, color, emoji, order_index, is_builtin FROM marker_preset ORDER BY order_index"
+                "SELECT id, name, color, order_index FROM marker_preset ORDER BY order_index"
             )
             presets = cur.fetchall()
             cur.close()
             return presets
 
-    def create_marker_preset(self, name: str, color: str, emoji: str = ""):
+    def create_marker_preset(self, name: str, color: str):
         """
         创建自定义标记预设
         :param name: 预设名称
         :param color: 颜色（十六进制）
-        :param emoji: 可选的 emoji 图标
         :return: 新创建的预设 ID
         """
         with self._lock, self.conn:
@@ -905,10 +902,10 @@ class DataAPI():
             # 插入新预设
             cur.execute(
                 """
-                INSERT INTO marker_preset (name, color, emoji, order_index, is_builtin)
-                VALUES (?, ?, ?, ?, 0)
+                INSERT INTO marker_preset (name, color, order_index)
+                VALUES (?, ?, ?)
                 """,
-                (name, color, emoji, next_order)
+                (name, color, next_order)
             )
             preset_id = cur.lastrowid
             cur.close()
@@ -917,23 +914,11 @@ class DataAPI():
 
     def delete_marker_preset(self, preset_id: int):
         """
-        删除非内置预设
+        删除预设
         :param preset_id: 预设 ID
         """
         with self._lock, self.conn:
-            # 检查是否为内置预设
             cur = self.conn.cursor()
-            cur.execute("SELECT is_builtin FROM marker_preset WHERE id=?", (preset_id,))
-            row = cur.fetchone()
-
-            if not row:
-                cur.close()
-                return
-
-            if row[0] == 1:
-                cur.close()
-                raise ValueError("Cannot delete builtin preset")
-
             # 删除预设
             self.conn.execute("DELETE FROM marker_preset WHERE id=?", (preset_id,))
             cur.close()
@@ -962,17 +947,13 @@ class DataAPI():
         with self._lock, self.conn:
             cur = self.conn.cursor()
 
-            # 检查是否为内置预设
-            cur.execute("SELECT is_builtin FROM marker_preset WHERE id=?", (preset_id,))
+            # 检查预设是否存在
+            cur.execute("SELECT id FROM marker_preset WHERE id=?", (preset_id,))
             row = cur.fetchone()
 
             if not row:
                 cur.close()
                 raise ValueError("Preset not found")
-
-            if row[0] == 1:
-                cur.close()
-                raise ValueError("Cannot update builtin preset")
 
             # 更新预设
             cur.execute(
@@ -1208,7 +1189,7 @@ class DictManage():
     def get_all_marker_presets(self):
         """
         获取所有音频标记预设
-        :return: 预设列表 [{'id', 'name', 'color', 'emoji', 'order_index', 'is_builtin'}, ...]
+        :return: 预设列表 [{'id', 'name', 'color', 'order_index'}, ...]
         """
         presets = self.dataAPI.get_all_marker_presets()
         return presets if presets else []

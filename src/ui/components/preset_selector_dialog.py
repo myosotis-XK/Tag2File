@@ -17,7 +17,7 @@ class PresetSelectorDialog(QDialog):
         初始化预设选择对话框
 
         Args:
-            presets: 预设列表 [(id, name, color, emoji, order_index, is_builtin), ...]
+            presets: 预设列表 [(id, name, color, order_index), ...]
             current_preset_id: 当前选中的预设ID
             parent: 父窗口
         """
@@ -26,7 +26,6 @@ class PresetSelectorDialog(QDialog):
         self.selected_preset_id = current_preset_id
         self.selected_color = None
         self.selected_name = None
-        self.selected_emoji = None
 
         self.setWindowTitle("选择预设类型")
         self.setModal(True)
@@ -98,12 +97,11 @@ class PresetSelectorDialog(QDialog):
         self.manage_presets_btn.clicked.connect(self._on_manage_presets_clicked)
         layout.addWidget(self.manage_presets_btn)
 
-    def _on_preset_selected_and_close(self, preset_id, color, name, emoji):
+    def _on_preset_selected_and_close(self, preset_id, color, name):
         """预设选中后立即关闭对话框"""
         self.selected_preset_id = preset_id
         self.selected_color = color
         self.selected_name = name
-        self.selected_emoji = emoji
 
         # 立即接受并关闭
         self.accept()
@@ -122,26 +120,24 @@ class PresetSelectorDialog(QDialog):
             # 这里暂时不实现，让用户手动再次点击预设按钮
             pass
 
-    def on_preset_selected(self, preset_id, color, name, emoji):
+    def on_preset_selected(self, preset_id, color, name):
         """预设选中回调"""
         self.selected_preset_id = preset_id
         self.selected_color = color
         self.selected_name = name
-        self.selected_emoji = emoji
 
     def on_selection_cleared(self):
         """选中清除回调"""
         self.selected_preset_id = None
         self.selected_color = None
         self.selected_name = None
-        self.selected_emoji = None
 
     def get_selected_data(self):
         """
         获取选中的预设数据
 
         Returns:
-            dict or None: {'id': int, 'color': str, 'name': str, 'emoji': str} 或 None（未选中）
+            dict or None: {'id': int, 'color': str, 'name': str} 或 None（未选中）
         """
         if self.selected_preset_id is None:
             return None
@@ -149,8 +145,7 @@ class PresetSelectorDialog(QDialog):
         return {
             'id': self.selected_preset_id,
             'color': self.selected_color,
-            'name': self.selected_name,
-            'emoji': self.selected_emoji
+            'name': self.selected_name
         }
 
 
@@ -170,11 +165,11 @@ if __name__ == "__main__":
 
     # 模拟预设数据
     test_presets = [
-        (1, "精彩片段", "#e74c3c", "🔥", 0, 1),
-        (2, "需要剪辑", "#f39c12", "✂️", 1, 1),
-        (3, "重要对话", "#3498db", "💬", 2, 1),
-        (4, "音乐高潮", "#9b59b6", "🎵", 3, 1),
-        (5, "待优化", "#95a5a6", "⚠️", 4, 1),
+        (1, "精彩片段", "#e74c3c", 0),
+        (2, "需要剪辑", "#f39c12", 1),
+        (3, "重要对话", "#3498db", 2),
+        (4, "音乐高潮", "#9b59b6", 3),
+        (5, "待优化", "#95a5a6", 4),
     ]
 
     # 测试按钮
@@ -191,8 +186,8 @@ if __name__ == "__main__":
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_selected_data()
             if data:
-                print(f"选中预设: {data['emoji']} {data['name']} (颜色: {data['color']})")
-                test_btn.setText(f"{data['emoji']} {data['name']}")
+                print(f"选中预设: {data['name']} (颜色: {data['color']})")
+                test_btn.setText(data['name'])
                 test_btn.setStyleSheet(f"background-color: {data['color']}; color: white;")
             else:
                 print("未选择预设")

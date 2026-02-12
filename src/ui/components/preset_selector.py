@@ -3,7 +3,7 @@ PresetSelector 组件 - 预设类型选择器
 
 功能特性：
 - 水平排列的可选预设按钮
-- 支持预设颜色显示和emoji
+- 支持预设颜色显示
 - 单选模式（QButtonGroup）
 - 提供选中回调信号
 """
@@ -15,8 +15,8 @@ from PyQt5.QtCore import pyqtSignal
 class PresetSelector(QWidget):
     """预设选择器组件"""
 
-    # 信号：当预设被选中时发出 (preset_id, color, name, emoji)
-    preset_selected = pyqtSignal(int, str, str, str)
+    # 信号：当预设被选中时发出 (preset_id, color, name)
+    preset_selected = pyqtSignal(int, str, str)
     # 信号：当取消选中时发出
     selection_cleared = pyqtSignal()
 
@@ -55,7 +55,7 @@ class PresetSelector(QWidget):
         加载预设列表
 
         Args:
-            presets: 预设列表 [(id, name, color, emoji, order_index, is_builtin), ...]
+            presets: 预设列表 [(id, name, color, order_index), ...]
         """
         # 清空现有按钮
         self.clear_presets()
@@ -66,8 +66,8 @@ class PresetSelector(QWidget):
             return
 
         # 创建预设按钮
-        for preset_id, name, color, emoji, order_index, is_builtin in presets:
-            btn = QPushButton(f"{emoji} {name}" if emoji else name)
+        for preset_id, name, color, order_index in presets:
+            btn = QPushButton(name)
             btn.setCheckable(True)
             btn.setMinimumHeight(35)
             btn.setStyleSheet(f"""
@@ -91,12 +91,11 @@ class PresetSelector(QWidget):
             btn.setProperty('preset_id', preset_id)
             btn.setProperty('preset_color', color)
             btn.setProperty('preset_name', name)
-            btn.setProperty('preset_emoji', emoji or "")
 
             # 连接点击事件
             btn.clicked.connect(
-                lambda checked, pid=preset_id, c=color, n=name, e=emoji or "":
-                self._on_button_clicked(checked, pid, c, n, e)
+                lambda checked, pid=preset_id, c=color, n=name:
+                self._on_button_clicked(checked, pid, c, n)
             )
 
             self.preset_layout.addWidget(btn)
@@ -114,11 +113,11 @@ class PresetSelector(QWidget):
         self.presets.clear()
         self.selected_preset_id = None
 
-    def _on_button_clicked(self, checked, preset_id, color, name, emoji):
+    def _on_button_clicked(self, checked, preset_id, color, name):
         """预设按钮点击回调"""
         if checked:
             self.selected_preset_id = preset_id
-            self.preset_selected.emit(preset_id, color, name, emoji)
+            self.preset_selected.emit(preset_id, color, name)
         else:
             self.selected_preset_id = None
             self.selection_cleared.emit()
@@ -178,11 +177,11 @@ if __name__ == "__main__":
 
     # 模拟预设数据
     test_presets = [
-        (1, "精彩片段", "#e74c3c", "🔥", 0, 1),
-        (2, "需要剪辑", "#f39c12", "✂️", 1, 1),
-        (3, "重要对话", "#3498db", "💬", 2, 1),
-        (4, "音乐高潮", "#9b59b6", "🎵", 3, 1),
-        (5, "待优化", "#95a5a6", "⚠️", 4, 1),
+        (1, "精彩片段", "#e74c3c", 0),
+        (2, "需要剪辑", "#f39c12", 1),
+        (3, "重要对话", "#3498db", 2),
+        (4, "音乐高潮", "#9b59b6", 3),
+        (5, "待优化", "#95a5a6", 4),
     ]
 
     selector.load_presets(test_presets)
@@ -192,8 +191,8 @@ if __name__ == "__main__":
     status_label.setStyleSheet("padding: 10px; background-color: #ecf0f1; border-radius: 3px;")
 
     # 连接信号
-    def on_preset_selected(preset_id, color, name, emoji):
-        status_label.setText(f"选中预设: {emoji} {name} (ID: {preset_id}, 颜色: {color})")
+    def on_preset_selected(preset_id, color, name):
+        status_label.setText(f"选中预设: {name} (ID: {preset_id}, 颜色: {color})")
         status_label.setStyleSheet(f"padding: 10px; background-color: {color}; color: white; border-radius: 3px;")
 
     def on_selection_cleared():

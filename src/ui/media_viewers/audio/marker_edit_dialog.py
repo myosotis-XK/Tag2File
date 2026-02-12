@@ -21,7 +21,7 @@ class MarkerEditDialog(QDialog):
 
         :param marker_data: 现有标记数据字典 {'type', 'time'/'start'/'end', 'label', 'color', 'preset_id'}
                            或 None（新建标记）
-        :param presets: 预设列表 [(id, name, color, emoji, order_index, is_builtin), ...]
+        :param presets: 预设列表 [(id, name, color, order_index), ...]
         :param max_duration_ms: 音频最大时长（毫秒），用于时间输入验证
         :param parent: 父窗口
         """
@@ -51,8 +51,8 @@ class MarkerEditDialog(QDialog):
             self.preset_button_group = QButtonGroup(self)
             self.preset_buttons = []
 
-            for preset_id, name, color, emoji, order_index, is_builtin in self.presets:
-                btn = QPushButton(f"{emoji} {name}" if emoji else name)
+            for preset_id, name, color, order_index in self.presets:
+                btn = QPushButton(name)
                 btn.setCheckable(True)
                 btn.setMinimumHeight(35)
                 btn.setStyleSheet(f"""
@@ -211,12 +211,11 @@ class MarkerEditDialog(QDialog):
         self.color_btn.setStyleSheet(f"background-color: {color}; border: 1px solid #555;")
         self.color_label.setText(color)
 
-        # 自动填充注释：查找对应预设的名称和emoji
-        for p_id, name, p_color, emoji, order_index, is_builtin in self.presets:
+        # 自动填充注释：查找对应预设的名称
+        for p_id, name, p_color, order_index in self.presets:
             if p_id == preset_id:
                 # 每次点击预设时都自动填充注释
-                preset_text = f"{emoji} {name}" if emoji else name
-                self.text_edit.setPlainText(preset_text)
+                self.text_edit.setPlainText(name)
                 break
 
     def choose_color(self):
@@ -306,11 +305,11 @@ if __name__ == "__main__":
 
     # 模拟预设数据
     test_presets = [
-        (1, "精彩片段", "#e74c3c", "🔥", 0, 1),
-        (2, "需要剪辑", "#f39c12", "✂️", 1, 1),
-        (3, "重要对话", "#3498db", "💬", 2, 1),
-        (4, "音乐高潮", "#9b59b6", "🎵", 3, 1),
-        (5, "待优化", "#95a5a6", "⚠️", 4, 1),
+        (1, "精彩片段", "#e74c3c", 0),
+        (2, "需要剪辑", "#f39c12", 1),
+        (3, "重要对话", "#3498db", 2),
+        (4, "音乐高潮", "#9b59b6", 3),
+        (5, "待优化", "#95a5a6", 4),
     ]
 
     # 测试创建标记

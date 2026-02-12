@@ -206,17 +206,16 @@ class QuickMarkerCreator(QWidget):
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_selected_data()
             if data:
-                self.on_preset_selected(data['id'], data['color'], data['name'], data['emoji'])
+                self.on_preset_selected(data['id'], data['color'], data['name'])
 
-    def on_preset_selected(self, preset_id, color, name, emoji):
+    def on_preset_selected(self, preset_id, color, name):
         """预设选择回调"""
         self.current_color = color
         self.selected_preset_id = preset_id
         self.update_color_button()
 
         # 自动填充注释
-        preset_text = f"{emoji} {name}" if emoji else name
-        self.label_input.setText(preset_text)
+        self.label_input.setText(name)
 
     def choose_color(self):
         """打开颜色选择器"""

@@ -162,7 +162,7 @@ class PresetListItemWidget(QWidget):
         初始化列表项组件
 
         Args:
-            preset_data: 预设数据 {'id', 'name', 'color', 'emoji', 'is_builtin'}
+            preset_data: 预设数据 {'id', 'name', 'color'}
         """
         super().__init__(parent)
 
@@ -173,8 +173,7 @@ class PresetListItemWidget(QWidget):
         layout.setSpacing(10)
 
         # 预设按钮（与 PresetSelector 样式一致）
-        emoji_text = f"{preset_data['emoji']} " if preset_data.get('emoji') else ""
-        self.preset_btn = QPushButton(f"{emoji_text}{preset_data['name']}")
+        self.preset_btn = QPushButton(preset_data['name'])
         self.preset_btn.setMinimumHeight(35)
         self.preset_btn.setStyleSheet(f"""
             QPushButton {{
@@ -191,21 +190,6 @@ class PresetListItemWidget(QWidget):
             }}
         """)
         layout.addWidget(self.preset_btn, 1)
-
-        # 内置标签
-        if preset_data['is_builtin']:
-            builtin_label = QLabel("内置")
-            builtin_label.setStyleSheet("""
-                QLabel {
-                    color: #7f8c8d;
-                    font-size: 11px;
-                    background-color: #ecf0f1;
-                    border-radius: 3px;
-                    padding: 4px 8px;
-                }
-            """)
-            builtin_label.setFixedHeight(25)
-            layout.addWidget(builtin_label)
 
 
 class MarkerPresetManager(QDialog):
@@ -232,7 +216,7 @@ class MarkerPresetManager(QDialog):
         title_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #2c3e50;")
         layout.addWidget(title_label)
 
-        info_label = QLabel("💡 内置预设不可删除和编辑，可拖动调整预设显示顺序")
+        info_label = QLabel("💡 可拖动调整预设显示顺序")
         info_label.setStyleSheet("font-size: 11px; color: #7f8c8d; padding: 5px;")
         layout.addWidget(info_label)
 
@@ -349,7 +333,7 @@ class MarkerPresetManager(QDialog):
 
         presets = self.dict_manage.dataAPI.get_all_marker_presets()
 
-        for preset_id, name, color, emoji, order_index, is_builtin in presets:
+        for preset_id, name, color, order_index in presets:
             # 创建列表项
             item = QListWidgetItem()
 
@@ -358,8 +342,6 @@ class MarkerPresetManager(QDialog):
                 'id': preset_id,
                 'name': name,
                 'color': color,
-                'emoji': emoji,
-                'is_builtin': is_builtin,
                 'order_index': order_index
             }
             item.setData(Qt.UserRole, preset_data)
@@ -381,11 +363,10 @@ class MarkerPresetManager(QDialog):
             data = dialog.get_data()
 
             try:
-                # 添加到数据库（emoji 留空）
+                # 添加到数据库
                 self.dict_manage.dataAPI.create_marker_preset(
                     data['name'],
-                    data['color'],
-                    ""  # emoji 为空字符串
+                    data['color']
                 )
 
                 # 刷新列表
@@ -399,12 +380,6 @@ class MarkerPresetManager(QDialog):
     def edit_preset_from_item(self, item):
         """从列表项双击编辑"""
         preset_data = item.data(Qt.UserRole)
-
-        # 检查是否是内置预设
-        if preset_data['is_builtin']:
-            QMessageBox.warning(self, "警告", "内置预设不能编辑")
-            return
-
         self._edit_preset_data(preset_data)
 
     def edit_preset(self):
@@ -416,12 +391,6 @@ class MarkerPresetManager(QDialog):
             return
 
         preset_data = current_item.data(Qt.UserRole)
-
-        # 检查是否是内置预设
-        if preset_data['is_builtin']:
-            QMessageBox.warning(self, "警告", "内置预设不能编辑")
-            return
-
         self._edit_preset_data(preset_data)
 
     def _edit_preset_data(self, preset_data):
@@ -456,11 +425,6 @@ class MarkerPresetManager(QDialog):
             return
 
         preset_data = current_item.data(Qt.UserRole)
-
-        # 检查是否是内置预设
-        if preset_data['is_builtin']:
-            QMessageBox.warning(self, "警告", "内置预设不能删除")
-            return
 
         # 确认删除
         reply = QMessageBox.question(
