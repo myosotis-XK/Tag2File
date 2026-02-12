@@ -1,6 +1,8 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-                             QTextEdit, QGroupBox, QColorDialog, QButtonGroup)
+                             QTextEdit, QGroupBox, QColorDialog, QButtonGroup, QMessageBox)
 from PyQt5.QtGui import QColor
+from PyQt5.QtCore import Qt
+from src.ui.components.time_input import TimeInput
 
 
 def format_time(ms):
@@ -13,13 +15,14 @@ def format_time(ms):
 class MarkerEditDialog(QDialog):
     """标记编辑对话框"""
 
-    def __init__(self, marker_data=None, presets=None, parent=None):
+    def __init__(self, marker_data=None, presets=None, max_duration_ms=None, parent=None):
         """
         初始化标记编辑对话框
 
         :param marker_data: 现有标记数据字典 {'type', 'time'/'start'/'end', 'label', 'color', 'preset_id'}
                            或 None（新建标记）
         :param presets: 预设列表 [(id, name, color, emoji, order_index, is_builtin), ...]
+        :param max_duration_ms: 音频最大时长（毫秒），用于时间输入验证
         :param parent: 父窗口
         """
         super().__init__(parent)
@@ -27,9 +30,10 @@ class MarkerEditDialog(QDialog):
         self.presets = presets or []
         self.current_color = self.marker_data.get('color', '#3498db')
         self.selected_preset_id = self.marker_data.get('preset_id')
+        self.max_duration_ms = max_duration_ms
 
         self.setWindowTitle("编辑标记" if marker_data else "创建标记")
-        self.resize(450, 400)
+        self.resize(450, 450)
 
         self.init_ui()
 
@@ -114,21 +118,61 @@ class MarkerEditDialog(QDialog):
 
         layout.addWidget(self.text_edit)
 
-        # 4. 时间信息显示（仅在编辑模式显示）
-        if self.marker_data:
-            time_info = QLabel()
-            time_info.setStyleSheet("color: #555; font-size: 12px; padding: 5px;")
+        # 4. 时间编辑区域
+        time_group = QGroupBox("时间设置")
+        time_layout = QVBoxLayout()
+        time_layout.setSpacing(10)
 
+        # 时间输入行
+        time_input_layout = QHBoxLayout()
+        time_input_layout.setSpacing(8)
+
+        # 开始时间标签和输入
+        start_label = QLabel("开始:")
+        start_label.setFixedWidth(40)
+        time_input_layout.addWidget(start_label)
+
+        self.start_time_input = TimeInput(max_duration_ms=self.max_duration_ms)
+        time_input_layout.addWidget(self.start_time_input)
+
+        # 分隔符
+        separator = QLabel("-")
+        separator.setStyleSheet("color: #7f8c8d; font-weight: bold; font-size: 14px;")
+        separator.setAlignment(Qt.AlignCenter)
+        time_input_layout.addWidget(separator)
+
+        # 结束时间标签和输入
+        end_label = QLabel("结束:")
+        end_label.setFixedWidth(40)
+        time_input_layout.addWidget(end_label)
+
+        self.end_time_input = TimeInput(max_duration_ms=self.max_duration_ms)
+        time_input_layout.addWidget(self.end_time_input)
+
+        time_input_layout.addStretch()
+
+        time_layout.addLayout(time_input_layout)
+
+        # 提示文本
+        tip_label = QLabel("💡 提示: 只填开始时间为点标记，填写开始和结束时间为范围标记")
+        tip_label.setStyleSheet("color: #7f8c8d; font-size: 11px;")
+        tip_label.setWordWrap(True)
+        time_layout.addWidget(tip_label)
+
+        time_group.setLayout(time_layout)
+        layout.addWidget(time_group)
+
+        # 如果是编辑模式，预填充时间数据
+        if self.marker_data:
             marker_type = self.marker_data.get('type', 0)
             if marker_type == 0:  # 点标记
                 time_ms = self.marker_data.get('time', 0)
-                time_info.setText(f"📍 时间点: {format_time(time_ms)}")
+                self.start_time_input.set_from_milliseconds(time_ms)
             else:  # 范围标记
                 start_ms = self.marker_data.get('start', 0)
                 end_ms = self.marker_data.get('end', 0)
-                time_info.setText(f"📏 时间范围: {format_time(start_ms)} - {format_time(end_ms)}")
-
-            layout.addWidget(time_info)
+                self.start_time_input.set_from_milliseconds(start_ms)
+                self.end_time_input.set_from_milliseconds(end_ms)
 
         # 5. 按钮区
         layout.addStretch()
@@ -192,17 +236,65 @@ class MarkerEditDialog(QDialog):
                     checked_btn.setChecked(False)
             self.selected_preset_id = None
 
+    def accept(self):
+        """保存前验证时间输入"""
+        # 获取时间值
+        start_ms = self.start_time_input.get_milliseconds()
+        end_ms = self.end_time_input.get_milliseconds()
+
+        # 至少需要一个时间
+        if start_ms is None and end_ms is None:
+            QMessageBox.warning(self, "错误", "请至少输入一个时间")
+            return
+
+        # 如果是范围标记，验证时间顺序
+        if end_ms is not None:
+            if start_ms is None:
+                start_ms = 0
+            if end_ms < start_ms:
+                QMessageBox.warning(self, "错误", "结束时间不能小于开始时间")
+                return
+
+        # 验证通过，调用父类的accept
+        super().accept()
+
     def get_data(self):
         """
         获取用户输入的数据
 
-        :return: {'label': str, 'color': str, 'preset_id': int or None}
+        :return: {'type': int, 'time'/'start'/'end': int, 'label': str, 'color': str, 'preset_id': int or None}
         """
-        return {
-            'label': self.text_edit.toPlainText().strip(),
-            'color': self.current_color,
-            'preset_id': self.selected_preset_id
-        }
+        # 获取时间
+        start_ms = self.start_time_input.get_milliseconds()
+        end_ms = self.end_time_input.get_milliseconds()
+
+        # 获取注释
+        label = self.text_edit.toPlainText().strip()
+        if not label:
+            label = "未命名标记"
+
+        # 判断标记类型
+        if end_ms is None:
+            # 点标记
+            return {
+                'type': 0,
+                'time': start_ms if start_ms is not None else 0,
+                'label': label,
+                'color': self.current_color,
+                'preset_id': self.selected_preset_id
+            }
+        else:
+            # 范围标记
+            if start_ms is None:
+                start_ms = 0
+            return {
+                'type': 1,
+                'start': start_ms,
+                'end': end_ms,
+                'label': label,
+                'color': self.current_color,
+                'preset_id': self.selected_preset_id
+            }
 
 
 if __name__ == "__main__":

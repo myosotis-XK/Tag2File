@@ -28,6 +28,8 @@ class MarkerListPanel(QListWidget):
         super().__init__(parent)
         self.audio_file_path = audio_file_path
         self.markers_data = []  # 存储从数据库加载的标记数据
+        self.max_duration_ms = None  # 音频最大时长
+        self.main_window = None  # 主窗口引用
 
         self.init_ui()
         if self.audio_file_path:
@@ -68,6 +70,14 @@ class MarkerListPanel(QListWidget):
         self.audio_file_path = path
         self.load_markers()
 
+    def set_max_duration(self, duration_ms):
+        """设置音频最大时长"""
+        self.max_duration_ms = duration_ms
+
+    def set_main_window(self, window):
+        """设置主窗口引用"""
+        self.main_window = window
+
     def load_markers(self):
         """从数据库加载标记"""
         self.clear()
@@ -91,11 +101,11 @@ class MarkerListPanel(QListWidget):
                 # 格式化显示文本
                 if marker['type'] == 0:  # 点标记
                     time_str = format_time(marker['time'])
-                    display_text = f"📍 {time_str} - {marker['label']}"
+                    display_text = f"{time_str} - {marker['label']}"
                 else:  # 范围标记
                     start_str = format_time(marker['start'])
                     end_str = format_time(marker['end'])
-                    display_text = f"📏 {start_str}-{end_str} - {marker['label']}"
+                    display_text = f"{start_str}-{end_str} - {marker['label']}"
 
                 item.setText(display_text)
 
@@ -131,51 +141,20 @@ class MarkerListPanel(QListWidget):
 
         menu = QMenu(self)
 
-        jump_action = menu.addAction("▶️ 跳转到此位置")
         edit_action = menu.addAction("📝 编辑")
         delete_action = menu.addAction("🗑️ 删除")
 
         action = menu.exec_(self.mapToGlobal(position))
 
-        if action == jump_action:
-            self.marker_clicked.emit(marker['id'])
-        elif action == edit_action:
+        if action == edit_action:
             self.edit_marker(marker)
         elif action == delete_action:
             self.delete_marker(marker)
 
     def edit_marker(self, marker):
-        """编辑标记"""
-        from .marker_edit_dialog import MarkerEditDialog
-        from src.core.DictManage import DictManage
-
-        # 获取预设列表
-        dict_manage = DictManage()
-        presets = dict_manage.dataAPI.get_all_marker_presets()
-
-        # 打开编辑对话框
-        dialog = MarkerEditDialog(marker_data=marker, presets=presets, parent=self)
-        if dialog.exec_() == MarkerEditDialog.Accepted:
-            result = dialog.get_data()
-
-            try:
-                # 更新数据库
-                dict_manage.update_audio_marker(
-                    self.audio_file_path,
-                    marker['id'],
-                    label=result['label'],
-                    color=result['color'],
-                    preset_id=result['preset_id']
-                )
-
-                # 刷新列表
-                self.load_markers()
-
-                # 发出编辑信号
-                self.marker_edited.emit(marker['id'])
-
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"更新标记失败:\n{str(e)}")
+        """编辑标记（调用主窗口的统一方法）"""
+        if self.main_window:
+            self.main_window.edit_marker(marker)
 
     def delete_marker(self, marker):
         """删除标记"""

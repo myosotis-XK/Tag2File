@@ -160,6 +160,9 @@ class MarkerDisplayWidget(QWidget):
         # 标记列表面板引用（需要从外部设置）
         self.marker_list_panel = None
 
+        # 主窗口引用（用于调用统一的编辑方法）
+        self.main_window = None
+
     def set_duration(self, duration_ms):
         """设置音频总时长"""
         self.duration_ms = duration_ms
@@ -177,6 +180,10 @@ class MarkerDisplayWidget(QWidget):
     def set_marker_list_panel(self, panel):
         """设置标记列表面板引用"""
         self.marker_list_panel = panel
+
+    def set_main_window(self, window):
+        """设置主窗口引用"""
+        self.main_window = window
 
     def _value_to_pixel(self, val):
         """将时间值转换为像素位置"""
@@ -237,7 +244,12 @@ class MarkerDisplayWidget(QWidget):
         # 获取预设列表
         presets = self.DictManage.get_all_marker_presets()
 
-        dialog = MarkerEditDialog(marker_data=marker_data, presets=presets, parent=self)
+        dialog = MarkerEditDialog(
+            marker_data=marker_data,
+            presets=presets,
+            max_duration_ms=self.duration_ms,
+            parent=self
+        )
         if dialog.exec_() == MarkerEditDialog.Accepted:
             return dialog.get_data()
         return None
@@ -326,7 +338,9 @@ class MarkerDisplayWidget(QWidget):
             action = menu.exec_(event.globalPos())
 
             if action == edit_action:
-                self._edit_marker(marker)
+                # 调用主窗口的统一编辑方法
+                if self.main_window:
+                    self.main_window.edit_marker(marker)
             elif action == delete_action:
                 self._delete_marker(marker)
 
@@ -340,13 +354,28 @@ class MarkerDisplayWidget(QWidget):
         if result:
             normalized_path = self.audio_file_path
 
+            # 构建更新参数
+            update_params = {
+                'label': result['label'],
+                'color': result['color'],
+                'preset_id': result['preset_id']
+            }
+
+            # 根据标记类型添加时间参数
+            if result['type'] == 0:  # 点标记
+                update_params['time'] = result['time']
+                update_params['start'] = None
+                update_params['end'] = None
+            else:  # 范围标记
+                update_params['start'] = result['start']
+                update_params['end'] = result['end']
+                update_params['time'] = None
+
             # 更新数据库
             self.DictManage.update_audio_marker(
                 normalized_path,
                 marker['id'],
-                label=result['label'],
-                color=result['color'],
-                preset_id=result['preset_id']
+                **update_params
             )
 
             # 重新加载标记
@@ -355,6 +384,9 @@ class MarkerDisplayWidget(QWidget):
             # 刷新标记列表面板
             if self.marker_list_panel:
                 self.marker_list_panel.load_markers()
+
+            return True
+        return False
 
     def _delete_marker(self, marker):
         """删除标记"""
@@ -960,7 +992,9 @@ class ModernPlayer(QMainWindow):
             self.slider.set_audio_file_path(normalized_path)
             self.slider.set_quick_marker_creator(self.quick_marker_creator)
             self.slider.set_marker_list_panel(self.marker_list_panel)
+            self.slider.marker_display.set_main_window(self)  # 设置主窗口引用
             self.marker_list_panel.set_audio_file_path(normalized_path)
+            self.marker_list_panel.set_main_window(self)  # 设置主窗口引用
             self.quick_marker_creator.set_audio_file_path(normalized_path)
 
             # 加载已有标记
@@ -1021,6 +1055,9 @@ class ModernPlayer(QMainWindow):
         self.quick_marker_creator.start_time_input.set_max_duration(ms)
         self.quick_marker_creator.end_time_input.set_max_duration(ms)
 
+        # 设置标记列表面板的最大时长限制
+        self.marker_list_panel.set_max_duration(ms)
+
     def update_time_label(self, current_ms, total_ms):
         """更新时间显示标签"""
         current_time = format_time(current_ms)
@@ -1053,7 +1090,7 @@ class ModernPlayer(QMainWindow):
     def on_marker_jump(self, marker_id):
         """跳转到标记位置"""
         # 从标记列表中查找对应标记的时间位置
-        for marker in self.slider.markers:
+        for marker in self.slider.marker_display.markers:
             if marker.get('id') == marker_id:
                 # 跳转到标记位置
                 if marker.get('type') == 0:  # 点标记
@@ -1061,6 +1098,69 @@ class ModernPlayer(QMainWindow):
                 else:  # 范围标记，跳转到起点
                     self.player.setPosition(marker['start'])
                 break
+
+    def edit_marker(self, marker):
+        """
+        统一的标记编辑方法
+        供 MarkerDisplayWidget 和 MarkerListPanel 调用
+
+        :param marker: 标记数据字典
+        :return: 是否编辑成功
+        """
+        if not hasattr(self, 'slider') or not self.slider.marker_display.audio_file_path:
+            return False
+
+        # 获取预设列表
+        presets = self.DictManage.get_all_marker_presets()
+
+        # 打开编辑对话框
+        from .marker_edit_dialog import MarkerEditDialog
+        dialog = MarkerEditDialog(
+            marker_data=marker,
+            presets=presets,
+            max_duration_ms=self.player.duration(),
+            parent=self
+        )
+
+        if dialog.exec_() == MarkerEditDialog.Accepted:
+            result = dialog.get_data()
+
+            try:
+                # 构建更新参数
+                update_params = {
+                    'label': result['label'],
+                    'color': result['color'],
+                    'preset_id': result['preset_id']
+                }
+
+                # 根据标记类型添加时间参数
+                if result['type'] == 0:  # 点标记
+                    update_params['time'] = result['time']
+                    update_params['start'] = None
+                    update_params['end'] = None
+                else:  # 范围标记
+                    update_params['start'] = result['start']
+                    update_params['end'] = result['end']
+                    update_params['time'] = None
+
+                # 更新数据库
+                normalized_path = self.slider.marker_display.audio_file_path
+                self.DictManage.update_audio_marker(
+                    normalized_path,
+                    marker['id'],
+                    **update_params
+                )
+
+                # 刷新界面
+                self.on_marker_changed()
+
+                return True
+
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"更新标记失败:\n{str(e)}")
+                return False
+
+        return False
 
     def on_marker_changed(self):
         """标记被编辑或删除后刷新进度条显示"""
