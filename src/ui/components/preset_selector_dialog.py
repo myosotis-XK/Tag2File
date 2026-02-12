@@ -77,6 +77,27 @@ class PresetSelectorDialog(QDialog):
 
         layout.addWidget(self.preset_selector)
 
+        # 添加"管理预设"按钮
+        self.manage_presets_btn = QPushButton("⚙️ 管理预设")
+        self.manage_presets_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #95a5a6;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #7f8c8d;
+            }
+            QPushButton:pressed {
+                background-color: #6c7a7b;
+            }
+        """)
+        self.manage_presets_btn.clicked.connect(self._on_manage_presets_clicked)
+        layout.addWidget(self.manage_presets_btn)
+
     def _on_preset_selected_and_close(self, preset_id, color, name, emoji):
         """预设选中后立即关闭对话框"""
         self.selected_preset_id = preset_id
@@ -86,6 +107,20 @@ class PresetSelectorDialog(QDialog):
 
         # 立即接受并关闭
         self.accept()
+
+    def _on_manage_presets_clicked(self):
+        """打开预设管理器"""
+        from ..media_viewers.audio.marker_preset_manager import MarkerPresetManager
+
+        # 关闭当前对话框
+        self.close()
+
+        # 打开预设管理器
+        manager = MarkerPresetManager(self.parent())
+        if manager.exec_():
+            # 如果预设管理器关闭后，可以选择重新打开预设选择对话框
+            # 这里暂时不实现，让用户手动再次点击预设按钮
+            pass
 
     def on_preset_selected(self, preset_id, color, name, emoji):
         """预设选中回调"""

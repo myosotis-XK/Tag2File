@@ -938,6 +938,49 @@ class DataAPI():
             self.conn.execute("DELETE FROM marker_preset WHERE id=?", (preset_id,))
             cur.close()
 
+    def update_marker_preset_order(self, preset_id: int, new_order_index: int):
+        """
+        更新预设的排序索引
+        :param preset_id: 预设 ID
+        :param new_order_index: 新的排序索引
+        """
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+            cur.execute(
+                "UPDATE marker_preset SET order_index = ? WHERE id = ?",
+                (new_order_index, preset_id)
+            )
+            cur.close()
+
+    def update_marker_preset(self, preset_id: int, name: str, color: str):
+        """
+        更新预设的名称和颜色
+        :param preset_id: 预设 ID
+        :param name: 新的预设名称
+        :param color: 新的颜色（十六进制）
+        """
+        with self._lock, self.conn:
+            cur = self.conn.cursor()
+
+            # 检查是否为内置预设
+            cur.execute("SELECT is_builtin FROM marker_preset WHERE id=?", (preset_id,))
+            row = cur.fetchone()
+
+            if not row:
+                cur.close()
+                raise ValueError("Preset not found")
+
+            if row[0] == 1:
+                cur.close()
+                raise ValueError("Cannot update builtin preset")
+
+            # 更新预设
+            cur.execute(
+                "UPDATE marker_preset SET name = ?, color = ? WHERE id = ?",
+                (name, color, preset_id)
+            )
+            cur.close()
+
 
 class Observer(QObject):
     def __init__(self):
@@ -1169,3 +1212,9 @@ class DictManage():
         """
         presets = self.dataAPI.get_all_marker_presets()
         return presets if presets else []
+    
+    def update_marker_preset_order(self, preset_id: int, new_order_index: int):
+        self.dataAPI.update_marker_preset_order(preset_id, new_order_index)
+
+    def update_marker_preset(self, preset_id: int, name: str, color: str):
+        self.dataAPI.update_marker_preset(preset_id, name, color)

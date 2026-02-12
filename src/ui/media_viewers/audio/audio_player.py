@@ -684,16 +684,6 @@ class ModernPlayer(QMainWindow):
         self.load_audio_files(file_list, path)
 
     def init_ui(self):
-        # 创建菜单栏
-        menubar = self.menuBar()
-
-        # 标记菜单
-        marker_menu = menubar.addMenu("标记")
-
-        # 管理预设动作
-        manage_presets_action = marker_menu.addAction("⚙️ 管理预设")
-        manage_presets_action.triggered.connect(self.open_preset_manager)
-
         widget = QWidget()
         self.setCentralWidget(widget)
         main_layout = QVBoxLayout(widget)
