@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout
                              QPushButton, QWidget, QSlider, QLabel, QScrollArea, QStyle,
                              QStyleOptionSlider, QMessageBox, QMenu, QShortcut, QSplitter)
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
-from PyQt5.QtCore import Qt, QUrl, QPoint, QTime
+from PyQt5.QtCore import Qt, QUrl, QPoint, QTime, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QMouseEvent, QKeySequence
 
 from .marker_edit_dialog import MarkerEditDialog
@@ -23,14 +23,123 @@ def format_time(ms):
     time = QTime(0, 0).addMSecs(ms)
     return time.toString("mm:ss")
 
-# --- 1. 增强版进度条 (支持时间预览与标记) ---
-class MarkerSlider(QSlider):
+# --- 1. 播放进度条 (纯播放控制，无吸附) ---
+class PlaybackSlider(QSlider):
+    """播放进度条 - 负责播放位置控制和时间设置"""
+
     def __init__(self, orientation, parent=None):
         super().__init__(orientation, parent)
+        self.setMouseTracking(True)
+
+        # 快速标记创建器引用（用于设置时间）
+        self.quick_marker_creator = None
+
+        # 顶层悬浮标签 (显示时间)
+        self.floating_label = QLabel(self, Qt.ToolTip)
+        self.floating_label.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint)
+        self.floating_label.setStyleSheet("""
+            background-color: #34495e;
+            color: #ecf0f1;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: 'Segoe UI', 'Microsoft YaHei';
+            font-size: 11px;
+        """)
+        self.floating_label.hide()
+
+    def set_quick_marker_creator(self, creator):
+        """设置快速标记创建器引用"""
+        self.quick_marker_creator = creator
+
+    def _get_track_info(self):
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        rect = self.style().subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self)
+        margin = 12
+        return rect.left() + margin, rect.width() - margin * 2
+
+    def _pixel_to_value(self, x):
+        offset, width = self._get_track_info()
+        if width <= 0: return 0
+        ratio = (x - offset) / width
+        return int(max(0, min(1, ratio)) * self.maximum())
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        """显示时间预览"""
+        curr_val = self._pixel_to_value(event.x())
+        time_str = format_time(curr_val)
+        display_text = f"🕒 {time_str}"
+
+        self.floating_label.setText(display_text)
+        self.floating_label.adjustSize()
+        glob_pos = self.mapToGlobal(QPoint(event.x() - self.floating_label.width()//2, -45))
+        self.floating_label.move(glob_pos)
+        self.floating_label.show()
+
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event):
+        self.floating_label.hide()
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event: QMouseEvent):
+        """点击进度条跳转到对应位置"""
+        if event.button() == Qt.LeftButton:
+            click_x = event.x()
+            target_val = self._pixel_to_value(click_x)
+
+            self.setValue(target_val)
+            self.sliderMoved.emit(target_val)
+
+        super().mousePressEvent(event)
+
+    def contextMenuEvent(self, event):
+        """右键菜单：设置开始/结束时间"""
+        if not self.quick_marker_creator:
+            return
+
+        click_x = event.x()
+        menu = QMenu(self)
+
+        set_start_time_action = menu.addAction("⏱️ 设置为开始时间")
+        set_end_time_action = menu.addAction("⏱️ 设置为结束时间")
+
+        action = menu.exec_(event.globalPos())
+
+        if action == set_start_time_action:
+            time_pos = self._pixel_to_value(click_x)
+            self.quick_marker_creator.start_time_input.set_from_milliseconds(time_pos)
+        elif action == set_end_time_action:
+            time_pos = self._pixel_to_value(click_x)
+            self.quick_marker_creator.end_time_input.set_from_milliseconds(time_pos)
+
+
+# --- 2. 标记显示区域 (纯显示，可点击跳转) ---
+class MarkerDisplayWidget(QWidget):
+    """标记显示组件 - 负责标记显示、编辑和跳转"""
+
+    # 信号：当点击标记跳转时发出
+    markerJumped = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.DictManage = DictManage()
         self.setMouseTracking(True)
         self.markers = []
         self.snap_threshold = 15
+        self.duration_ms = 0  # 音频总时长
+
+        # 设置固定高度
+        self.setFixedHeight(30)
+
+        # 设置样式
+        self.setStyleSheet("""
+            MarkerDisplayWidget {
+                background-color: #f5f5f5;
+                border: 1px solid #ddd;
+                border-radius: 3px;
+            }
+        """)
 
         # 顶层悬浮标签 (显示描述 + 时间)
         self.floating_label = QLabel(self, Qt.ToolTip)
@@ -45,18 +154,19 @@ class MarkerSlider(QSlider):
         """)
         self.floating_label.hide()
 
-        # Ctrl 交互相关属性
-        self.is_dragging_marker = False  # 是否正在拖拽标记
-        self.dragging_marker_id = None   # 拖拽的标记ID
-        self.drag_type = None            # 'start', 'end', 'body', 'point'
-        self.is_creating_range = False   # 是否正在创建范围标记
-        self.range_start_pos = None      # 范围起始位置（毫秒值）
-        self.temp_range_marker = None    # 临时范围标记（拖动时显示）
-
         # 音频文件路径（用于保存标记到数据库）
         self.audio_file_path = None
 
+        # 标记列表面板引用（需要从外部设置）
+        self.marker_list_panel = None
+
+    def set_duration(self, duration_ms):
+        """设置音频总时长"""
+        self.duration_ms = duration_ms
+        self.update()
+
     def set_markers(self, markers):
+        """设置标记数据"""
         self.markers = markers
         self.update()
 
@@ -64,9 +174,26 @@ class MarkerSlider(QSlider):
         """设置音频文件路径（用于数据库操作）"""
         self.audio_file_path = path
 
+    def set_marker_list_panel(self, panel):
+        """设置标记列表面板引用"""
+        self.marker_list_panel = panel
+
+    def _value_to_pixel(self, val):
+        """将时间值转换为像素位置"""
+        if self.duration_ms <= 0:
+            return 0
+        return int((val / self.duration_ms) * self.width())
+
+    def _pixel_to_value(self, x):
+        """将像素位置转换为时间值"""
+        if self.width() <= 0:
+            return 0
+        ratio = x / self.width()
+        return int(max(0, min(1, ratio)) * self.duration_ms)
+
     def _find_marker_at(self, x):
         """检测鼠标位置是否在标记上，返回 (marker, index) 或 (None, None)"""
-        if self.maximum() <= 0:
+        if self.duration_ms <= 0:
             return None, None
 
         for i, marker in enumerate(self.markers):
@@ -84,24 +211,26 @@ class MarkerSlider(QSlider):
 
         return None, None
 
-    def _get_drag_type(self, x, marker):
-        """判断拖拽类型（点/起点/终点/整体）"""
-        if "time" in marker:
-            return "point"
+    def _find_markers_at(self, x):
+        """检测鼠标位置是否在标记上，返回所有重叠的标记列表"""
+        if self.duration_ms <= 0:
+            return []
 
-        # 范围标记
-        start_x = self._value_to_pixel(marker["start"])
-        end_x = self._value_to_pixel(marker["end"])
+        overlapping_markers = []
+        for marker in self.markers:
+            if "start" in marker and "end" in marker:
+                # 范围标记
+                x1 = self._value_to_pixel(marker["start"])
+                x2 = self._value_to_pixel(marker["end"])
+                if x1 <= x <= x2:
+                    overlapping_markers.append(marker)
+            elif "time" in marker:
+                # 点标记
+                marker_x = self._value_to_pixel(marker["time"])
+                if abs(marker_x - x) < self.snap_threshold:
+                    overlapping_markers.append(marker)
 
-        # 边缘检测阈值
-        edge_threshold = 8
-
-        if abs(x - start_x) < edge_threshold:
-            return "start"
-        elif abs(x - end_x) < edge_threshold:
-            return "end"
-        else:
-            return "body"
+        return overlapping_markers
 
     def _open_marker_edit_dialog(self, marker_data=None):
         """打开标记编辑对话框"""
@@ -113,180 +242,38 @@ class MarkerSlider(QSlider):
             return dialog.get_data()
         return None
 
-    def _update_marker_position_preview(self, new_pos):
-        """拖拽时实时更新标记位置预览"""
-        if not self.dragging_marker_id:
-            return
-
-        # 找到被拖拽的标记
-        for marker in self.markers:
-            if marker.get('id') == self.dragging_marker_id:
-                if self.drag_type == "point":
-                    # 点标记：直接移动
-                    marker['time'] = new_pos
-                elif self.drag_type == "start":
-                    # 范围标记起点：调整起点位置
-                    marker['start'] = min(new_pos, marker['end'] - 100)  # 至少保留100ms宽度
-                elif self.drag_type == "end":
-                    # 范围标记终点：调整终点位置
-                    marker['end'] = max(new_pos, marker['start'] + 100)
-                elif self.drag_type == "body":
-                    # 范围标记整体：平移
-                    duration = marker['end'] - marker['start']
-                    marker['start'] = new_pos
-                    marker['end'] = new_pos + duration
-
-                self.update()
-                break
-
-    def _get_track_info(self):
-        opt = QStyleOptionSlider()
-        self.initStyleOption(opt)
-        rect = self.style().subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self)
-        margin = 12
-        return rect.left() + margin, rect.width() - margin * 2
-
-    def _value_to_pixel(self, val):
-        if self.maximum() <= 0: return 0
-        offset, width = self._get_track_info()
-        return int((val / self.maximum()) * width + offset)
-
-    def _pixel_to_value(self, x):
-        offset, width = self._get_track_info()
-        if width <= 0: return 0
-        ratio = (x - offset) / width
-        return int(max(0, min(1, ratio)) * self.maximum())
-
     def mouseMoveEvent(self, event: QMouseEvent):
-        curr_val = self._pixel_to_value(event.x())
-        time_str = format_time(curr_val)
-        display_text = f"🕒 {time_str}"
+        """鼠标移动事件 - 显示标记信息"""
+        # 获取鼠标位置上的所有重叠标记
+        overlapping_markers = self._find_markers_at(event.x())
 
-        # 处理标记拖拽（来自右键菜单的移动操作）
-        if self.is_dragging_marker and self.dragging_marker_id is not None:
-            # 正在拖拽标记，实时更新标记位置
-            new_pos = self._pixel_to_value(event.x())
-            self._update_marker_position_preview(new_pos)
-            display_text = "拖拽标记中..."
-        # Ctrl 交互：处理拖动创建范围标记
-        elif event.modifiers() & Qt.ControlModifier:
-            if self.is_creating_range and self.range_start_pos is not None:
-                # 正在创建范围标记，显示临时范围
-                end_pos = self._pixel_to_value(event.x())
-                start = min(self.range_start_pos, end_pos)
-                end = max(self.range_start_pos, end_pos)
+        if overlapping_markers:
+            # 构建显示文本，显示所有重叠标记的信息
+            display_lines = []
+            for m in overlapping_markers:
+                if m.get('type') == 0:  # 点标记
+                    time_str = format_time(m['time'])
+                    display_lines.append(f"{m.get('label', '')} - {time_str}")
+                else:  # 范围标记
+                    start_str = format_time(m['start'])
+                    end_str = format_time(m['end'])
+                    display_lines.append(f"{m.get('label', '')} - {start_str}~{end_str}")
 
-                self.temp_range_marker = {
-                    "start": start,
-                    "end": end,
-                    "color": "#3498db",
-                    "label": "新建范围"
-                }
-                self.update()  # 重绘以显示临时范围
-                display_text = f"📏 {format_time(start)} - {format_time(end)}"
+            display_text = "\n".join(display_lines)
+
+            self.floating_label.setText(display_text)
+            self.floating_label.adjustSize()
+            glob_pos = self.mapToGlobal(QPoint(event.x() - self.floating_label.width()//2, -45))
+            self.floating_label.move(glob_pos)
+            self.floating_label.show()
         else:
-            # 正常悬停：检测是否悬停在标记点上
-            if self.maximum() > 0:
-                for m in self.markers:
-                    is_hover = False
-                    if "start" in m and "end" in m:
-                        if self._value_to_pixel(m["start"]) <= event.x() <= self._value_to_pixel(m["end"]):
-                            is_hover = True
-                    elif "time" in m:
-                        if abs(self._value_to_pixel(m["time"]) - event.x()) < self.snap_threshold:
-                            is_hover = True
-
-                    if is_hover:
-                        display_text = f"{m.get('label', '')}\n{time_str}"
-                        break
-
-        self.floating_label.setText(display_text)
-        self.floating_label.adjustSize()
-        # 这里的坐标映射确保它浮在最顶层且位置跟随鼠标
-        glob_pos = self.mapToGlobal(QPoint(event.x() - self.floating_label.width()//2, -45))
-        self.floating_label.move(glob_pos)
-        self.floating_label.show()
+            # 如果没有悬停在标记上，隐藏提示
+            self.floating_label.hide()
 
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
-        """鼠标释放事件：完成标记创建或拖拽"""
-        if event.button() == Qt.LeftButton:
-            # 检查状态标志而不是 Ctrl 键，因为用户可能在释放鼠标前释放了 Ctrl
-            if self.is_creating_range and self.range_start_pos is not None:
-                # 完成范围标记创建
-                end_pos = self._pixel_to_value(event.x())
-
-                # 判断是点标记还是范围标记
-                if abs(end_pos - self.range_start_pos) < 500:  # 小于500ms视为点击
-                    # 创建点标记
-                    marker_data = {
-                        'type': 0,
-                        'time': self.range_start_pos
-                    }
-                else:
-                    # 创建范围标记
-                    start = min(self.range_start_pos, end_pos)
-                    end = max(self.range_start_pos, end_pos)
-                    marker_data = {
-                        'type': 1,
-                        'start': start,
-                        'end': end
-                    }
-
-                # 打开编辑对话框
-                result = self._open_marker_edit_dialog(marker_data)
-                if result and self.audio_file_path:
-                    # 保存到数据库
-                    normalized_path = self.audio_file_path
-
-                    # 构建完整的标记数据
-                    marker_to_save = marker_data.copy()
-                    marker_to_save.update(result)
-
-                    # 添加到数据库
-                    self.DictManage.add_audio_marker(normalized_path, marker_to_save)
-
-                    # 重新加载标记并刷新显示
-                    self._reload_markers()
-
-                # 清除临时状态
-                self.is_creating_range = False
-                self.range_start_pos = None
-                self.temp_range_marker = None
-                self.update()
-
-            elif self.is_dragging_marker and self.dragging_marker_id is not None:
-                # 完成标记拖拽，保存到数据库
-                if self.audio_file_path:
-                    normalized_path = self.audio_file_path
-
-                    # 找到被拖拽的标记
-                    for marker in self.markers:
-                        if marker.get('id') == self.dragging_marker_id:
-                            # 更新数据库
-                            if marker.get('type') == 0:  # 点标记
-                                self.DictManage.update_audio_marker(
-                                    normalized_path,
-                                    self.dragging_marker_id,
-                                    time=marker['time']
-                                )
-                            else:  # 范围标记
-                                self.DictManage.update_audio_marker(
-                                    normalized_path,
-                                    self.dragging_marker_id,
-                                    start=marker['start'],
-                                    end=marker['end']
-                                )
-                            break
-
-                # 清除拖拽状态
-                self.is_dragging_marker = False
-                self.dragging_marker_id = None
-                self.drag_type = None
-                self.setMouseTracking(False)
-                QApplication.restoreOverrideCursor()
-
+        """鼠标释放事件"""
         super().mouseReleaseEvent(event)
 
     def _reload_markers(self):
@@ -297,7 +284,7 @@ class MarkerSlider(QSlider):
         normalized_path = self.audio_file_path
         markers_data = self.DictManage.get_audio_markers(normalized_path)
 
-        # 转换为 MarkerSlider 格式
+        # 转换为标记格式
         self.markers = []
         for m in markers_data:
             if m['type'] == 0:  # 点标记
@@ -321,64 +308,27 @@ class MarkerSlider(QSlider):
         self.update()
 
     def leaveEvent(self, event):
+        """鼠标离开事件"""
         self.floating_label.hide()
         super().leaveEvent(event)
 
     def contextMenuEvent(self, event):
-        """右键菜单事件"""
+        """右键菜单事件 - 只在标记上右键时显示"""
         click_x = event.x()
         marker, marker_idx = self._find_marker_at(click_x)
 
-        menu = QMenu(self)
-
         if marker:
-            # 在标记上右键：显示编辑、移动和删除选项
+            # 在标记上右键：显示编辑和删除选项
+            menu = QMenu(self)
             edit_action = menu.addAction("📝 编辑标记")
-            move_action = menu.addAction("🔄 移动标记")
             delete_action = menu.addAction("🗑️ 删除标记")
 
             action = menu.exec_(event.globalPos())
 
             if action == edit_action:
                 self._edit_marker(marker)
-            elif action == move_action:
-                self._start_move_marker(marker, click_x)
             elif action == delete_action:
                 self._delete_marker(marker)
-        else:
-            # 在空白处右键：显示创建点标记选项
-            create_point_action = menu.addAction("➕ 在此创建点标记")
-
-            action = menu.exec_(event.globalPos())
-
-            if action == create_point_action:
-                time_pos = self._pixel_to_value(click_x)
-                marker_data = {
-                    'type': 0,
-                    'time': time_pos
-                }
-                result = self._open_marker_edit_dialog(marker_data)
-                if result and self.audio_file_path:
-                    normalized_path = self.audio_file_path
-
-                    marker_to_save = marker_data.copy()
-                    marker_to_save.update(result)
-
-                    self.DictManage.add_audio_marker(normalized_path, marker_to_save)
-                    self._reload_markers()
-
-    def _start_move_marker(self, marker, click_x):
-        """启动标记移动模式"""
-        # 设置移动状态
-        self.is_dragging_marker = True
-        self.dragging_marker_id = marker.get('id')
-        self.drag_type = self._get_drag_type(click_x, marker)
-
-        # 提示用户
-        QApplication.setOverrideCursor(Qt.SizeHorCursor)
-
-        # 临时启用鼠标跟踪以实时更新
-        self.setMouseTracking(True)
 
     def _edit_marker(self, marker):
         """编辑标记"""
@@ -402,6 +352,10 @@ class MarkerSlider(QSlider):
             # 重新加载标记
             self._reload_markers()
 
+            # 刷新标记列表面板
+            if self.marker_list_panel:
+                self.marker_list_panel.load_markers()
+
     def _delete_marker(self, marker):
         """删除标记"""
         if not self.audio_file_path:
@@ -415,74 +369,165 @@ class MarkerSlider(QSlider):
         # 重新加载标记
         self._reload_markers()
 
+        # 刷新标记列表面板
+        if self.marker_list_panel:
+            self.marker_list_panel.load_markers()
+
     def mousePressEvent(self, event: QMouseEvent):
+        """点击标记跳转到对应位置"""
         if event.button() == Qt.LeftButton:
             click_x = event.x()
+            overlapping_markers = self._find_markers_at(click_x)
 
-            # Ctrl 键交互：仅创建标记
-            if event.modifiers() & Qt.ControlModifier:
-                # 开始创建范围标记（如果拖动）或点标记（如果只是点击）
-                self.is_creating_range = True
-                self.range_start_pos = self._pixel_to_value(click_x)
-                return  # 阻止默认滑块行为
+            if overlapping_markers:
+                # 获取鼠标点击位置对应的时间
+                click_time = self._pixel_to_value(click_x)
 
-            # 默认行为：播放位置跳转
-            target_val = self._pixel_to_value(click_x)
+                # 如果有多个重叠标记，跳转到开始时间距离鼠标点击位置最近的那个
+                closest_marker = None
+                min_distance = float('inf')
 
-            # 智能吸附逻辑
-            best_snap_val = None
-            min_dist = self.snap_threshold
-            for m in self.markers:
-                pts = [m.get("time"), m.get("start")]
-                for p in pts:
-                    if p is not None:
-                        dist = abs(self._value_to_pixel(p) - click_x)
-                        if dist < min_dist:
-                            min_dist = dist
-                            best_snap_val = p
+                for marker in overlapping_markers:
+                    # 获取标记的开始时间
+                    if marker.get('type') == 0:  # 点标记
+                        marker_start = marker['time']
+                    else:  # 范围标记
+                        marker_start = marker['start']
 
-            final_val = best_snap_val if best_snap_val is not None else target_val
-            self.setValue(final_val)
-            self.sliderMoved.emit(final_val)
+                    # 计算距离鼠标点击位置的距离
+                    distance = abs(marker_start - click_time)
+
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_marker = marker
+
+                # 跳转到最近的标记
+                if closest_marker:
+                    if closest_marker.get('type') == 0:  # 点标记
+                        target_val = closest_marker['time']
+                    else:  # 范围标记，跳转到起点
+                        target_val = closest_marker['start']
+
+                    # 发出跳转信号
+                    self.markerJumped.emit(target_val)
+
         super().mousePressEvent(event)
 
     def paintEvent(self, event):
-        super().paintEvent(event)
-        if not self.maximum(): return
+        """绘制标记显示区域"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # 绘制已保存的标记
+        # 绘制背景
+        painter.fillRect(self.rect(), QColor("#f5f5f5"))
+
+        # 绘制边框
+        painter.setPen(QColor("#ddd"))
+        painter.drawRoundedRect(0, 0, self.width() - 1, self.height() - 1, 3, 3)
+
+        if not self.duration_ms or not self.markers:
+            painter.end()
+            return
+
+        # 绘制标记
         for marker in self.markers:
             color = QColor(marker.get('color', '#3498db'))
             if "start" in marker and "end" in marker:
-                x1, x2 = self._value_to_pixel(marker['start']), self._value_to_pixel(marker['end'])
+                # 范围标记
+                x1 = self._value_to_pixel(marker['start'])
+                x2 = self._value_to_pixel(marker['end'])
                 rect_color = QColor(color)
                 rect_color.setAlpha(100)
                 painter.setBrush(rect_color)
                 painter.setPen(color)
                 painter.drawRect(x1, 8, x2 - x1, self.height() - 16)
             elif "time" in marker:
+                # 点标记
                 x = self._value_to_pixel(marker['time'])
                 painter.setBrush(color)
                 painter.setPen(Qt.NoPen)
                 painter.drawRect(x - 2, 4, 4, self.height() - 8)
 
-        # 绘制临时范围标记（Ctrl+拖动时显示）
-        if self.temp_range_marker:
-            color = QColor(self.temp_range_marker.get('color', '#3498db'))
-            x1 = self._value_to_pixel(self.temp_range_marker['start'])
-            x2 = self._value_to_pixel(self.temp_range_marker['end'])
-            rect_color = QColor(color)
-            rect_color.setAlpha(80)  # 更透明以区分临时标记
-            painter.setBrush(rect_color)
-            painter.setPen(Qt.DashLine)
-            painter.setPen(color)
-            painter.drawRect(x1, 8, x2 - x1, self.height() - 16)
-
         painter.end()
 
-# --- 2. 歌词视图 ---
+
+# --- 3. 双进度条容器 ---
+class DualSliderWidget(QWidget):
+    """双进度条容器 - 上方标记显示区，下方播放进度条"""
+
+    # 信号：当播放进度条被拖动时发出
+    sliderMoved = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(5)
+
+        # 标记显示区域（上）
+        self.marker_display = MarkerDisplayWidget()
+        self.layout.addWidget(self.marker_display)
+
+        # 播放进度条（下）
+        self.playback_slider = PlaybackSlider(Qt.Horizontal)
+        self.layout.addWidget(self.playback_slider)
+
+        # 连接信号
+        self.marker_display.markerJumped.connect(self._on_marker_jumped)
+        self.playback_slider.sliderMoved.connect(self.sliderMoved.emit)
+
+    def _on_marker_jumped(self, position):
+        """标记跳转时同步播放进度条并发出信号"""
+        self.playback_slider.setValue(position)
+        self.sliderMoved.emit(position)
+
+    def setRange(self, min_val, max_val):
+        """设置播放进度条的范围和标记区域的时长"""
+        self.playback_slider.setRange(min_val, max_val)
+        self.marker_display.set_duration(max_val)
+
+    def setValue(self, value):
+        """设置播放进度条的值"""
+        self.playback_slider.setValue(value)
+
+    def isSliderDown(self):
+        """检查播放进度条是否被按下"""
+        return self.playback_slider.isSliderDown()
+
+    def set_markers(self, markers):
+        """设置标记数据"""
+        self.marker_display.set_markers(markers)
+
+        # 根据标记数量控制标记显示区域的可见性
+        if markers:
+            self.marker_display.show()
+        else:
+            self.marker_display.hide()
+
+    def set_audio_file_path(self, path):
+        """设置音频文件路径"""
+        self.marker_display.set_audio_file_path(path)
+
+    def set_quick_marker_creator(self, creator):
+        """设置快速标记创建器引用"""
+        self.playback_slider.set_quick_marker_creator(creator)
+
+    def set_marker_list_panel(self, panel):
+        """设置标记列表面板引用"""
+        self.marker_display.set_marker_list_panel(panel)
+
+    def _reload_markers(self):
+        """重新加载标记"""
+        self.marker_display._reload_markers()
+
+        # 更新可见性
+        if self.marker_display.markers:
+            self.marker_display.show()
+        else:
+            self.marker_display.hide()
+
+
+# --- 4. 歌词视图 ---
 class LrcView(QScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -641,8 +686,8 @@ class ModernPlayer(QMainWindow):
         self.lrc_view = LrcView()
         layout.addWidget(self.lrc_view)
 
-        # 进度条
-        self.slider = MarkerSlider(Qt.Horizontal)
+        # 进度条（双进度条组件）
+        self.slider = DualSliderWidget()
         layout.addWidget(self.slider)
 
         # 时间显示标签
@@ -913,6 +958,8 @@ class ModernPlayer(QMainWindow):
 
             # 设置音频文件路径（用于后续创建标记）
             self.slider.set_audio_file_path(normalized_path)
+            self.slider.set_quick_marker_creator(self.quick_marker_creator)
+            self.slider.set_marker_list_panel(self.marker_list_panel)
             self.marker_list_panel.set_audio_file_path(normalized_path)
             self.quick_marker_creator.set_audio_file_path(normalized_path)
 

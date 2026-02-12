@@ -282,3 +282,34 @@ class TimeInput(QWidget):
         self.hour_input.clear()
         self.minute_input.clear()
         self.second_input.clear()
+
+    def set_from_milliseconds(self, milliseconds):
+        """
+        从毫秒值设置时间输入框的值
+
+        Args:
+            milliseconds: 毫秒值
+        """
+        if milliseconds is None:
+            self.clear()
+            return
+
+        # 计算小时、分钟、秒
+        total_seconds = milliseconds // 1000
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+
+        # 设置各个输入框的值
+        if hours > 0:
+            self.hour_input.setText(str(hours))
+            self.minute_input.setText(f"{minutes:02d}")
+            self.second_input.setText(f"{seconds:02d}")
+        elif minutes > 0:
+            self.hour_input.setText("")
+            self.minute_input.setText(str(minutes))
+            self.second_input.setText(f"{seconds:02d}")
+        else:
+            self.hour_input.setText("")
+            self.minute_input.setText("")
+            self.second_input.setText(str(seconds))
