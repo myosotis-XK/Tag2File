@@ -953,6 +953,10 @@ class ModernPlayer(QMainWindow):
         # 设置初始音量
         self.player.setVolume(50)
 
+    def closeEvent(self, a0):
+        self.player.pause()
+        return super().closeEvent(a0)
+
     def load_media(self, path=None):
         if path is None:
             path = self.path
