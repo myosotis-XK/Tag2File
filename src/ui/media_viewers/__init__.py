@@ -15,7 +15,7 @@ from .image import (
 
 # 音频播放器
 from .audio import (
-    ModernPlayer,
+    AudioPlayer,
     MarkerEditDialog,
     MarkerListPanel,
     MarkerPresetManager,
@@ -31,7 +31,7 @@ __all__ = [
     'MultiImageViewer',
     'ImageBrowser',
     # 音频播放器
-    'ModernPlayer',
+    'AudioPlayer',
     'MarkerEditDialog',
     'MarkerListPanel',
     'MarkerPresetManager',

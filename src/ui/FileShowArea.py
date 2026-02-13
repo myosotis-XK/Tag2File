@@ -17,7 +17,7 @@ from src.utils import *
 from src.models import FileItem, Border, Background, get_file_init_icon
 from src.core.DictManage import DictManage
 from src.core.MultithreadedLoading import StarImageLoader
-from .media_viewers import MultiImageViewer, ModernPlayer
+from .media_viewers import MultiImageViewer, AudioPlayer
 from .FileSelectionComponent import FileSelectionComponent
 
 default_value = {
@@ -921,7 +921,7 @@ class FileShowArea(QWidget):
             image_viewer.show()
         elif not default and ext in supported_audio_formats:
             # 文件是音频，使用自定义音频播放器
-            audio_player = ModernPlayer(file_path, self.file_paths.copy())
+            audio_player = AudioPlayer(file_path, self.file_paths.copy())
             self.image_viewers.append(audio_player)  # 复用 image_viewers 列表保存引用
             audio_player.destroyed.connect(lambda: self.image_viewers.remove(audio_player))
             audio_player.show()

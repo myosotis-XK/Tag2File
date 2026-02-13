@@ -183,19 +183,3 @@ class MarkerListPanel(QListWidget):
 
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"删除标记失败:\n{str(e)}")
-
-
-if __name__ == "__main__":
-    """测试代码"""
-    import sys
-    from PyQt5.QtWidgets import QApplication
-
-    app = QApplication(sys.argv)
-
-    # 需要实际的音频文件路径进行测试
-    # panel = MarkerListPanel(audio_file_path="your/audio/file/path")
-    panel = MarkerListPanel()
-    panel.resize(300, 400)
-    panel.show()
-
-    sys.exit(app.exec_())

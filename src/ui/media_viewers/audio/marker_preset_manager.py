@@ -469,16 +469,3 @@ class MarkerPresetManager(QDialog):
 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"更新排序失败:\n{str(e)}")
-
-
-if __name__ == "__main__":
-    """测试代码"""
-    import sys
-    from PyQt5.QtWidgets import QApplication
-
-    app = QApplication(sys.argv)
-
-    dialog = MarkerPresetManager()
-    dialog.exec_()
-
-    sys.exit(app.exec_())
