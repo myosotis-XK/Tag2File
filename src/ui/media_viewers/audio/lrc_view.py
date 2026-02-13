@@ -13,6 +13,9 @@ class ClickableLabel(QLabel):
         self.timestamp_ms = timestamp_ms
         self.setCursor(QCursor(Qt.PointingHandCursor))
         self.is_current = False  # 是否为当前播放的歌词
+        # 固定高度以防止跳动
+        self.setMinimumHeight(35)
+        self.setMaximumHeight(35)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
