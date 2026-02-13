@@ -4,8 +4,8 @@ import re
 import threading
 import random
 
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
-                             QPushButton, QWidget, QSlider, QLabel, QScrollArea, QStyle,
+from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+                             QPushButton, QSlider, QLabel, QScrollArea, QStyle,
                              QStyleOptionSlider, QMessageBox, QMenu, QShortcut, QSplitter)
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtCore import Qt, QUrl, QPoint, QTime, pyqtSignal
@@ -638,8 +638,8 @@ class LrcView(QScrollArea):
             self.layout.itemAt(i).widget().setParent(None)
         self.labels, self.lyrics_data, self.current_index = [], [], -1
 
-# --- 3. 主窗口 ---
-class ModernPlayer(QMainWindow):
+# --- 3. 音频播放器窗口 ---
+class ModernPlayer(QWidget):
     def __init__(self, path, audio_files=None):
         super().__init__()
         self.setWindowTitle("高级音频播放器")
@@ -684,9 +684,7 @@ class ModernPlayer(QMainWindow):
         self.load_audio_files(file_list, path)
 
     def init_ui(self):
-        widget = QWidget()
-        self.setCentralWidget(widget)
-        main_layout = QVBoxLayout(widget)
+        main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         # 创建水平分割器（左侧内容区 + 右侧面板）
