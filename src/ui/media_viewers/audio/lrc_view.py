@@ -125,9 +125,25 @@ class LrcView(QScrollArea):
                 # 仅在启用自动滚动时才滚动
                 if self.auto_scroll_enabled:
                     self.is_auto_scrolling = True
-                    self.ensureWidgetVisible(self.labels[idx], 150, 150)
+                    self._scroll_to_center(self.labels[idx])
                     QTimer.singleShot(100, self._reset_auto_scroll_flag)  # 延迟重置标志
             self.current_index = idx
+
+    def _scroll_to_center(self, widget):
+        """将指定的widget滚动到视口中心位置"""
+        # 获取widget在容器中的位置
+        widget_pos = widget.pos().y()
+        widget_height = widget.height()
+
+        # 获取滚动区域的高度
+        viewport_height = self.viewport().height()
+
+        # 计算使widget居中的滚动值
+        # widget中心应该在视口中心，即 widget_pos + widget_height/2 = scrollbar_value + viewport_height/2
+        target_scroll = widget_pos + widget_height / 2 - viewport_height / 2
+
+        # 设置滚动条值
+        self.verticalScrollBar().setValue(int(target_scroll))
 
     def _reset_auto_scroll_flag(self):
         """重置自动滚动标志"""
