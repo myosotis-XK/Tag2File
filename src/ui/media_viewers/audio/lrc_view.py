@@ -152,9 +152,6 @@ class LrcView(QScrollArea):
     def _on_lyric_clicked(self, timestamp_ms):
         """歌词被点击时发出跳转请求"""
         self.seek_requested.emit(timestamp_ms)
-        # 点击歌词后暂时禁用自动滚动
-        self.auto_scroll_enabled = False
-        self.scroll_disable_timer.start(3000)  # 3秒后重新启用
 
     def _on_user_scroll_start(self):
         """用户开始手动拖动滚动条"""

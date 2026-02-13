@@ -609,17 +609,30 @@ class AudioPlayer(QWidget):
 
     def setup_shortcuts(self):
         """设置键盘快捷键"""
-        # 左方向键 - 上一首
+        # 左方向键 - 后退5秒
         self.shortcut_prev = QShortcut(QKeySequence(Qt.Key_Left), self)
-        self.shortcut_prev.activated.connect(self.play_previous)
+        self.shortcut_prev.activated.connect(self.seek_backward)
 
-        # 右方向键 - 下一首
+        # 右方向键 - 前进5秒
         self.shortcut_next = QShortcut(QKeySequence(Qt.Key_Right), self)
-        self.shortcut_next.activated.connect(self.play_next)
+        self.shortcut_next.activated.connect(self.seek_forward)
 
         # 空格键 - 播放/暂停
         self.shortcut_play = QShortcut(QKeySequence(Qt.Key_Space), self)
         self.shortcut_play.activated.connect(self.toggle_play)
+
+    def seek_backward(self):
+        """后退5秒"""
+        current_pos = self.player.position()
+        new_pos = max(0, current_pos - 5000)  # 5秒 = 5000毫秒
+        self.player.setPosition(new_pos)
+
+    def seek_forward(self):
+        """前进5秒"""
+        current_pos = self.player.position()
+        duration = self.player.duration()
+        new_pos = min(duration, current_pos + 5000)  # 5秒 = 5000毫秒
+        self.player.setPosition(new_pos)
 
     def play_previous(self):
         """播放上一首（根据播放模式）"""
