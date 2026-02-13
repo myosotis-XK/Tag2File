@@ -11,11 +11,19 @@ class ClickableLabel(QLabel):
     def __init__(self, text, timestamp_ms, parent=None):
         super().__init__(text, parent)
         self.timestamp_ms = timestamp_ms
+        self.original_text = text  # 保存原始文本
         self.setCursor(QCursor(Qt.PointingHandCursor))
         self.is_current = False  # 是否为当前播放的歌词
         # 固定高度以防止跳动
         self.setMinimumHeight(35)
         self.setMaximumHeight(35)
+
+    def _format_time(self, ms):
+        """将毫秒转换为 mm:ss 格式"""
+        total_seconds = ms // 1000
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        return f"{minutes:02d}:{seconds:02d}"
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -24,12 +32,17 @@ class ClickableLabel(QLabel):
 
     def enterEvent(self, event):
         """鼠标悬停效果"""
+        # 在左侧显示时间
+        time_str = self._format_time(self.timestamp_ms)
+        self.setText(f"[{time_str}] {self.original_text}")
         if not self.is_current:
             self.setStyleSheet("color: #2980b9; font-size: 14px; background-color: rgba(52, 152, 219, 0.1); padding: 5px; border-radius: 3px;")
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         """鼠标离开效果"""
+        # 恢复原始文本
+        self.setText(self.original_text)
         if not self.is_current:
             self.setStyleSheet("color: gray; font-size: 14px;")
         super().leaveEvent(event)

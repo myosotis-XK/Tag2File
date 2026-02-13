@@ -79,7 +79,7 @@ class AudioPlayer(QWidget):
 
         # 左侧：歌词和控制区域的容器
         self.left_container = QWidget()
-        self.left_container.setMinimumWidth(350)
+        self.left_container.setMinimumWidth(400)
         layout = QVBoxLayout(self.left_container)
         layout.setContentsMargins(10, 10, 10, 10)
 
