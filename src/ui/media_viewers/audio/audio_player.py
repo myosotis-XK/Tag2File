@@ -53,6 +53,9 @@ class AudioPlayer(QWidget):
         # 连接播放列表面板信号
         self.playlist_panel.audio_selected.connect(self.on_playlist_audio_selected)
 
+        # 连接歌词视图信号
+        self.lrc_view.seek_requested.connect(self.on_lyric_seek)
+
         # 设置键盘快捷键
         self.setup_shortcuts()
 
@@ -468,6 +471,10 @@ class AudioPlayer(QWidget):
                 else:  # 范围标记，跳转到起点
                     self.player.setPosition(marker['start'])
                 break
+
+    def on_lyric_seek(self, timestamp_ms):
+        """歌词跳转到指定时间位置"""
+        self.player.setPosition(timestamp_ms)
 
     def edit_marker(self, marker):
         """
