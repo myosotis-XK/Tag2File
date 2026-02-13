@@ -14,9 +14,10 @@ class ClickableLabel(QLabel):
         self.original_text = text  # 保存原始文本
         self.setCursor(QCursor(Qt.PointingHandCursor))
         self.is_current = False  # 是否为当前播放的歌词
-        # 固定高度以防止跳动
+        # 启用自动换行
+        self.setWordWrap(True)
+        # 设置最小高度，允许自动扩展
         self.setMinimumHeight(35)
-        self.setMaximumHeight(35)
 
     def _format_time(self, ms):
         """将毫秒转换为 mm:ss 格式"""
