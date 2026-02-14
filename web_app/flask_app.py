@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import QFileIconProvider
 from PyQt5.QtCore import QFileInfo, QSize, QBuffer, QByteArray, QIODevice
 from PyQt5.QtGui import QIcon
 from src.utils import get_cache_path, root, config, thumbnailExtractor
+from src.models import get_file_init_icon
 
 warnings.filterwarnings('ignore')
 
@@ -212,18 +213,7 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
     thumb_mime = None
     size = size*4
     if not mime_type:
-        # 尝试获取系统图标
-        pil_img = get_file_icon(file_path, size)
-        
-        if pil_img:
-            img_byte_array = BytesIO()
-            pil_img.save(img_byte_array, format='PNG') 
-            img_byte_array.seek(0)
-            
-            thumb_data = img_byte_array
-            return thumb_data, 'image/png'
-        else:
-            return None, None
+        return None, None
 
     if mime_type == 'image/gif':
         # --- 特殊处理 GIF 文件 ---
@@ -254,6 +244,8 @@ def get_file_thumb(file_path: str, size: int, use_cache: bool = True):
     # 2. 生成缩略图
     try:
         thumbnailSequence = thumbnailExtractor.extract_thumbnail(file_path, size)
+        if thumbnailSequence is None:
+            return None, None
         img = thumbnailSequence.frames[0]
         if img is None:
             img = get_file_icon(file_path, size)
@@ -648,6 +640,15 @@ def get_thumbnails():
 
     try:
         data_source, mime_type = get_file_thumb(file_path, size)
+        if data_source is None:      
+            icon = get_file_init_icon(file_path, size)
+            qimage = icon.source.toImage()
+            buffer = QBuffer()
+            buffer.open(QIODevice.ReadWrite)
+            qimage.save(buffer, "PNG")
+            
+            data_source = BytesIO(buffer.data())
+            mime_type = 'image/png'
     except Exception as e:
         print(f"Error generating thumbnail for {file_path}: {e}")
         return Response("Thumbnail generation failed or file not found.", status=404) 
@@ -757,15 +758,6 @@ def get_audio_lyric():
         audio_path = request.args.get('audio_path')
         if not audio_path:
             return jsonify({'error': '缺少audio_path参数'}), 400
-
-        # 权限检查：验证音频文件是否在用户标签库中
-        db_path = get_user_setting(session.get('user_id'), 'database_path')
-        data_api: DataAPI = tagbase_data_dict[db_path]
-        normalized_path = audio_path.replace('\\', '/').lower()
-        tags = data_api.query('file', normalized_path, 'tag')
-
-        if not tags:
-            return jsonify({'error': '访问权限不足'}), 403
 
         # 将音频路径扩展名替换为.lrc
         lyric_path = os.path.splitext(audio_path)[0] + '.lrc'

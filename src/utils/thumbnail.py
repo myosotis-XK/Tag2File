@@ -43,7 +43,7 @@ class ThumbnailExtractor:
         pass
 
     def extract_thumbnail(self, file_path: str, image_size: int) -> ThumbnailSequence:
-        """从文件提取缩略图，统一返回 PIL.Image 对象"""
+        """从文件提取缩略图，统一返回 ThumbnailSequence 对象"""
         try:
             mime_type, _ = mimetypes.guess_type(file_path)
             if not mime_type:

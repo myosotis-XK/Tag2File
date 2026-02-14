@@ -170,7 +170,7 @@ export class AudioPlayerController {
     async loadMetadata() {
         try {
             const response = await apiGetAudioMetadata(this.playlist);
-            this.playlistMetadata = response.data.metadata;
+            this.playlistMetadata = response.metadata;
         } catch (error) {
             console.error('加载元数据失败:', error);
             this.playlistMetadata = [];
@@ -219,8 +219,8 @@ export class AudioPlayerController {
     async loadLyric(filePath) {
         try {
             const response = await apiGetLyric(filePath);
-            if (response.data.exists) {
-                this.lyricData = this.parseLyric(response.data.content);
+            if (response.exists) {
+                this.lyricData = this.parseLyric(response.content);
                 this.renderLyric();
             }
         } catch (error) {

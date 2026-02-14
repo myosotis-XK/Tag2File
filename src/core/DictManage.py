@@ -862,8 +862,6 @@ class DataAPI():
 
                 cur.close()
 
-    # ========== 标记预设管理方法 ==========
-
     def get_all_marker_presets(self):
         """
         获取所有标记预设
@@ -955,6 +953,71 @@ class DataAPI():
                 (name, color, preset_id)
             )
             cur.close()
+
+    def get_audio_markers(self, file_path: str) -> list[dict]:
+        """
+        获取指定音频文件的所有标记
+        :param file_path: 文件路径
+        :return: 标记列表 [{'id', 'type', 'time'/'start'/'end', 'label', 'color', 'preset_id', 'created_at'}, ...]
+        """
+        markers = self.get_file_extra_data(file_path, "audio_marker")
+        return markers if markers else []
+
+    def add_audio_marker(self, file_path: str, marker_data: dict):
+        """
+        添加单个音频标记
+        :param file_path: 文件路径
+        :param marker_data: 标记数据字典 {'type', 'time'/'start'/'end', 'label', 'color', 'preset_id'}
+        :return: 新标记的 ID
+        """
+        markers = self.get_audio_markers(file_path)
+
+        # 生成新 ID
+        new_id = max([m.get('id', 0) for m in markers], default=0) + 1
+
+        # 添加元数据
+        marker_data['id'] = new_id
+        marker_data['created_at'] = time.time()
+
+        # 添加到列表
+        markers.append(marker_data)
+
+        # 保存
+        self.set_file_extra_data(file_path, "audio_marker", markers)
+
+        return new_id
+
+    def update_audio_marker(self, file_path: str, marker_id: int, marker_data: dict):
+        """
+        更新指定 ID 的音频标记
+        :param file_path: 文件路径
+        :param marker_id: 标记 ID
+        :param kwargs: 要更新的字段（如 label, color, time, start, end 等）
+        """
+        markers = self.get_audio_markers(file_path)
+        for i, marker in enumerate(markers):
+            if marker.get('id') == marker_id:
+                markers[i] = marker_data
+                break
+        self.set_file_extra_data(file_path, "audio_marker", markers)
+
+    def delete_audio_marker(self, file_path: str, marker_id: int):
+        """
+        删除指定 ID 的音频标记
+        :param file_path: 文件路径
+        :param marker_id: 标记 ID
+        """
+        markers = self.get_audio_markers(file_path)
+        markers = [m for m in markers if m.get('id') != marker_id]
+        self.set_file_extra_data(file_path, "audio_marker", markers)
+
+    def get_all_marker_presets(self):
+        """
+        获取所有音频标记预设
+        :return: 预设列表 [{'id', 'name', 'color', 'order_index'}, ...]
+        """
+        presets = self.get_all_marker_presets()
+        return presets if presets else []
 
 
 class Observer(QObject):
@@ -1111,72 +1174,20 @@ class DictManage():
         self.dataAPI.add_tag(tag, file_paths)
         self.notify_observers()
 
-    # ========== 音频标记业务方法 ==========
-
     def get_audio_markers(self, file_path: str) -> list[dict]:
-        """
-        获取指定音频文件的所有标记
-        :param file_path: 文件路径
-        :return: 标记列表 [{'id', 'type', 'time'/'start'/'end', 'label', 'color', 'preset_id', 'created_at'}, ...]
-        """
-        markers = self.dataAPI.get_file_extra_data(file_path, "audio_marker")
-        return markers if markers else []
+        return self.dataAPI.get_audio_markers(file_path)
 
     def add_audio_marker(self, file_path: str, marker_data: dict):
-        """
-        添加单个音频标记
-        :param file_path: 文件路径
-        :param marker_data: 标记数据字典 {'type', 'time'/'start'/'end', 'label', 'color', 'preset_id'}
-        :return: 新标记的 ID
-        """
-        markers = self.get_audio_markers(file_path)
-
-        # 生成新 ID
-        new_id = max([m.get('id', 0) for m in markers], default=0) + 1
-
-        # 添加元数据
-        marker_data['id'] = new_id
-        marker_data['created_at'] = time.time()
-
-        # 添加到列表
-        markers.append(marker_data)
-
-        # 保存
-        self.dataAPI.set_file_extra_data(file_path, "audio_marker", markers)
-
-        return new_id
+        return self.dataAPI.add_audio_marker(file_path, marker_data)
 
     def update_audio_marker(self, file_path: str, marker_id: int, marker_data: dict):
-        """
-        更新指定 ID 的音频标记
-        :param file_path: 文件路径
-        :param marker_id: 标记 ID
-        :param kwargs: 要更新的字段（如 label, color, time, start, end 等）
-        """
-        markers = self.get_audio_markers(file_path)
-        for i, marker in enumerate(markers):
-            if marker.get('id') == marker_id:
-                markers[i] = marker_data
-                break
-        self.dataAPI.set_file_extra_data(file_path, "audio_marker", markers)
+        self.dataAPI.update_audio_marker(file_path, marker_id, marker_data)
 
     def delete_audio_marker(self, file_path: str, marker_id: int):
-        """
-        删除指定 ID 的音频标记
-        :param file_path: 文件路径
-        :param marker_id: 标记 ID
-        """
-        markers = self.get_audio_markers(file_path)
-        markers = [m for m in markers if m.get('id') != marker_id]
-        self.dataAPI.set_file_extra_data(file_path, "audio_marker", markers)
+        self.dataAPI.delete_audio_marker(file_path, marker_id)
 
     def get_all_marker_presets(self):
-        """
-        获取所有音频标记预设
-        :return: 预设列表 [{'id', 'name', 'color', 'order_index'}, ...]
-        """
-        presets = self.dataAPI.get_all_marker_presets()
-        return presets if presets else []
+        return self.dataAPI.get_all_marker_presets()
     
     def update_marker_preset_order(self, preset_id: int, new_order_index: int):
         self.dataAPI.update_marker_preset_order(preset_id, new_order_index)
