@@ -2,6 +2,12 @@ import { globalState, saveUISettings } from '../state.js';
 import { apiGetThumbnail, apiOpenFile, apiSearchFiles } from '../api.js';
 import { throttle } from '../utils.js';
 
+// 检测是否为音频文件
+function isAudioFile(filePath) {
+    const ext = filePath.split('.').pop().toLowerCase();
+    return ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'wma', 'ape'].includes(ext);
+}
+
 // 核心渲染函数：设置和渲染虚拟网格
 export function setupVirtualGrid() {
     const resultsContainer = document.getElementById('results-container');
@@ -331,9 +337,24 @@ function renderVisibleItems(forceRefresh = false) {
                 
                 // 绑定点击事件
                 item.addEventListener('click', () => {
-                    // 使用后端服务地址 + 新的接口，将文件路径作为参数传递
-                    const targetUrl = apiOpenFile(file.filePath);
-                    window.open(targetUrl);
+                    // 检测是否为音频文件
+                    if (isAudioFile(file.filePath)) {
+                        // 从当前文件列表中筛选出所有音频文件
+                        const audioFiles = allFiles
+                            .filter(f => isAudioFile(f.filePath))
+                            .map(f => f.filePath);
+
+                        // 找到当前文件在音频列表中的索引
+                        const currentIndex = audioFiles.indexOf(file.filePath);
+
+                        // 跳转到音频播放器页面
+                        const playlistParam = encodeURIComponent(JSON.stringify(audioFiles));
+                        window.location.href = `/audio_player?playlist=${playlistParam}&index=${currentIndex}`;
+                    } else {
+                        // 非音频文件，使用原有逻辑直接打开
+                        const targetUrl = apiOpenFile(file.filePath);
+                        window.open(targetUrl);
+                    }
                 });
                 
                 grid.appendChild(item);

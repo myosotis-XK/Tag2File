@@ -122,3 +122,63 @@ export function apiGetThumbnail(path, size) {
 export function apiOpenFile(path) {
   return `/open_file?path=${encodeURIComponent(path)}`;
 }
+
+/**
+ * ======================
+ * 音频播放器相关
+ * ======================
+ */
+
+// 获取音频文件元数据（批量）
+export async function apiGetAudioMetadata(filePaths) {
+  try {
+    const response = await api.post('/api/audio/metadata', {
+      file_paths: filePaths
+    });
+    return response.data;
+  } catch (error) {
+    console.error('获取音频元数据失败:', error);
+    throw error;
+  }
+}
+
+// 获取歌词文件
+export async function apiGetLyric(audioPath) {
+  try {
+    const response = await api.get('/api/audio/lyric', {
+      params: { audio_path: audioPath }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('获取歌词失败:', error);
+    throw error;
+  }
+}
+
+// 添加或更新音频标记
+export async function apiAddOrUpdateMarker(filePath, marker) {
+  try {
+    const response = await api.post('/api/audio/markers', {
+      file_path: filePath,
+      marker: marker
+    });
+    return response.data;
+  } catch (error) {
+    console.error('添加/更新标记失败:', error);
+    throw error;
+  }
+}
+
+// 删除音频标记
+export async function apiDeleteMarker(filePath, markerId) {
+  try {
+    const response = await api.delete(`/api/audio/markers/${markerId}`, {
+      params: { file_path: filePath }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('删除标记失败:', error);
+    throw error;
+  }
+}
+

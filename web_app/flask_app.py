@@ -668,7 +668,7 @@ def open_file():
     if not os.path.exists(file_path):
         print(f"File not found: {file_path}")
         return jsonify({'error': '文件不存在或路径无效'}), 404
-    
+
     db_path = get_user_setting(session.get('user_id'), 'database_path')
     data_api: DataAPI = tagbase_data_dict[db_path]
     tags = data_api.query('file', file_path, 'tag')
@@ -690,6 +690,167 @@ def open_file():
     except Exception as e:
         print(f"Error sending file: {e}")
         return jsonify({'error': f'无法打开文件: {str(e)}'}), 500
+
+
+# ---------------- 音频播放器相关路由 ----------------
+
+@app.route('/audio_player', methods=['GET'])
+@login_required
+def audio_player():
+    """音频播放器页面"""
+    response = make_response(render_template('audio_player.html'))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+
+@app.route('/api/audio/metadata', methods=['POST'])
+@login_required
+def get_audio_metadata():
+    """获取音频文件元数据（批量）"""
+    try:
+        data = request.get_json()
+        file_paths = data.get('file_paths', [])
+
+        if not file_paths:
+            return jsonify({'error': '缺少file_paths参数'}), 400
+
+        db_path = get_user_setting(session.get('user_id'), 'database_path')
+        data_api: DataAPI = tagbase_data_dict[db_path]
+
+        metadata_list = []
+        for file_path in file_paths:
+            # 规范化路径
+            normalized_path = file_path.replace('\\', '/').lower()
+
+            # 提取标题（从文件名）
+            filename = os.path.basename(normalized_path)
+            title = os.path.splitext(filename)[0]
+
+            # 检查歌词文件是否存在
+            lyric_path = os.path.splitext(file_path)[0] + '.lrc'
+            has_lyric = os.path.exists(lyric_path)
+
+            # 获取音频标记数据
+            markers = data_api.get_audio_markers(normalized_path)
+
+            metadata_list.append({
+                'path': normalized_path,
+                'title': title,
+                'has_lyric': has_lyric,
+                'markers': markers
+            })
+
+        return jsonify({'metadata': metadata_list})
+
+    except Exception as e:
+        print(f"获取音频元数据错误: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/audio/lyric', methods=['GET'])
+@login_required
+def get_audio_lyric():
+    """获取歌词文件内容"""
+    try:
+        audio_path = request.args.get('audio_path')
+        if not audio_path:
+            return jsonify({'error': '缺少audio_path参数'}), 400
+
+        # 权限检查：验证音频文件是否在用户标签库中
+        db_path = get_user_setting(session.get('user_id'), 'database_path')
+        data_api: DataAPI = tagbase_data_dict[db_path]
+        normalized_path = audio_path.replace('\\', '/').lower()
+        tags = data_api.query('file', normalized_path, 'tag')
+
+        if not tags:
+            return jsonify({'error': '访问权限不足'}), 403
+
+        # 将音频路径扩展名替换为.lrc
+        lyric_path = os.path.splitext(audio_path)[0] + '.lrc'
+
+        if not os.path.exists(lyric_path):
+            return jsonify({'exists': False, 'content': ''})
+
+        # 读取歌词文件
+        with open(lyric_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        return jsonify({'exists': True, 'content': content})
+
+    except Exception as e:
+        print(f"获取歌词错误: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/audio/markers', methods=['POST'])
+@login_required
+def add_or_update_marker():
+    """添加或更新音频标记"""
+    try:
+        data = request.get_json()
+        file_path = data.get('file_path')
+        marker = data.get('marker')
+
+        if not file_path or not marker:
+            return jsonify({'error': '缺少必要参数'}), 400
+
+        db_path = get_user_setting(session.get('user_id'), 'database_path')
+        data_api: DataAPI = tagbase_data_dict[db_path]
+        normalized_path = file_path.replace('\\', '/').lower()
+
+        # 权限检查
+        tags = data_api.query('file', normalized_path, 'tag')
+        if not tags:
+            return jsonify({'error': '访问权限不足'}), 403
+
+        # 添加或更新标记
+        marker_id = marker.get('id')
+        if marker_id:
+            # 更新现有标记
+            data_api.update_audio_marker(normalized_path, marker_id, marker)
+        else:
+            # 添加新标记
+            data_api.add_audio_marker(normalized_path, marker)
+
+        # 返回更新后的标记列表
+        updated_markers = data_api.get_audio_markers(normalized_path)
+        return jsonify({'markers': updated_markers})
+
+    except Exception as e:
+        print(f"添加/更新标记错误: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/audio/markers/<int:marker_id>', methods=['DELETE'])
+@login_required
+def delete_marker(marker_id):
+    """删除音频标记"""
+    try:
+        file_path = request.args.get('file_path')
+        if not file_path:
+            return jsonify({'error': '缺少file_path参数'}), 400
+
+        db_path = get_user_setting(session.get('user_id'), 'database_path')
+        data_api: DataAPI = tagbase_data_dict[db_path]
+        normalized_path = file_path.replace('\\', '/').lower()
+
+        # 权限检查
+        tags = data_api.query('file', normalized_path, 'tag')
+        if not tags:
+            return jsonify({'error': '访问权限不足'}), 403
+
+        # 删除标记
+        data_api.delete_audio_marker(normalized_path, marker_id)
+
+        # 返回更新后的标记列表
+        updated_markers = data_api.get_audio_markers(normalized_path)
+        return jsonify({'markers': updated_markers})
+
+    except Exception as e:
+        print(f"删除标记错误: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 

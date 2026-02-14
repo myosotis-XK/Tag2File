@@ -1,0 +1,629 @@
+/* ========== 全局样式 ========== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* ========== 主容器 ========== */
+.audio-player-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* ========== 顶部导航栏 ========== */
+.navbar {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+    color: white;
+    flex-shrink: 0;
+}
+
+.btn-back {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 20px;
+    padding: 8px;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.btn-back:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.navbar-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 16px;
+    flex: 1;
+}
+
+.navbar-spacer {
+    width: 40px;
+}
+
+/* ========== 显示区域：封面/歌词切换 ========== */
+.display-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    margin: 16px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.cover-view,
+.lyric-view {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.cover-view {
+    z-index: 2;
+}
+
+.lyric-view {
+    z-index: 1;
+}
+
+/* 封面视图 */
+.cover-image {
+    width: 80%;
+    max-width: 300px;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    margin-bottom: 24px;
+}
+
+.track-info {
+    text-align: center;
+    color: white;
+    padding: 0 24px;
+    max-width: 90%;
+}
+
+.track-info h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.track-info p {
+    font-size: 14px;
+    opacity: 0.8;
+    margin: 0;
+}
+
+/* 歌词视图 */
+.lyric-container {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding: 24px;
+    color: white;
+    text-align: center;
+}
+
+.lyric-container p {
+    margin: 8px 0;
+    font-size: 16px;
+    line-height: 1.8;
+    transition: all 0.3s;
+}
+
+.lyric-container p.active {
+    font-size: 20px;
+    font-weight: 600;
+    color: #ffd700;
+    transform: scale(1.1);
+}
+
+/* ========== 进度条 ========== */
+.progress-area {
+    display: flex;
+    align-items: center;
+    padding: 0 24px 16px;
+    flex-shrink: 0;
+}
+
+.time-label {
+    color: white;
+    font-size: 12px;
+    min-width: 40px;
+    text-align: center;
+}
+
+.progress-slider {
+    flex: 1;
+    margin: 0 12px;
+    height: 4px;
+    border-radius: 2px;
+    outline: none;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.progress-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.progress-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ========== 播放控制按钮 ========== */
+.controls-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px 24px;
+    flex-shrink: 0;
+}
+
+.btn-control {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    border: none;
+    color: white;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 18px;
+}
+
+.btn-control:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+.btn-control:active {
+    transform: scale(0.95);
+}
+
+.btn-play {
+    width: 64px;
+    height: 64px;
+    font-size: 24px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #667eea;
+}
+
+.btn-play:hover {
+    background: white;
+}
+
+/* ========== 音量弹出面板 ========== */
+.volume-popup {
+    position: fixed;
+    bottom: 120px;
+    right: 24px;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    z-index: 100;
+}
+
+.volume-slider {
+    width: 120px;
+    height: 4px;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    outline: none;
+    transform: rotate(-90deg);
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+}
+
+.volume-value {
+    color: white;
+    font-size: 12px;
+    margin-top: 60px;
+}
+
+/* ========== 右下角菜单按钮 ========== */
+.btn-sidebar-toggle {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    color: #667eea;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99;
+    transition: all 0.3s;
+}
+
+.btn-sidebar-toggle:hover {
+    background: white;
+    transform: scale(1.05);
+}
+
+.btn-sidebar-toggle:active {
+    transform: scale(0.95);
+}
+
+/* ========== 侧边栏 ========== */
+.sidebar {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: 85%;
+    max-width: 400px;
+    height: 100%;
+    background: white;
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    transition: right 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar.active {
+    right: 0;
+}
+
+/* 侧边栏头部 */
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #f5f5f5;
+}
+
+.sidebar-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    color: #333;
+}
+
+.btn-sidebar-close {
+    background: transparent;
+    border: none;
+    color: #666;
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.btn-sidebar-close:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+/* 侧边栏标签页 */
+.sidebar-tabs {
+    display: flex;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.sidebar-tab-btn {
+    flex: 1;
+    padding: 12px;
+    background: transparent;
+    border: none;
+    color: #666;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+}
+
+.sidebar-tab-btn:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.sidebar-tab-btn.active {
+    color: #667eea;
+    border-bottom-color: #667eea;
+    font-weight: 600;
+}
+
+/* 侧边栏内容 */
+.sidebar-content {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.sidebar-pane {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    display: none;
+}
+
+.sidebar-pane.active {
+    display: block;
+}
+
+/* ========== 播放列表 ========== */
+.playlist-container {
+    padding: 16px;
+}
+
+.playlist-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.playlist-item:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.playlist-item.active {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.playlist-item-info {
+    flex: 1;
+}
+
+.playlist-item-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.playlist-item-duration {
+    font-size: 12px;
+    color: #999;
+}
+
+/* ========== 标记面板 ========== */
+.marker-quick-create {
+    padding: 16px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #f9f9f9;
+}
+
+.quick-create-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+}
+
+.quick-create-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.quick-create-row:last-child {
+    margin-bottom: 0;
+}
+
+.quick-create-row .form-control {
+    flex: 1;
+}
+
+.quick-create-row .form-control-color {
+    flex: 0 0 60px;
+    height: 31px;
+    padding: 2px;
+}
+
+.marker-list-header {
+    padding: 12px 16px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.marker-list-header h6 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+.marker-list {
+    padding: 8px;
+}
+
+.marker-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.marker-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.marker-color {
+    width: 4px;
+    height: 40px;
+    border-radius: 2px;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.marker-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.marker-time {
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 4px;
+}
+
+.marker-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.marker-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: 8px;
+}
+
+.marker-actions .btn {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+/* ========== 侧边栏遮罩层 ========== */
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+}
+
+.sidebar-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* ========== 响应式设计 ========== */
+@media (min-width: 768px) {
+    .btn-sidebar-toggle {
+        bottom: 32px;
+        right: 32px;
+    }
+
+    .sidebar {
+        max-width: 480px;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+    .display-area {
+        margin: 8px 16px;
+    }
+
+    .cover-image {
+        max-width: 200px;
+        margin-bottom: 12px;
+    }
+
+    .track-info h2 {
+        font-size: 16px;
+    }
+
+    .track-info p {
+        font-size: 12px;
+    }
+
+    .controls-area {
+        padding: 0 24px 16px;
+    }
+}
