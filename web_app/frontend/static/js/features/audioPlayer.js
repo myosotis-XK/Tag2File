@@ -279,7 +279,7 @@ export class AudioPlayerController {
         }
 
         this.markerList.innerHTML = this.markers.map(marker => {
-            const time = marker.type === 'point'
+            const time = marker.type === 0
                 ? this.formatTime(marker.time)
                 : `${this.formatTime(marker.start)} - ${this.formatTime(marker.end)}`;
 
@@ -311,7 +311,7 @@ export class AudioPlayerController {
             const markerInfo = el.querySelector('.marker-info');
             markerInfo.addEventListener('click', () => {
                 const time = parseFloat(el.dataset.time);
-                this.audio.currentTime = time;
+                this.audio.currentTime = time / 1000;
             });
 
             // 编辑按钮
@@ -447,13 +447,13 @@ export class AudioPlayerController {
 
     onLoadedMetadata() {
         this.progressSlider.max = this.audio.duration;
-        this.durationTimeLabel.textContent = this.formatTime(this.audio.duration);
+        this.durationTimeLabel.textContent = this.formatTime(this.audio.duration * 1000);
     }
 
     onTimeUpdate() {
         // 更新进度条
         this.progressSlider.value = this.audio.currentTime;
-        this.currentTimeLabel.textContent = this.formatTime(this.audio.currentTime);
+        this.currentTimeLabel.textContent = this.formatTime(this.audio.currentTime * 1000);
 
         // 更新歌词
         this.updateLyricHighlight();
@@ -495,8 +495,8 @@ export class AudioPlayerController {
 
     formatTime(seconds) {
         if (isNaN(seconds)) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
+        const mins = Math.floor((seconds / 1000) / 60);
+        const secs = Math.floor((seconds / 1000) % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
@@ -585,12 +585,12 @@ export class AudioPlayerController {
 
     markInPoint() {
         this.inPoint = this.audio.currentTime;
-        this.inputInPoint.value = this.formatTime(this.inPoint);
+        this.inputInPoint.value = this.formatTime(this.inPoint * 1000);
     }
 
     markOutPoint() {
         this.outPoint = this.audio.currentTime;
-        this.inputOutPoint.value = this.formatTime(this.outPoint);
+        this.inputOutPoint.value = this.formatTime(this.outPoint * 1000);
     }
 
     async createMarker() {
@@ -642,7 +642,7 @@ export class AudioPlayerController {
 
     async editMarker(marker) {
         // 填充入点/出点输入框
-        if (marker.type === 'range') {
+        if (marker.type === 1) {
             this.inPoint = marker.start;
             this.outPoint = marker.end;
             this.inputInPoint.value = this.formatTime(marker.start);

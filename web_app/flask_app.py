@@ -723,7 +723,7 @@ def get_audio_metadata():
         metadata_list = []
         for file_path in file_paths:
             # 规范化路径
-            normalized_path = file_path.replace('\\', '/').lower()
+            normalized_path = file_path.replace('\\', '/')
 
             # 提取标题（从文件名）
             filename = os.path.basename(normalized_path)
@@ -790,12 +790,7 @@ def add_or_update_marker():
 
         db_path = get_user_setting(session.get('user_id'), 'database_path')
         data_api: DataAPI = tagbase_data_dict[db_path]
-        normalized_path = file_path.replace('\\', '/').lower()
-
-        # 权限检查
-        tags = data_api.query('file', normalized_path, 'tag')
-        if not tags:
-            return jsonify({'error': '访问权限不足'}), 403
+        normalized_path = file_path.replace('\\', '/')
 
         # 添加或更新标记
         marker_id = marker.get('id')
@@ -826,12 +821,7 @@ def delete_marker(marker_id):
 
         db_path = get_user_setting(session.get('user_id'), 'database_path')
         data_api: DataAPI = tagbase_data_dict[db_path]
-        normalized_path = file_path.replace('\\', '/').lower()
-
-        # 权限检查
-        tags = data_api.query('file', normalized_path, 'tag')
-        if not tags:
-            return jsonify({'error': '访问权限不足'}), 403
+        normalized_path = file_path.replace('\\', '/')
 
         # 删除标记
         data_api.delete_audio_marker(normalized_path, marker_id)
