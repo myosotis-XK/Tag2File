@@ -1,11 +1,7 @@
-import sys  
 import os  
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QGraphicsView, QGraphicsScene,   
-                            QFileDialog, QLabel, QGraphicsOpacityEffect, QStatusBar,  
-                            QVBoxLayout, QWidget, QShortcut, QPushButton)  
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QFont, QColor, QKeySequence, QCursor, QBrush
-from PyQt5.QtCore import Qt, QRectF, QTimer, QPropertyAnimation, QEasingCurve
-import threading
+from PyQt5.QtWidgets import QMainWindow, QFileDialog, QShortcut 
+from PyQt5.QtGui import QKeySequence
+from PyQt5.QtCore import Qt
 
 from .multi_viewer import MultiImageViewer
 
@@ -105,10 +101,3 @@ class ImageBrowser(QMainWindow):
             return  
         
         super(ImageBrowser, self).keyPressEvent(event) 
-
-
-if __name__ == '__main__':  
-    app = QApplication(sys.argv)  
-    browser = ImageBrowser()  
-    browser.show()  
-    sys.exit(app.exec_())

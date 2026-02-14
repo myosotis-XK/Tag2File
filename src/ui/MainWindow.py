@@ -364,11 +364,3 @@ class Tag2File(QMainWindow, Observer):
 
         self.web_popup = WebUsagePopup(url)
         self.web_popup.show()
-
-
-if __name__ == '__main__':  
-    app = QApplication(sys.argv)
-    set_application_font()
-    viewer = Tag2File()
-
-    sys.exit(app.exec_())

@@ -1,11 +1,6 @@
-import sys  
-import os  
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QGraphicsView, QGraphicsScene,   
-                            QFileDialog, QLabel, QGraphicsOpacityEffect, QStatusBar,  
-                            QVBoxLayout, QWidget, QShortcut, QPushButton)  
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QFont, QColor, QKeySequence, QCursor, QBrush
-from PyQt5.QtCore import Qt, QRectF, QTimer, QPropertyAnimation, QEasingCurve
-import threading
+from PyQt5.QtWidgets import QLabel, QGraphicsOpacityEffect
+from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 
 class ZoomIndicator(QLabel):  
     """缩放指示器，用于显示当前缩放比例"""  

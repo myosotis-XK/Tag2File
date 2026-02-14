@@ -1,11 +1,6 @@
-import sys  
-import os  
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QGraphicsView, QGraphicsScene,   
-                            QFileDialog, QLabel, QGraphicsOpacityEffect, QStatusBar,  
-                            QVBoxLayout, QWidget, QShortcut, QPushButton)  
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QFont, QColor, QKeySequence, QCursor, QBrush
-from PyQt5.QtCore import Qt, QRectF, QTimer, QPropertyAnimation, QEasingCurve
-import threading
+from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor,  QBrush
+from PyQt5.QtCore import Qt, QRectF
 
 from .components import ZoomIndicator
 

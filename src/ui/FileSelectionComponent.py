@@ -1,16 +1,12 @@
+import os
+import time
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QScrollArea, QWidget, 
+                             QLabel, QPushButton, QRadioButton, QCheckBox, QMessageBox, QButtonGroup)
+from PyQt5.QtGui import QPixmap, QFont
+from PyQt5.QtCore import Qt, pyqtSignal
 from src.utils import format_file_size
 from .media_viewers import MultiImageViewer
 
-import os
-import time
-import sys 
-
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QScrollArea,
-                             QWidget, QLabel, QPushButton, QRadioButton, QCheckBox, QMessageBox, QButtonGroup)
-from PyQt5.QtGui import QPixmap, QFont
-from PyQt5.QtCore import Qt, pyqtSignal
-
-# ClickableLabel 类定义（保持不变）
 class ClickableLabel(QLabel):
     clicked = pyqtSignal(str)
     double_clicked = pyqtSignal(str)
@@ -31,7 +27,6 @@ class ClickableLabel(QLabel):
                 self.double_clicked.emit(self.file_path)
         super().mouseDoubleClickEvent(event)
 
-# FileSelectionComponent 类定义
 class FileSelectionComponent(QDialog):
     result_selected = pyqtSignal(list)
 
@@ -47,7 +42,6 @@ class FileSelectionComponent(QDialog):
         self.group_selections_data = [] 
         self.radio_button_groups = []
         self.file_path_to_selection_widget = {}
-        # 新增：存储每个组的“不选择”QRadioButton，即便它是隐藏的，也需要操作它
         self.no_selection_radio_buttons = [] 
         self.checkbox_groups = []
 
@@ -313,145 +307,3 @@ class FileSelectionComponent(QDialog):
     def _on_confirm(self):
         self.result_selected.emit(self.group_selections_data)
         self.accept()
-
-
-# --- 如何使用这个组件 ---
-if __name__ == '__main__':
-    import sys
-    from PyQt5.QtWidgets import QApplication
-
-    app = QApplication(sys.argv)
-
-    # --- 修复文件场景的初始选择处理函数 ---
-    def repair_initial_selector(group_files_list):
-        if group_files_list:
-            return [group_files_list[0]]
-        return []
-
-    # --- 模拟第一段代码的修复文件场景 ---
-    # 创建一些虚拟文件用于测试
-    dummy_repair_files = [
-        "temp_image_1.jpg", 
-        "temp_image_2.png", 
-        "temp_image_3.gif"
-    ]
-    for f in dummy_repair_files:
-        with open(f, 'w') as temp_f:
-            temp_f.write("dummy content for image file " * 100) # 增加一些内容让文件大小不为0
-        # 模拟不同的修改时间
-        if f == "temp_image_2.png":
-            os.utime(f, (time.time() - 3600 * 5, time.time() - 3600 * 5)) # 5 hours ago
-        elif f == "temp_image_3.gif":
-            os.utime(f, (time.time() - 86400 * 2, time.time() - 86400 * 2)) # 2 days ago
-
-    repair_file_groups_input = [
-        [dummy_repair_files[1], dummy_repair_files[0]],
-        [dummy_repair_files[2]],
-        ["non_existent_file_repair.jpg", dummy_repair_files[0]] 
-    ]
-
-    repair_group_titles = [
-        f"修复 'Doc_A.jpg'",
-        f"修复 'Doc_B.png'",
-        f"修复 'Doc_C.gif'"
-    ]
-
-    print("\n--- 修复文件选择组件示例 (增强交互) ---")
-    repair_dialog = FileSelectionComponent(
-        file_groups=repair_file_groups_input,
-        selection_type='single',
-        image_size=150,
-        group_titles=repair_group_titles,
-        initial_selection_handler=repair_initial_selector
-    )
-
-    def handle_repair_selection_pure(selected_groups_2d):
-        print("确认修复选择的（候选）文件列表（二维格式）：")
-        for i, group_selection in enumerate(selected_groups_2d):
-            original_placeholder = repair_group_titles[i].replace("修复 '", "").replace("'", "")
-            if group_selection:
-                print(f"  原始文件: '{original_placeholder}' 建议修复为: '{group_selection[0]}'")
-            else:
-                print(f"  原始文件: '{original_placeholder}' 未选择修复文件。")
-
-    repair_dialog.result_selected.connect(handle_repair_selection_pure)
-    if repair_dialog.exec_() == QDialog.Accepted:
-        print("修复对话框确认关闭。")
-    else:
-        print("修复对话框取消关闭。")
-
-
-    # --- 重复文件场景的初始选择处理函数 ---
-    def duplicate_initial_selector(group_files_list):
-        if not group_files_list:
-            return []
-        
-        file_mod_times = []
-        for f_path in group_files_list:
-            if os.path.exists(f_path):
-                file_mod_times.append((f_path, os.path.getmtime(f_path)))
-            else:
-                file_mod_times.append((f_path, 0))
-
-        file_mod_times.sort(key=lambda x: x[1], reverse=True) # Sort by modification time, latest first
-
-        selected_to_delete = [item[0] for item in file_mod_times[1:]] # Select all but the latest
-        return selected_to_delete
-
-
-    # --- 模拟第二段代码的重复文件删除场景 ---
-    dummy_duplicate_files = [
-        "dup_image_A.jpg", "dup_image_B.jpg", "dup_image_C.jpg",
-        "dup_doc_X.pdf", "dup_doc_Y.pdf"
-    ]
-    for f in dummy_duplicate_files:
-        with open(f, 'w') as temp_f:
-            temp_f.write("dummy content for doc " * 50)
-        if f == "dup_image_A.jpg":
-            os.utime(f, (time.time() - 7200, time.time() - 7200)) # 2 hours ago
-        elif f == "dup_doc_Y.pdf":
-            os.utime(f, (time.time() - 100, time.time() - 100)) # 100 seconds ago
-
-    duplicate_file_groups_input = [
-        [dummy_duplicate_files[0], dummy_duplicate_files[1], dummy_duplicate_files[2]],
-        [dummy_duplicate_files[3], dummy_duplicate_files[4]],
-        ["another_non_existent.txt"]
-    ]
-    
-    duplicate_group_titles = [
-        "重复组 (图片)",
-        "重复组 (文档)",
-        "重复组 (单文件)"
-    ]
-
-    print("\n--- 重复文件删除组件示例 (增强交互) ---")
-    duplicate_dialog = FileSelectionComponent(
-        file_groups=duplicate_file_groups_input,
-        selection_type='multiple',
-        image_size=200,
-        group_titles=duplicate_group_titles,
-        initial_selection_handler=duplicate_initial_selector
-    )
-
-    def handle_delete_selection_pure(selected_groups_2d):
-        print("确认删除文件（外部逻辑处理，二维格式）：")
-        for i, group_selection in enumerate(selected_groups_2d):
-            print(f"  来自组 {i+1} 的选择: {group_selection}")
-            if group_selection:
-                for f in group_selection:
-                    print(f"    - 准备删除文件: {f}")
-            else:
-                print("    - 该组没有选择任何文件删除。")
-
-    duplicate_dialog.result_selected.connect(handle_delete_selection_pure)
-    if duplicate_dialog.exec_() == QDialog.Accepted:
-        print("重复文件对话框确认关闭。")
-    else:
-        print("重复文件对话框取消关闭。")
-
-    # Clean up dummy files
-    for f in dummy_repair_files + dummy_duplicate_files:
-        if os.path.exists(f):
-            os.remove(f)
-
-    sys.exit(app.exec_())

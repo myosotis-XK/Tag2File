@@ -2,6 +2,7 @@ import re
 from PyQt5.QtWidgets import QLabel, QTreeWidget
 from PyQt5.QtCore import Qt, QRect, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QPainter, QColor
+from src.utils import *
 
 class CategoryTreeWidget(QTreeWidget):
     def __init__(self, parent=None):
@@ -303,7 +304,6 @@ class InputTagLabel(QLabel):
         # 传递滚动事件给父级
         self.parent().wheelEvent(event)
 
-from ..utils import *
 class Tag:
     def __init__(self, tag):
         self.tag = tag # 保存集合名字符串
