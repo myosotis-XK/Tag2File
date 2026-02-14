@@ -83,6 +83,7 @@ export class AudioPlayerController {
         this.inputMarkerLabel = document.getElementById('input-marker-label');
         this.inputMarkerColor = document.getElementById('input-marker-color');
         this.btnCreateMarker = document.getElementById('btn-create-marker');
+        this.btnClearMarker = document.getElementById('btn-clear-marker');
 
         // 视图状态
         this.isShowingLyric = false;
@@ -127,6 +128,7 @@ export class AudioPlayerController {
         this.btnMarkIn.addEventListener('click', () => this.markInPoint());
         this.btnMarkOut.addEventListener('click', () => this.markOutPoint());
         this.btnCreateMarker.addEventListener('click', () => this.createMarker());
+        this.btnClearMarker.addEventListener('click', () => this.clearMarkerInputs());
 
         // 点击外部关闭音量弹窗
         document.addEventListener('click', (e) => {
@@ -591,6 +593,17 @@ export class AudioPlayerController {
     markOutPoint() {
         this.outPoint = this.audio.currentTime;
         this.inputOutPoint.value = this.formatTime(this.outPoint * 1000);
+    }
+
+    clearMarkerInputs() {
+        this.inPoint = null;
+        this.outPoint = null;
+        this.inputInPoint.value = '';
+        this.inputOutPoint.value = '';
+        this.inputMarkerLabel.value = '';
+        this.inputMarkerColor.value = '#ff0000';
+        this.btnCreateMarker.innerHTML = '<i class="fa fa-plus"></i> 创建';
+        delete this.btnCreateMarker.dataset.editingMarkerId;
     }
 
     async createMarker() {
