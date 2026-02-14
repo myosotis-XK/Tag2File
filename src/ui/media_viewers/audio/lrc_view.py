@@ -1,6 +1,6 @@
 import os
 import re
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QSizePolicy
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QCursor
 
@@ -14,17 +14,8 @@ class ClickableLabel(QLabel):
         self.original_text = text  # 保存原始文本
         self.setCursor(QCursor(Qt.PointingHandCursor))
         self.is_current = False  # 是否为当前播放的歌词
-        # 启用自动换行
         self.setWordWrap(True)
-        # 设置最小高度，允许自动扩展
-        self.setMinimumHeight(35)
-
-    def _format_time(self, ms):
-        """将毫秒转换为 mm:ss 格式"""
-        total_seconds = ms // 1000
-        minutes = total_seconds // 60
-        seconds = total_seconds % 60
-        return f"{minutes:02d}:{seconds:02d}"
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -33,19 +24,14 @@ class ClickableLabel(QLabel):
 
     def enterEvent(self, event):
         """鼠标悬停效果"""
-        # 在左侧显示时间
-        time_str = self._format_time(self.timestamp_ms)
-        self.setText(f"[{time_str}] {self.original_text}")
         if not self.is_current:
-            self.setStyleSheet("color: #2980b9; font-size: 14px; background-color: rgba(52, 152, 219, 0.1); padding: 5px; border-radius: 3px;")
+            self.setStyleSheet("color: #2980b9; font-size: 18px; background-color: rgba(52, 152, 219, 0.1);")
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         """鼠标离开效果"""
-        # 恢复原始文本
-        self.setText(self.original_text)
         if not self.is_current:
-            self.setStyleSheet("color: gray; font-size: 14px;")
+            self.setStyleSheet("color: gray; font-size: 18px;")
         super().leaveEvent(event)
 
 class LrcView(QScrollArea):
@@ -111,7 +97,7 @@ class LrcView(QScrollArea):
                     if matched and text.strip():
                         lbl = ClickableLabel(text.strip(), total_ms)
                         lbl.setAlignment(Qt.AlignCenter)
-                        lbl.setStyleSheet("color: gray; font-size: 14px;")
+                        lbl.setStyleSheet("color: gray; font-size: 18px;")
                         lbl.clicked.connect(self._on_lyric_clicked)
                         self.layout.addWidget(lbl)
                         self.labels.append(lbl)
@@ -131,11 +117,13 @@ class LrcView(QScrollArea):
             # 恢复上一句歌词的样式
             if self.current_index != -1 and self.current_index < len(self.labels):
                 self.labels[self.current_index].is_current = False
-                self.labels[self.current_index].setStyleSheet("color: gray; font-size: 14px;")
+                self.labels[self.current_index].setStyleSheet("color: gray; font-size: 18px;")
+                self.labels[self.current_index].adjustSize()  # 调整大小以适应新字体
             # 高亮当前歌词
             if idx != -1 and idx < len(self.labels):
                 self.labels[idx].is_current = True
                 self.labels[idx].setStyleSheet("color: #3498db; font-weight: bold; font-size: 18px;")
+                self.labels[idx].adjustSize()  # 调整大小以适应新字体
                 # 仅在启用自动滚动时才滚动
                 if self.auto_scroll_enabled:
                     self.is_auto_scrolling = True
