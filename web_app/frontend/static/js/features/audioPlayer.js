@@ -606,12 +606,12 @@ export class AudioPlayerController {
         // 创建标记数据
         const markerData = {
             id: null,  // null 表示新建
-            type: this.inPoint !== null && this.outPoint !== null ? 'range' : 'point',
+            type: this.inPoint !== null && this.outPoint !== null ? 1 : 0,
             label: label,
             color: color,
-            time: this.inPoint || this.audio.currentTime,
-            start: this.inPoint,
-            end: this.outPoint
+            time: this.inPoint * 1000 || this.audio.currentTime * 1000,
+            start: this.inPoint * 1000,
+            end: this.outPoint * 1000
         };
 
         try {
@@ -620,7 +620,7 @@ export class AudioPlayerController {
 
             if (response.success) {
                 // 更新本地标记列表
-                this.markers = response.data.markers;
+                this.markers = response.markers;
                 this.renderMarkers();
 
                 // 清空输入
@@ -632,7 +632,7 @@ export class AudioPlayerController {
 
                 console.log('标记创建成功:', markerData);
             } else {
-                alert('创建标记失败: ' + (response.message || '未知错误'));
+                alert('创建标记失败: ' + (response.error || '未知错误'));
             }
         } catch (error) {
             console.error('创建标记失败:', error);
@@ -681,12 +681,12 @@ export class AudioPlayerController {
 
             if (response.success) {
                 // 更新本地标记列表
-                this.markers = response.data.markers;
+                this.markers = response.markers;
                 this.renderMarkers();
 
                 console.log('标记删除成功:', marker);
             } else {
-                alert('删除标记失败: ' + (response.message || '未知错误'));
+                alert('删除标记失败: ' + (response.error || '未知错误'));
             }
         } catch (error) {
             console.error('删除标记失败:', error);

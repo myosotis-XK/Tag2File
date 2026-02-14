@@ -803,11 +803,11 @@ def add_or_update_marker():
 
         # 返回更新后的标记列表
         updated_markers = data_api.get_audio_markers(normalized_path)
-        return jsonify({'markers': updated_markers})
+        return jsonify({'success': True, 'markers': updated_markers})
 
     except Exception as e:
         print(f"添加/更新标记错误: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/audio/markers/<int:marker_id>', methods=['DELETE'])
@@ -828,11 +828,11 @@ def delete_marker(marker_id):
 
         # 返回更新后的标记列表
         updated_markers = data_api.get_audio_markers(normalized_path)
-        return jsonify({'markers': updated_markers})
+        return jsonify({'success': True, 'markers': updated_markers})
 
     except Exception as e:
         print(f"删除标记错误: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 
