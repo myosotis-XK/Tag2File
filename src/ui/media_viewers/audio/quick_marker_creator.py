@@ -257,8 +257,7 @@ class QuickMarkerCreator(QWidget):
             label = "未命名标记"
 
         # 判断标记类型
-        if end_ms is None:
-            # 点标记
+        if end_ms is None: # 点标记
             marker_data = {
                 'type': 0,
                 'time': start_ms if start_ms is not None else end_ms,
@@ -266,8 +265,7 @@ class QuickMarkerCreator(QWidget):
                 'color': self.current_color,
                 'preset_id': self.selected_preset_id
             }
-        else:
-            # 范围标记
+        else: # 范围标记
             if start_ms is None:
                 start_ms = 0
             if end_ms < start_ms:

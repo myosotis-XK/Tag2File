@@ -1,8 +1,10 @@
-from ..utils import *
 import os
 import threading
 import sqlite3
+import time
+import json
 from PyQt5.QtCore import QObject, QThread, Qt, QMetaObject
+from src.utils import *
 
 default_value = {
     'tagbase_folder': 'default_folder',
@@ -737,8 +739,6 @@ class DataAPI():
         :param key: 可选，指定获取的键（如 "audio_marker"）
         :return: 如果指定 key，返回该 key 的值；否则返回整个 extra_data 字典
         """
-        import json
-
         with self._lock, self.conn:
             cur = self.conn.cursor()
             cur.execute("SELECT extra_data FROM file WHERE name=?", (file_path,))
@@ -763,8 +763,6 @@ class DataAPI():
         :param key: 要设置的键
         :param value: 要设置的值（会被序列化为 JSON）
         """
-        import json
-
         with self._lock, self.conn:
             cur = self.conn.cursor()
 
@@ -801,8 +799,6 @@ class DataAPI():
         :param key: 要更新的键
         :param value: 要更新的值
         """
-        import json
-
         with self._lock, self.conn:
             cur = self.conn.cursor()
 
@@ -839,8 +835,6 @@ class DataAPI():
         :param file_path: 文件路径
         :param key: 可选，指定要删除的键；如果为 None，删除整个 extra_data
         """
-        import json
-
         with self._lock, self.conn:
             if key is None:
                 # 删除整个 extra_data
@@ -1119,7 +1113,7 @@ class DictManage():
 
     # ========== 音频标记业务方法 ==========
 
-    def get_audio_markers(self, file_path: str):
+    def get_audio_markers(self, file_path: str) -> list[dict]:
         """
         获取指定音频文件的所有标记
         :param file_path: 文件路径
@@ -1135,8 +1129,6 @@ class DictManage():
         :param marker_data: 标记数据字典 {'type', 'time'/'start'/'end', 'label', 'color', 'preset_id'}
         :return: 新标记的 ID
         """
-        import time
-
         markers = self.get_audio_markers(file_path)
 
         # 生成新 ID
@@ -1154,7 +1146,7 @@ class DictManage():
 
         return new_id
 
-    def update_audio_marker(self, file_path: str, marker_id: int, **kwargs):
+    def update_audio_marker(self, file_path: str, marker_id: int, marker_data: dict):
         """
         更新指定 ID 的音频标记
         :param file_path: 文件路径
@@ -1162,14 +1154,10 @@ class DictManage():
         :param kwargs: 要更新的字段（如 label, color, time, start, end 等）
         """
         markers = self.get_audio_markers(file_path)
-
-        # 查找并更新标记
-        for marker in markers:
+        for i, marker in enumerate(markers):
             if marker.get('id') == marker_id:
-                marker.update(kwargs)
+                markers[i] = marker_data
                 break
-
-        # 保存
         self.dataAPI.set_file_extra_data(file_path, "audio_marker", markers)
 
     def delete_audio_marker(self, file_path: str, marker_id: int):
@@ -1179,11 +1167,7 @@ class DictManage():
         :param marker_id: 标记 ID
         """
         markers = self.get_audio_markers(file_path)
-
-        # 过滤掉要删除的标记
         markers = [m for m in markers if m.get('id') != marker_id]
-
-        # 保存
         self.dataAPI.set_file_extra_data(file_path, "audio_marker", markers)
 
     def get_all_marker_presets(self):

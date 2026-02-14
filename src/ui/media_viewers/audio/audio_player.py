@@ -376,7 +376,7 @@ class AudioPlayer(QWidget):
             # 转换为 MarkerSlider 格式
             markers = []
             for m in markers_data:
-                if m['type'] == 0:  # 点标记
+                if m.get('type') == 0:  # 点标记
                     markers.append({
                         'id': m['id'],
                         'type': 0,
@@ -476,7 +476,7 @@ class AudioPlayer(QWidget):
         """歌词跳转到指定时间位置"""
         self.player.setPosition(timestamp_ms)
 
-    def edit_marker(self, marker):
+    def edit_marker(self, marker: dict):
         """
         统一的标记编辑方法
         供 MarkerDisplayWidget 和 MarkerListPanel 调用
@@ -501,31 +501,14 @@ class AudioPlayer(QWidget):
 
         if dialog.exec_() == MarkerEditDialog.Accepted:
             result = dialog.get_data()
-
+            result['id'] = marker['id']
             try:
-                # 构建更新参数
-                update_params = {
-                    'label': result['label'],
-                    'color': result['color'],
-                    'preset_id': result['preset_id']
-                }
-
-                # 根据标记类型添加时间参数
-                if result['type'] == 0:  # 点标记
-                    update_params['time'] = result['time']
-                    update_params['start'] = None
-                    update_params['end'] = None
-                else:  # 范围标记
-                    update_params['start'] = result['start']
-                    update_params['end'] = result['end']
-                    update_params['time'] = None
-
                 # 更新数据库
                 normalized_path = self.slider.marker_display.audio_file_path
                 self.DictManage.update_audio_marker(
                     normalized_path,
                     marker['id'],
-                    **update_params
+                    result
                 )
 
                 # 刷新界面

@@ -164,8 +164,7 @@ class MarkerEditDialog(QDialog):
 
         # 如果是编辑模式，预填充时间数据
         if self.marker_data:
-            marker_type = self.marker_data.get('type', 0)
-            if marker_type == 0:  # 点标记
+            if self.marker_data.get('type') == 0:  # 点标记
                 time_ms = self.marker_data.get('time', 0)
                 self.start_time_input.set_from_milliseconds(time_ms)
             else:  # 范围标记
@@ -270,11 +269,10 @@ class MarkerEditDialog(QDialog):
         # 获取注释
         label = self.text_edit.toPlainText().strip()
         if not label:
-            label = "未命名标记"
+            label = ""
 
         # 判断标记类型
-        if end_ms is None:
-            # 点标记
+        if end_ms is None: # 点标记
             return {
                 'type': 0,
                 'time': start_ms if start_ms is not None else 0,
@@ -282,8 +280,7 @@ class MarkerEditDialog(QDialog):
                 'color': self.current_color,
                 'preset_id': self.selected_preset_id
             }
-        else:
-            # 范围标记
+        else:  # 范围标记
             if start_ms is None:
                 start_ms = 0
             return {

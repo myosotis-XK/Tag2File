@@ -95,16 +95,14 @@ class MarkerDisplayWidget(QWidget):
             return None, None
 
         for i, marker in enumerate(self.markers):
-            if "start" in marker and "end" in marker:
-                # 范围标记
+            if marker.get('type') == 0: # 点标记
+                marker_x = self._value_to_pixel(marker["time"])
+                if abs(marker_x - x) < self.snap_threshold:
+                    return marker, i
+            else: # 范围标记
                 x1 = self._value_to_pixel(marker["start"])
                 x2 = self._value_to_pixel(marker["end"])
                 if x1 <= x <= x2:
-                    return marker, i
-            elif "time" in marker:
-                # 点标记
-                marker_x = self._value_to_pixel(marker["time"])
-                if abs(marker_x - x) < self.snap_threshold:
                     return marker, i
 
         return None, None
@@ -116,16 +114,14 @@ class MarkerDisplayWidget(QWidget):
 
         overlapping_markers = []
         for marker in self.markers:
-            if "start" in marker and "end" in marker:
-                # 范围标记
+            if marker.get('type') == 0: # 点标记
+                marker_x = self._value_to_pixel(marker["time"])
+                if abs(marker_x - x) < self.snap_threshold:
+                    overlapping_markers.append(marker)                
+            else: # 范围标记
                 x1 = self._value_to_pixel(marker["start"])
                 x2 = self._value_to_pixel(marker["end"])
                 if x1 <= x <= x2:
-                    overlapping_markers.append(marker)
-            elif "time" in marker:
-                # 点标记
-                marker_x = self._value_to_pixel(marker["time"])
-                if abs(marker_x - x) < self.snap_threshold:
                     overlapping_markers.append(marker)
 
         return overlapping_markers
@@ -185,29 +181,7 @@ class MarkerDisplayWidget(QWidget):
             return
 
         normalized_path = self.audio_file_path
-        markers_data = self.DictManage.get_audio_markers(normalized_path)
-
-        # 转换为标记格式
-        self.markers = []
-        for m in markers_data:
-            if m['type'] == 0:  # 点标记
-                self.markers.append({
-                    'id': m['id'],
-                    'type': 0,
-                    'time': m['time'],
-                    'color': m['color'],
-                    'label': m['label']
-                })
-            else:  # 范围标记
-                self.markers.append({
-                    'id': m['id'],
-                    'type': 1,
-                    'start': m['start'],
-                    'end': m['end'],
-                    'color': m['color'],
-                    'label': m['label']
-                })
-
+        self.markers = self.DictManage.get_audio_markers(normalized_path)
         self.update()
 
     def leaveEvent(self, event):
@@ -234,50 +208,6 @@ class MarkerDisplayWidget(QWidget):
                     self.main_window.edit_marker(marker)
             elif action == delete_action:
                 self._delete_marker(marker)
-
-    def _edit_marker(self, marker):
-        """编辑标记"""
-        if not self.audio_file_path:
-            return
-
-        # 打开编辑对话框，预填充现有数据
-        result = self._open_marker_edit_dialog(marker)
-        if result:
-            normalized_path = self.audio_file_path
-
-            # 构建更新参数
-            update_params = {
-                'label': result['label'],
-                'color': result['color'],
-                'preset_id': result['preset_id']
-            }
-
-            # 根据标记类型添加时间参数
-            if result['type'] == 0:  # 点标记
-                update_params['time'] = result['time']
-                update_params['start'] = None
-                update_params['end'] = None
-            else:  # 范围标记
-                update_params['start'] = result['start']
-                update_params['end'] = result['end']
-                update_params['time'] = None
-
-            # 更新数据库
-            self.DictManage.update_audio_marker(
-                normalized_path,
-                marker['id'],
-                **update_params
-            )
-
-            # 重新加载标记
-            self._reload_markers()
-
-            # 刷新标记列表面板
-            if self.marker_list_panel:
-                self.marker_list_panel.load_markers()
-
-            return True
-        return False
 
     def _delete_marker(self, marker):
         """删除标记"""
@@ -355,8 +285,12 @@ class MarkerDisplayWidget(QWidget):
         # 绘制标记
         for marker in self.markers:
             color = QColor(marker.get('color', '#3498db'))
-            if "start" in marker and "end" in marker:
-                # 范围标记
+            if marker.get('type') == 0: # 点标记
+                x = self._value_to_pixel(marker['time'])
+                painter.setBrush(color)
+                painter.setPen(Qt.NoPen)
+                painter.drawRect(x - 2, 4, 4, self.height() - 8)
+            else:  # 范围标记
                 x1 = self._value_to_pixel(marker['start'])
                 x2 = self._value_to_pixel(marker['end'])
                 rect_color = QColor(color)
@@ -364,11 +298,5 @@ class MarkerDisplayWidget(QWidget):
                 painter.setBrush(rect_color)
                 painter.setPen(color)
                 painter.drawRect(x1, 8, x2 - x1, self.height() - 16)
-            elif "time" in marker:
-                # 点标记
-                x = self._value_to_pixel(marker['time'])
-                painter.setBrush(color)
-                painter.setPen(Qt.NoPen)
-                painter.drawRect(x - 2, 4, 4, self.height() - 8)
 
         painter.end()

@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QMessageBox, QMenu
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
-
+from src.core.DictManage import DictManage
 
 def format_time(ms):
     """格式化毫秒为 mm:ss 格式"""
@@ -26,6 +26,7 @@ class MarkerListPanel(QListWidget):
         :param parent: 父窗口
         """
         super().__init__(parent)
+        self.dict_manage = DictManage()
         self.audio_file_path = audio_file_path
         self.markers_data = []  # 存储从数据库加载的标记数据
         self.max_duration_ms = None  # 音频最大时长
@@ -87,10 +88,7 @@ class MarkerListPanel(QListWidget):
             return
 
         try:
-            from src.core.DictManage import DictManage
-
-            dict_manage = DictManage()
-            self.markers_data = dict_manage.get_audio_markers(self.audio_file_path)
+            self.markers_data = self.dict_manage.get_audio_markers(self.audio_file_path)
 
             # 按时间排序
             self.markers_data.sort(key=lambda m: m.get('time', 0) if m['type'] == 0 else m.get('start', 0))
@@ -99,7 +97,7 @@ class MarkerListPanel(QListWidget):
                 item = QListWidgetItem()
 
                 # 格式化显示文本
-                if marker['type'] == 0:  # 点标记
+                if marker.get('type') == 0:  # 点标记
                     time_str = format_time(marker['time'])
                     display_text = f"{time_str} - {marker['label']}"
                 else:  # 范围标记
@@ -168,10 +166,7 @@ class MarkerListPanel(QListWidget):
 
         if reply == QMessageBox.Yes:
             try:
-                from src.core.DictManage import DictManage
-
-                dict_manage = DictManage()
-                dict_manage.delete_audio_marker(self.audio_file_path, marker['id'])
+                self.dict_manage.delete_audio_marker(self.audio_file_path, marker['id'])
 
                 # 刷新列表
                 self.load_markers()
