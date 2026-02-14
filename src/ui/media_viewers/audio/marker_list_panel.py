@@ -156,25 +156,14 @@ class MarkerListPanel(QListWidget):
 
     def delete_marker(self, marker):
         """删除标记"""
-        # 确认删除
-        reply = QMessageBox.question(
-            self,
-            "确认删除",
-            f"确定要删除标记 '{marker.get('label', '未命名')}' 吗？",
-            QMessageBox.Yes | QMessageBox.No
-        )
+        try:
+            self.dict_manage.delete_audio_marker(self.audio_file_path, marker['id'])
 
-        if reply == QMessageBox.Yes:
-            try:
-                self.dict_manage.delete_audio_marker(self.audio_file_path, marker['id'])
+            # 刷新列表
+            self.load_markers()
 
-                # 刷新列表
-                self.load_markers()
+            # 发出删除信号
+            self.marker_deleted.emit(marker['id'])
 
-                # 发出删除信号
-                self.marker_deleted.emit(marker['id'])
-
-                QMessageBox.information(self, "成功", "标记已删除")
-
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"删除标记失败:\n{str(e)}")
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"删除标记失败:\n{str(e)}")

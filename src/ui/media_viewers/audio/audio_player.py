@@ -604,6 +604,18 @@ class AudioPlayer(QWidget):
         self.shortcut_play = QShortcut(QKeySequence(Qt.Key_Space), self)
         self.shortcut_play.activated.connect(self.toggle_play)
 
+        # I键 - 标记开始时间（In点）
+        self.shortcut_mark_in = QShortcut(QKeySequence(Qt.Key_I), self)
+        self.shortcut_mark_in.activated.connect(self.mark_in_point)
+
+        # O键 - 标记结束时间（Out点）
+        self.shortcut_mark_out = QShortcut(QKeySequence(Qt.Key_O), self)
+        self.shortcut_mark_out.activated.connect(self.mark_out_point)
+
+        # M键 - 创建时间点标记（Marker）
+        self.shortcut_mark_point = QShortcut(QKeySequence(Qt.Key_M), self)
+        self.shortcut_mark_point.activated.connect(self.create_point_marker)
+
     def seek_backward(self):
         """后退5秒"""
         current_pos = self.player.position()
@@ -616,6 +628,73 @@ class AudioPlayer(QWidget):
         duration = self.player.duration()
         new_pos = min(duration, current_pos + 5000)  # 5秒 = 5000毫秒
         self.player.setPosition(new_pos)
+
+    def mark_in_point(self):
+        """标记开始时间（In点）- I键快捷键"""
+        # 切换到标记面板（如果当前不在标记面板）
+        self.switch_right_panel(0)
+
+        # 获取当前播放时间
+        current_ms = self.player.position()
+
+        # 将当前时间同步到快速标记创建器的开始时间
+        self.quick_marker_creator.start_time_input.set_from_milliseconds(current_ms)
+
+    def mark_out_point(self):
+        """标记结束时间（Out点）- O键快捷键"""
+        # 切换到标记面板（如果当前不在标记面板）
+        self.switch_right_panel(0)
+
+        # 获取当前播放时间
+        current_ms = self.player.position()
+
+        # 将当前时间同步到快速标记创建器的结束时间
+        self.quick_marker_creator.end_time_input.set_from_milliseconds(current_ms)
+
+    def create_point_marker(self):
+        """创建时间点标记 - M键快捷键"""
+        if not self.slider.marker_display.audio_file_path:
+            QMessageBox.warning(self, "错误", "未加载音频文件")
+            return
+
+        # 获取当前播放时间
+        current_ms = self.player.position()
+
+        # 获取预设列表
+        presets = self.DictManage.get_all_marker_presets()
+
+        # 打开编辑对话框创建点标记
+        from .marker_edit_dialog import MarkerEditDialog
+
+        # 创建一个点标记数据，预填充当前时间
+        marker_data = {
+            'type': 0,
+            'time': current_ms,
+            'label': '',
+            'color': '#3498db',
+            'preset_id': None
+        }
+
+        dialog = MarkerEditDialog(
+            marker_data=marker_data,
+            presets=presets,
+            max_duration_ms=self.player.duration(),
+            parent=self
+        )
+
+        if dialog.exec_() == MarkerEditDialog.Accepted:
+            result = dialog.get_data()
+
+            try:
+                # 保存到数据库
+                normalized_path = self.slider.marker_display.audio_file_path
+                self.DictManage.add_audio_marker(normalized_path, result)
+
+                # 刷新界面
+                self.on_marker_changed()
+
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"创建标记失败:\n{str(e)}")
 
     def play_previous(self):
         """播放上一首（根据播放模式）"""
