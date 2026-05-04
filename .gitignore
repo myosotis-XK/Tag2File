@@ -9,6 +9,7 @@ log/
 data/tagbase
 data/cache
 data/audio
+data/backup
 config/
 
 # 打包相关

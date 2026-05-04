@@ -32,6 +32,44 @@ app.secret_key = 'a_very_secret_key_change_this'  # 用于加密 session cookie
 
 import sqlite3
 user_db_path = os.path.join(root, 'web_app', 'users.db')
+
+def init_db():
+    """初始化数据库，创建所需表结构"""
+    db = sqlite3.connect(user_db_path)
+    try:
+        with db:
+            cursor = db.cursor()
+            
+            # 创建 users 表，存储用户账户信息
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL
+                );
+            """)
+            
+            # 创建 user_settings 表，存储用户配置
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    setting_type TEXT NOT NULL,
+                    setting_data TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id),
+                    UNIQUE(user_id, setting_type)
+                );
+            """)
+            
+            cursor.close()
+    except Exception as e:
+        print(f"数据库初始化错误: {e}")
+        raise
+    finally:
+        db.close()
+
+init_db()
+
 def get_db():
     """获取数据库连接，每个请求独立"""
     if 'db' not in g:
@@ -794,6 +832,9 @@ def add_or_update_marker():
 
         # 添加或更新标记
         marker_id = marker.get('id')
+        marker['time'] = int(marker['time'])
+        marker['start'] = int(marker['start'])
+        marker['end'] = int(marker['end'])
         if marker_id:
             # 更新现有标记
             data_api.update_audio_marker(normalized_path, marker_id, marker)
@@ -883,7 +924,7 @@ class RouteFilter(logging.Filter):
 
 # 添加过滤器到werkzeug日志
 werkzeug_logger = logging.getLogger('werkzeug')
-route_filter = RouteFilter(['/static/', '/open_file?', '/get_thumb?'])
+route_filter = RouteFilter(['/static/', '/open_file?', '/get_thumb?', '/audio_player?', '/api/audio/lyric?'])
 werkzeug_logger.addFilter(route_filter)
 
 if __name__ == '__main__':

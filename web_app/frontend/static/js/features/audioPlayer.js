@@ -38,8 +38,8 @@ export class AudioPlayerController {
     initDOMElements() {
         // 播放控制
         this.btnPlay = document.getElementById('btn-play');
-        this.btnPrevious = document.getElementById('btn-previous');
-        this.btnNext = document.getElementById('btn-next');
+        this.btnRewind = document.getElementById('btn-rewind');
+        this.btnForward = document.getElementById('btn-forward');
         this.btnMode = document.getElementById('btn-mode');
         this.btnVolume = document.getElementById('btn-volume');
         this.btnBack = document.getElementById('btn-back');
@@ -99,8 +99,8 @@ export class AudioPlayerController {
 
         // 播放控制按钮
         this.btnPlay.addEventListener('click', () => this.togglePlay());
-        this.btnPrevious.addEventListener('click', () => this.playPrevious());
-        this.btnNext.addEventListener('click', () => this.playNext());
+        this.btnRewind.addEventListener('click', () => this.rewindSeconds());
+        this.btnForward.addEventListener('click', () => this.forwardSeconds());
         this.btnMode.addEventListener('click', () => this.togglePlayMode());
         this.btnVolume.addEventListener('click', () => this.toggleVolumePopup());
         this.btnBack.addEventListener('click', () => this.goBack());
@@ -561,6 +561,14 @@ export class AudioPlayerController {
     closeSidebar() {
         this.sidebar.classList.remove('active');
         this.sidebarOverlay.classList.remove('active');
+    }
+
+    rewindSeconds() {
+        this.audio.currentTime = Math.max(0, this.audio.currentTime - 5);
+    }
+
+    forwardSeconds() {
+        this.audio.currentTime = Math.min(this.audio.duration, this.audio.currentTime + 5);
     }
 
     switchSidebarTab(tabName) {

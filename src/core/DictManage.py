@@ -360,7 +360,7 @@ class DataAPI():
             cur.execute("SELECT name, size_bytes, mtime FROM file")
             rows = cur.fetchall()
             cur.close()
-        return {row[0] for row in rows}
+        return {row for row in rows}
 
     def get_all_tags(self) -> list[str]:
         with self._lock, self.conn:
@@ -1010,14 +1010,6 @@ class DataAPI():
         markers = self.get_audio_markers(file_path)
         markers = [m for m in markers if m.get('id') != marker_id]
         self.set_file_extra_data(file_path, "audio_marker", markers)
-
-    def get_all_marker_presets(self):
-        """
-        获取所有音频标记预设
-        :return: 预设列表 [{'id', 'name', 'color', 'order_index'}, ...]
-        """
-        presets = self.get_all_marker_presets()
-        return presets if presets else []
 
 
 class Observer(QObject):
