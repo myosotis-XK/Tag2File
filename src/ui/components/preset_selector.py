@@ -1,15 +1,8 @@
-"""
-PresetSelector 组件 - 预设类型选择器
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QGroupBox, QScrollArea
+from PyQt5.QtCore import pyqtSignal, Qt
 
-功能特性：
-- 水平排列的可选预设按钮
-- 支持预设颜色显示
-- 单选模式（QButtonGroup）
-- 提供选中回调信号
-"""
-
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QGroupBox, QPushButton, QButtonGroup
-from PyQt5.QtCore import pyqtSignal
+from .flow_layout import QFlowLayout
+from src.ui.components.style_utils import create_colored_label
 
 
 class PresetSelector(QWidget):
@@ -31,19 +24,27 @@ class PresetSelector(QWidget):
         super().__init__(parent)
 
         self.presets = []
-        self.preset_buttons = []
-        self.selected_preset_id = None
+        self.preset_labels = []
 
         # 创建UI
         self.group_box = QGroupBox(title)
-        self.preset_layout = QHBoxLayout()
+        
+        # 使用滚动区域和流式布局
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("background-color: white;")
+        
+        self.flow_widget = QWidget()
+        self.preset_layout = QFlowLayout(self.flow_widget)  # 使用 QFlowLayout
         self.preset_layout.setSpacing(10)
         self.preset_layout.setContentsMargins(10, 10, 10, 10)
 
-        self.preset_button_group = QButtonGroup(self)
-        self.preset_button_group.setExclusive(True)
-
-        self.group_box.setLayout(self.preset_layout)
+        self.scroll_area.setWidget(self.flow_widget)
+        
+        # 将滚动区域添加到 GroupBox
+        group_layout = QHBoxLayout()
+        group_layout.addWidget(self.scroll_area)
+        self.group_box.setLayout(group_layout)
 
         # 主布局
         main_layout = QHBoxLayout(self)
@@ -67,92 +68,28 @@ class PresetSelector(QWidget):
 
         # 创建预设按钮
         for preset_id, name, color, order_index in presets:
-            btn = QPushButton(name)
-            btn.setCheckable(True)
-            btn.setMinimumHeight(35)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {color};
-                    color: white;
-                    border: 2px solid transparent;
-                    border-radius: 5px;
-                    font-weight: bold;
-                    padding: 5px 10px;
-                }}
-                QPushButton:checked {{
-                    border: 2px solid #2c3e50;
-                }}
-                QPushButton:hover {{
-                    opacity: 0.8;
-                }}
-            """)
+            label = create_colored_label(name, color)
 
-            # 保存预设信息到按钮
-            btn.setProperty('preset_id', preset_id)
-            btn.setProperty('preset_color', color)
-            btn.setProperty('preset_name', name)
+            label.preset_id = preset_id
+            label.preset_color = color
+            label.preset_name = name
 
-            # 连接点击事件
-            btn.clicked.connect(
-                lambda checked, pid=preset_id, c=color, n=name:
-                self._on_button_clicked(checked, pid, c, n)
-            )
-
-            self.preset_layout.addWidget(btn)
-            self.preset_button_group.addButton(btn)
-            self.preset_buttons.append(btn)
+            label.mousePressEvent = lambda event, lbl=label: self._on_label_clicked(lbl) if event.button() == Qt.LeftButton else None
+            
+            self.preset_layout.addWidget(label)
+            self.preset_labels.append(label)
 
     def clear_presets(self):
         """清空所有预设按钮"""
-        for btn in self.preset_buttons:
-            self.preset_layout.removeWidget(btn)
-            self.preset_button_group.removeButton(btn)
-            btn.deleteLater()
+        for label in self.preset_labels:
+            self.preset_layout.removeWidget(label)
+            label.deleteLater()
 
-        self.preset_buttons.clear()
+        self.preset_labels.clear()
         self.presets.clear()
-        self.selected_preset_id = None
 
-    def _on_button_clicked(self, checked, preset_id, color, name):
-        """预设按钮点击回调"""
-        if checked:
-            self.selected_preset_id = preset_id
-            self.preset_selected.emit(preset_id, color, name)
-        else:
-            self.selected_preset_id = None
-            self.selection_cleared.emit()
-
-    def set_selected_preset(self, preset_id):
-        """
-        设置当前选中的预设
-
-        Args:
-            preset_id: 预设ID，None表示取消选中
-        """
-        if preset_id is None:
-            # 取消所有选中
-            checked_btn = self.preset_button_group.checkedButton()
-            if checked_btn:
-                checked_btn.setChecked(False)
-            self.selected_preset_id = None
-            return
-
-        # 查找并选中对应按钮
-        for btn in self.preset_buttons:
-            if btn.property('preset_id') == preset_id:
-                btn.setChecked(True)
-                self.selected_preset_id = preset_id
-                break
-
-    def get_selected_preset_id(self):
-        """
-        获取当前选中的预设ID
-
-        Returns:
-            int or None: 预设ID，未选中时返回None
-        """
-        return self.selected_preset_id
-
-    def clear_selection(self):
-        """清除当前选中状态"""
-        self.set_selected_preset(None)
+    def _on_label_clicked(self, label):
+        """预设标签点击回调"""
+        # 选中当前标签
+        self.selected_label = label
+        self.preset_selected.emit(label.preset_id, label.preset_color, label.preset_name)

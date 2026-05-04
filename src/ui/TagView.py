@@ -1,9 +1,12 @@
-from .FileShowArea import *
-from .SingleFileTagView import *
-from src.core.DictManage import *
+
 from PyQt5.QtWidgets import QSplitter, QHBoxLayout, QLineEdit, QMessageBox, QInputDialog, QMainWindow
 from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation
 from PyQt5.QtGui import QColor
+from .FileShowArea import *
+from .SingleFileTagView import *
+from src.core.DictManage import *
+from src.ui.components.style_utils import create_colored_label
+
 
 default_value = {
     'quickly_model': False
@@ -128,30 +131,10 @@ class TagView(QMainWindow, Observer):
             category = item[0]
             if category == '文件类型':
                 continue
-            color = QColor(item[1])
+            color = item[1]
             tags = self.DictManage.query('category', category, 'tag')
-            bg_color = color.name()
-            darker_color = QColor(color)
-            darker_color.setHsv(color.hue(), color.saturation(), int(color.value() * 0.7))
-            border_color = darker_color.name()
             for tag in tags:
-                label = QLabel(tag, self)
-                label.setStyleSheet(f"""
-                    QLabel {{
-                        background-color: {bg_color};
-                        color: #333333;
-                        border: 1px solid {border_color};
-                        border-radius: 10px;
-                        padding: 5px 10px;
-                        margin: 3px;
-                        font: 14px;
-                    }}
-                    QLabel:hover {{
-                        background-color: {color.lighter(110).name()};
-                        border-color: #c0c0c0;
-                    }}
-                """)
-                label.setCursor(Qt.PointingHandCursor)  # 设置鼠标指针样式
+                label = create_colored_label(tag, color, self)
                 label.mousePressEvent = lambda event, tag=tag: self.onTagClick(tag) if event.button() == Qt.LeftButton else None  # 绑定点击事件
                 label.setContextMenuPolicy(Qt.CustomContextMenu)  # 允许自定义右键菜单
                 label.customContextMenuRequested.connect(lambda pos, label=label: self.show_tag_context_menu(pos, label))  # 绑定右键菜单事件

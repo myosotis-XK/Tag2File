@@ -290,9 +290,5 @@ class QuickMarkerCreator(QWidget):
             # 发出信号通知标记已创建
             self.marker_created.emit()
 
-            QMessageBox.information(self, "成功", "标记创建成功")
-
-            # 保留所有输入内容（不清空）
-
         except Exception as e:
             QMessageBox.critical(self, "错误", f"创建标记失败:\n{str(e)}")

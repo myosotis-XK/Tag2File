@@ -1,9 +1,3 @@
-"""
-PresetSelectorDialog - 预设选择对话框
-
-弹出式对话框，显示 PresetSelector 组件供用户选择预设
-"""
-
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QPushButton
 from PyQt5.QtCore import Qt
 from .preset_selector import PresetSelector
@@ -29,14 +23,14 @@ class PresetSelectorDialog(QDialog):
 
         self.setWindowTitle("选择预设类型")
         self.setModal(True)
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(270)
 
         # 设置窗口标志：无边框对话框
         self.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
 
-        self.init_ui(presets, current_preset_id)
+        self.init_ui(presets)
 
-    def init_ui(self, presets, current_preset_id):
+    def init_ui(self, presets):
         """初始化UI"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -66,10 +60,6 @@ class PresetSelectorDialog(QDialog):
 
         if presets:
             self.preset_selector.load_presets(presets)
-
-        # 如果有当前选中的预设，设置为选中状态
-        if current_preset_id is not None:
-            self.preset_selector.set_selected_preset(current_preset_id)
 
         # 连接信号 - 点击预设后立即关闭并接受
         self.preset_selector.preset_selected.connect(self._on_preset_selected_and_close)
@@ -116,8 +106,6 @@ class PresetSelectorDialog(QDialog):
         # 打开预设管理器
         manager = MarkerPresetManager(self.parent())
         if manager.exec_():
-            # 如果预设管理器关闭后，可以选择重新打开预设选择对话框
-            # 这里暂时不实现，让用户手动再次点击预设按钮
             pass
 
     def on_preset_selected(self, preset_id, color, name):
