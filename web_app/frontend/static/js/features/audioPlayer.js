@@ -139,6 +139,166 @@ export class AudioPlayerController {
 
         // 初始化音量
         this.audio.volume = 0.5;
+
+        // 键盘快捷键
+        this.initKeyboardShortcuts();
+    }
+
+    initKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+    }
+
+    handleKeyboardShortcuts(e) {
+        // 检查是否按下了 Ctrl+Shift+Alt 组合键
+        if (e.ctrlKey && e.shiftKey && e.altKey) {
+            e.preventDefault(); // 阻止默认行为
+            
+            switch(e.key) {
+                case 'ArrowLeft':
+                    // Ctrl+Shift+Alt+Left: 后退5秒
+                    this.rewindSeconds();
+                    break;
+                case 'ArrowRight':
+                    // Ctrl+Shift+Alt+Right: 前进5秒
+                    this.forwardSeconds();
+                    break;
+                // Ctrl+Shift+Alt+I: 设置开始时间
+                case 'i':
+                    this.markInPoint();
+                    break;
+                case 'I':
+                    this.markInPoint();
+                    break;
+                // Ctrl+Shift+Alt+O: 设置结束时间
+                case 'o':
+                    this.markOutPoint();
+                    break;
+                case 'O':
+                    this.markOutPoint();
+                    break;
+                // Ctrl+Shift+Alt+P: 创建点标记
+                case 'p':
+                    this.createPointMarker();
+                    break;
+                case 'P':
+                    this.createPointMarker();
+                    break;
+                // Ctrl+Shift+Alt+R: 创建范围标记
+                case 'r':
+                    this.createRangeMarker();
+                    break;
+                case 'R':
+                    this.createRangeMarker();
+                    break;
+            }
+        }
+    }
+
+    playShortcutErrorSound() {
+        // 创建简短的错误提示音
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // 设置声音参数
+            oscillator.frequency.value = 800; // 高频提示音
+            oscillator.type = 'square';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.1);
+            
+            // 自动关闭音频上下文
+            setTimeout(() => {
+                audioContext.close();
+            }, 200);
+        } catch (error) {
+            console.warn('无法播放快捷键错误提示音:', error);
+        }
+    }
+
+
+    async createPointMarker() {
+        // 创建点标记（当前位置），不影响当前的开始和结束时间设置
+        const currentTime = this.audio.currentTime;
+        
+        // 直接调用创建点标记接口
+        await this.createQuickPointMarker(currentTime);
+    }
+
+    async createRangeMarker() {
+        // 创建范围标记（需要已设置开始和结束时间）
+        if (this.inPoint === null || this.outPoint === null) {
+            this.playShortcutErrorSound();
+            return;
+        }
+        
+        if (this.inPoint >= this.outPoint) {
+            this.playShortcutErrorSound();
+            return;
+        }
+        
+        // 直接调用创建范围标记接口
+        await this.createQuickRangeMarker(this.inPoint, this.outPoint);
+    }
+
+    async createQuickPointMarker(timePoint) {
+        // 创建点标记数据
+        const markerData = {
+            id: null,  // null 表示新建
+            type: 0,   // 点标记
+            label: '快速标记',
+            color: '#000000',  // 默认颜色
+            time: timePoint * 1000,
+            start: timePoint * 1000,
+            end: timePoint * 1000
+        };
+
+        await this.saveQuickMarker(markerData);
+    }
+
+    async createQuickRangeMarker(startTime, endTime) {
+        const currentTime = this.audio.currentTime;
+        
+        // 创建范围标记数据
+        const markerData = {
+            id: null,  // null 表示新建
+            type: 1,   // 范围标记
+            label: '快速标记',
+            color: '#000000',  // 默认颜色
+            time: currentTime * 1000,
+            start: startTime * 1000,
+            end: endTime * 1000
+        };
+
+        await this.saveQuickMarker(markerData);
+        // 清空输入框
+        this.clearMarkerInputs();
+    }
+
+    async saveQuickMarker(markerData) {
+        try {
+            const filePath = this.playlist[this.currentIndex];
+            
+            // 调用后端 API 保存标记
+            const result = await apiAddOrUpdateMarker(filePath, markerData);
+            
+            if (result.success) {
+                // 更新本地标记列表
+                this.markers = result.markers;
+                // 刷新标记列表
+                this.renderMarkers();
+            }
+        } catch (error) {
+            console.error('创建标记失败:', error);
+            this.playShortcutErrorSound();
+        }
     }
 
     async loadPlaylistFromURL() {
@@ -345,7 +505,6 @@ export class AudioPlayerController {
 
             return `
                 <div class="playlist-item ${isPlaying ? 'playing' : ''}" data-index="${index}">
-                    <span class="playlist-index">${index + 1}</span>
                     <span class="playlist-title">${title}</span>
                 </div>
             `;
@@ -596,11 +755,13 @@ export class AudioPlayerController {
     markInPoint() {
         this.inPoint = this.audio.currentTime;
         this.inputInPoint.value = this.formatTime(this.inPoint * 1000);
+        return this.inPoint;
     }
 
     markOutPoint() {
         this.outPoint = this.audio.currentTime;
         this.inputOutPoint.value = this.formatTime(this.outPoint * 1000);
+        return this.outPoint;
     }
 
     clearMarkerInputs() {

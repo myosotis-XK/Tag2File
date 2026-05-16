@@ -697,6 +697,71 @@ def get_thumbnails():
         as_attachment=False 
     )
 
+@app.route('/is_folder', methods=['POST'])
+@login_required
+def is_folder():
+    """检测路径是否为文件夹"""
+    data = request.json
+    file_path = data.get('file_path')
+    
+    if not file_path:
+        return jsonify({'error': '缺少文件路径参数'}), 400
+    
+    try:
+        # 使用os.path.isdir进行准确的文件夹检测
+        is_dir = os.path.isdir(file_path)
+        
+        return jsonify({
+            'is_folder': is_dir,
+            'file_path': file_path,
+            'exists': os.path.exists(file_path)
+        })
+        
+    except Exception as e:
+        print(f"Error checking if path is folder: {e}")
+        return jsonify({'error': f'无法检测路径类型: {str(e)}'}), 500
+
+
+@app.route('/get_folder_contents', methods=['POST'])
+@login_required
+def get_folder_contents():
+    """获取文件夹内容"""
+    data = request.json
+    folder_path = data.get('folder_path')
+    
+    if not folder_path:
+        return jsonify({'error': '缺少文件夹路径参数'}), 400
+    
+    # 规范化路径
+    folder_path = folder_path.rstrip('/').rstrip('\\')
+    
+    if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
+        return jsonify({'error': '文件夹不存在或路径无效'}), 404
+    
+    try:
+        # 获取文件夹中的所有文件和子文件夹
+        files = []
+        for item in os.listdir(folder_path):
+            item_path = os.path.join(folder_path, item)
+            
+            # 只包含文件和文件夹，排除隐藏文件和系统文件
+            if not item.startswith('.'):
+                files.append(item_path)
+        
+        # 按名称排序
+        files.sort()
+        
+        return jsonify({
+            'files': files,
+            'folder_name': os.path.basename(folder_path),
+            'total_count': len(files)
+        })
+        
+    except Exception as e:
+        print(f"Error reading folder contents: {e}")
+        return jsonify({'error': f'无法读取文件夹内容: {str(e)}'}), 500
+
+
 @app.route('/open_file', methods=['GET'])
 @login_required
 def open_file():
@@ -704,10 +769,11 @@ def open_file():
     if not file_path:
         return jsonify({'error': '缺少文件路径参数'}), 400
 
+    file_path = file_path.replace('\\', '/')
     if not os.path.exists(file_path):
         print(f"File not found: {file_path}")
         return jsonify({'error': '文件不存在或路径无效'}), 404
-
+    
     db_path = get_user_setting(session.get('user_id'), 'database_path')
     data_api: DataAPI = tagbase_data_dict[db_path]
     tags = data_api.query('file', file_path, 'tag')
@@ -773,7 +839,8 @@ def get_audio_metadata():
 
             # 获取音频标记数据
             markers = data_api.get_audio_markers(normalized_path)
-
+            # 根据开始时间排序
+            markers.sort(key=lambda x: x['start'])
             metadata_list.append({
                 'path': normalized_path,
                 'title': title,
@@ -844,6 +911,8 @@ def add_or_update_marker():
 
         # 返回更新后的标记列表
         updated_markers = data_api.get_audio_markers(normalized_path)
+        # 根据开始时间排序
+        updated_markers.sort(key=lambda x: x['start'])
         return jsonify({'success': True, 'markers': updated_markers})
 
     except Exception as e:
@@ -869,6 +938,8 @@ def delete_marker(marker_id):
 
         # 返回更新后的标记列表
         updated_markers = data_api.get_audio_markers(normalized_path)
+        # 根据开始时间排序
+        updated_markers.sort(key=lambda x: x['start'])
         return jsonify({'success': True, 'markers': updated_markers})
 
     except Exception as e:

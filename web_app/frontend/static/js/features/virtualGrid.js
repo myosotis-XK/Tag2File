@@ -8,6 +8,56 @@ function isAudioFile(filePath) {
     return ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'wma', 'ape'].includes(ext);
 }
 
+// 检测是否为文件夹（通过后端API）
+async function isDirectory(filePath) {
+    try {
+        const response = await fetch('/is_folder', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ file_path: filePath })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            return data.is_folder === true;
+        } else {
+            console.error('检测文件夹失败:', response.statusText);
+            // 如果API失败，使用简单的备用逻辑
+            return filePath.endsWith('/') || filePath.endsWith('\\');
+        }
+    } catch (error) {
+        console.error('检测文件夹错误:', error);
+        // 如果网络错误，使用简单的备用逻辑
+        return filePath.endsWith('/') || filePath.endsWith('\\');
+    }
+}
+
+// 获取文件夹内容
+async function getFolderContents(folderPath) {
+    try {
+        const response = await fetch('/get_folder_contents', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ folder_path: folderPath })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            return data.files || [];
+        } else {
+            console.error('获取文件夹内容失败:', response.statusText);
+            return [];
+        }
+    } catch (error) {
+        console.error('获取文件夹内容错误:', error);
+        return [];
+    }
+}
+
 // 核心渲染函数：设置和渲染虚拟网格
 export function setupVirtualGrid() {
     const resultsContainer = document.getElementById('results-container');
@@ -336,24 +386,81 @@ function renderVisibleItems(forceRefresh = false) {
                 `;
                 
                 // 绑定点击事件
-                item.addEventListener('click', () => {
-                    // 检测是否为音频文件
-                    if (isAudioFile(file.filePath)) {
-                        // 从当前文件列表中筛选出所有音频文件
-                        const audioFiles = allFiles
-                            .filter(f => isAudioFile(f.filePath))
-                            .map(f => f.filePath);
-
-                        // 找到当前文件在音频列表中的索引
-                        const currentIndex = audioFiles.indexOf(file.filePath);
-
-                        // 跳转到音频播放器页面
-                        const playlistParam = encodeURIComponent(JSON.stringify(audioFiles));
-                        window.location.href = `/audio_player?playlist=${playlistParam}&index=${currentIndex}`;
+                item.addEventListener('click', async () => {
+                    // 检测是否为文件夹
+                    if (await isDirectory(file.filePath)) {
+                        // 显示加载状态
+                        const resultsContainer = document.getElementById('results-container');
+                        resultsContainer.innerHTML = `
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                <p>加载文件夹内容...</p>
+                            </div>
+                        `;
+                        
+                        try {
+                            // 获取文件夹内容
+                            const folderContents = await getFolderContents(file.filePath);
+                            
+                            if (folderContents.length > 0) {
+                                // 更新文件列表为文件夹内容
+                                globalState.virtualFiles = folderContents.map(filePath => {
+                                    const fileName = filePath.split('\\').pop().split('/').pop();
+                                    return { 
+                                        filePath, 
+                                        fileName
+                                    };
+                                });
+                                
+                                // 更新分页状态（文件夹内容不分页）
+                                globalState.pagination.currentPage = 1;
+                                globalState.pagination.totalPages = 1;
+                                globalState.pagination.totalItems = folderContents.length;
+                                
+                                // 添加文件夹路径到历史堆栈
+                                if (!globalState.folderHistory) {
+                                    globalState.folderHistory = [];
+                                }
+                                globalState.folderHistory.push(file.filePath);
+                                
+                                // 重新渲染网格
+                                setupVirtualGrid();
+                            } else {
+                                resultsContainer.innerHTML = `
+                                    <div class="text-center text-muted py-5">
+                                        <i class="fa fa-folder-open-o fa-3x mb-3"></i>
+                                        <p>文件夹为空</p>
+                                    </div>
+                                `;
+                            }
+                        } catch (error) {
+                            console.error('加载文件夹内容失败:', error);
+                            resultsContainer.innerHTML = `
+                                <div class="text-center text-danger py-5">
+                                    <i class="fa fa-exclamation-circle fa-3x mb-3"></i>
+                                    <p>加载文件夹内容失败</p>
+                                </div>
+                            `;
+                        }
                     } else {
-                        // 非音频文件，使用原有逻辑直接打开
-                        const targetUrl = apiOpenFile(file.filePath);
-                        window.open(targetUrl);
+                        // 检测是否为音频文件
+                        if (isAudioFile(file.filePath)) {
+                            // 从当前文件列表中筛选出所有音频文件
+                            const audioFiles = allFiles
+                                .filter(f => isAudioFile(f.filePath))
+                                .map(f => f.filePath);
+
+                            // 找到当前文件在音频列表中的索引
+                            const currentIndex = audioFiles.indexOf(file.filePath);
+
+                            // 跳转到音频播放器页面
+                            const playlistParam = encodeURIComponent(JSON.stringify(audioFiles));
+                            window.location.href = `/audio_player?playlist=${playlistParam}&index=${currentIndex}`;
+                        } else {
+                            // 非音频文件，使用原有逻辑直接打开
+                            const targetUrl = apiOpenFile(file.filePath);
+                            window.open(targetUrl);
+                        }
                     }
                 });
                 
