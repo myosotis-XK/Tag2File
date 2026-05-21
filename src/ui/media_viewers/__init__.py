@@ -1,39 +1,19 @@
-"""
-媒体查看器模块
-包含图片查看器和音频播放器
-"""
-
-# 图片查看器
 from .image import (
     ZoomIndicator,
+    ImageBrowser,
     ImageViewer,
     ImageViewerMain,
-    NavButton,
     MultiImageViewer,
-    ImageBrowser
+    NavButton,
 )
-
-# 音频播放器
-from .audio import (
-    AudioPlayer,
-    MarkerEditDialog,
-    MarkerListPanel,
-    MarkerPresetManager,
-    PlaylistPanel
-)
+from .audio import AudioPlayer
 
 __all__ = [
-    # 图片查看器
     'ZoomIndicator',
     'ImageViewer',
     'ImageViewerMain',
     'NavButton',
     'MultiImageViewer',
     'ImageBrowser',
-    # 音频播放器
     'AudioPlayer',
-    'MarkerEditDialog',
-    'MarkerListPanel',
-    'MarkerPresetManager',
-    'PlaylistPanel'
 ]
