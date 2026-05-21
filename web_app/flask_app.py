@@ -947,6 +947,34 @@ def delete_marker(marker_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/audio/marker_presets', methods=['GET'])
+@login_required
+def get_marker_presets():
+    """获取所有标记预设"""
+    try:
+        db_path = get_user_setting(session.get('user_id'), 'database_path')
+        data_api: DataAPI = tagbase_data_dict[db_path]
+
+        # 从数据库获取所有标记预设
+        presets = data_api.get_all_marker_presets()
+
+        # 转换为列表格式
+        result = []
+        for preset_id, name, color, order_index in presets:
+            result.append({
+                'id': preset_id,
+                'name': name,
+                'color': color,
+                'order_index': order_index
+            })
+
+        return jsonify({'success': True, 'presets': result})
+
+    except Exception as e:
+        print(f"获取标记预设错误: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
 # ————————————————————————————————————————————————————————————————————————启动服务————————————————————————————————————————————————————————
 

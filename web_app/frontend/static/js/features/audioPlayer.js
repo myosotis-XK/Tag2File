@@ -1,6 +1,6 @@
 // audioPlayer.js - 音频播放器核心控制器
 
-import { apiGetAudioMetadata, apiGetLyric, apiOpenFile, apiAddOrUpdateMarker, apiDeleteMarker } from '../api.js';
+import { apiGetAudioMetadata, apiGetLyric, apiOpenFile, apiAddOrUpdateMarker, apiDeleteMarker, apiGetMarkerPresets } from '../api.js';
 
 export class AudioPlayerController {
     constructor() {
@@ -21,6 +21,9 @@ export class AudioPlayerController {
         // 标记数据
         this.markers = [];
 
+        // 标记预设
+        this.markerPresets = [];
+
         // 入点/出点（用于创建标记）
         this.inPoint = null;
         this.outPoint = null;
@@ -33,6 +36,9 @@ export class AudioPlayerController {
 
         // 从 URL 参数加载播放列表
         this.loadPlaylistFromURL();
+
+        // 加载标记预设
+        this.loadMarkerPresets();
     }
 
     initDOMElements() {
@@ -81,9 +87,16 @@ export class AudioPlayerController {
         this.inputInPoint = document.getElementById('input-in-point');
         this.inputOutPoint = document.getElementById('input-out-point');
         this.inputMarkerLabel = document.getElementById('input-marker-label');
+        this.btnSelectPreset = document.getElementById('btn-select-preset');
         this.inputMarkerColor = document.getElementById('input-marker-color');
         this.btnCreateMarker = document.getElementById('btn-create-marker');
         this.btnClearMarker = document.getElementById('btn-clear-marker');
+        
+        // 预设选择弹窗
+        this.presetPopupOverlay = document.getElementById('preset-popup-overlay');
+        this.presetPopup = document.getElementById('preset-popup');
+        this.btnClosePreset = document.getElementById('btn-close-preset');
+        this.presetGrid = document.getElementById('preset-grid');
 
         // 视图状态
         this.isShowingLyric = false;
@@ -127,6 +140,9 @@ export class AudioPlayerController {
         // 标记快速创建
         this.btnMarkIn.addEventListener('click', () => this.markInPoint());
         this.btnMarkOut.addEventListener('click', () => this.markOutPoint());
+        this.btnSelectPreset.addEventListener('click', () => this.openPresetPopup());
+        this.btnClosePreset.addEventListener('click', () => this.closePresetPopup());
+        this.presetPopupOverlay.addEventListener('click', () => this.closePresetPopup());
         this.btnCreateMarker.addEventListener('click', () => this.createMarker());
         this.btnClearMarker.addEventListener('click', () => this.clearMarkerInputs());
 
@@ -255,24 +271,19 @@ export class AudioPlayerController {
             type: 0,   // 点标记
             label: '快速标记',
             color: '#000000',  // 默认颜色
-            time: timePoint * 1000,
-            start: timePoint * 1000,
-            end: timePoint * 1000
+            time: timePoint * 1000
         };
 
         await this.saveQuickMarker(markerData);
     }
 
     async createQuickRangeMarker(startTime, endTime) {
-        const currentTime = this.audio.currentTime;
-        
         // 创建范围标记数据
         const markerData = {
             id: null,  // null 表示新建
             type: 1,   // 范围标记
             label: '快速标记',
             color: '#000000',  // 默认颜色
-            time: currentTime * 1000,
             start: startTime * 1000,
             end: endTime * 1000
         };
@@ -337,6 +348,67 @@ export class AudioPlayerController {
             console.error('加载元数据失败:', error);
             this.playlistMetadata = [];
         }
+    }
+
+    async loadMarkerPresets() {
+        try {
+            const response = await apiGetMarkerPresets();
+            if (response.success) {
+                this.markerPresets = response.presets;
+                console.log('标记预设加载成功:', this.markerPresets);
+            }
+        } catch (error) {
+            console.error('加载标记预设失败:', error);
+            // 使用默认预设
+            this.markerPresets = [
+                { id: 1, name: '重要', color: '#e74c3c', order_index: 0 },
+                { id: 2, name: '一般', color: '#3498db', order_index: 1 },
+                { id: 3, name: '参考', color: '#2ecc71', order_index: 2 }
+            ];
+        }
+    }
+
+    openPresetPopup() {
+        // 更新预设网格
+        this.renderPresetGrid();
+        // 显示弹窗
+        this.presetPopupOverlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    closePresetPopup() {
+        this.presetPopupOverlay.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    renderPresetGrid() {
+        if (this.markerPresets.length === 0) {
+            this.presetGrid.innerHTML = '<p class="text-muted text-center">暂无预设</p>';
+            return;
+        }
+
+        this.presetGrid.innerHTML = this.markerPresets.map(preset => `
+            <div class="preset-item" data-preset-id="${preset.id}" data-preset-name="${preset.name}" data-preset-color="${preset.color}" style="border-left-color: ${preset.color};">
+                <div class="preset-color" style="background-color: ${preset.color};"></div>
+                <span class="preset-name">${preset.name}</span>
+            </div>
+        `).join('');
+
+        // 添加点击事件
+        this.presetGrid.querySelectorAll('.preset-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const presetId = parseInt(item.dataset.presetId);
+                const presetName = item.dataset.presetName;
+                const presetColor = item.dataset.presetColor;
+                
+                // 更新输入框
+                this.inputMarkerLabel.value = presetName;
+                this.inputMarkerColor.value = presetColor;
+                
+                // 关闭弹窗
+                this.closePresetPopup();
+            });
+        });
     }
 
     async loadCurrentSong() {
@@ -445,8 +517,9 @@ export class AudioPlayerController {
                 ? this.formatTime(marker.time)
                 : `${this.formatTime(marker.start)} - ${this.formatTime(marker.end)}`;
 
+            const dataTime = marker.type === 0 ? marker.time : marker.start;
             return `
-                <div class="marker-item" data-marker-id="${marker.id}" data-time="${marker.time || marker.start}">
+                <div class="marker-item" data-marker-id="${marker.id}" data-time="${dataTime}">
                     <div class="marker-color" style="background: ${marker.color}"></div>
                     <div class="marker-info">
                         <div class="marker-time">${time}</div>
@@ -770,7 +843,9 @@ export class AudioPlayerController {
         this.inputInPoint.value = '';
         this.inputOutPoint.value = '';
         this.inputMarkerLabel.value = '';
-        this.inputMarkerColor.value = '#ff0000';
+        // 设置默认颜色为第一个预设的颜色，或使用红色作为默认
+        const defaultColor = this.markerPresets.length > 0 ? this.markerPresets[0].color : '#ff0000';
+        this.inputMarkerColor.value = defaultColor;
         this.btnCreateMarker.innerHTML = '<i class="fa fa-plus"></i> 创建';
         delete this.btnCreateMarker.dataset.editingMarkerId;
     }
@@ -785,12 +860,17 @@ export class AudioPlayerController {
         const color = this.inputMarkerColor.value;
         const filePath = this.playlist[this.currentIndex];
 
+        // 根据颜色查找对应的预设 ID
+        const preset = this.markerPresets.find(p => p.color === color);
+        const presetId = preset?.id || null;
+
         // 创建标记数据
         const markerData = {
             id: null,  // null 表示新建
             type: this.inPoint !== null && this.outPoint !== null ? 1 : 0,
             label: label,
             color: color,
+            preset_id: presetId,
             time: this.inPoint * 1000 || this.audio.currentTime * 1000,
             start: this.inPoint * 1000,
             end: this.outPoint * 1000

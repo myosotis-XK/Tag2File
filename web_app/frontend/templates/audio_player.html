@@ -122,13 +122,35 @@
                         </div>
                         <div class="quick-create-row">
                             <input type="text" id="input-marker-label" class="form-control form-control-sm" placeholder="标记名称">
+                            <button class="btn btn-sm btn-outline-primary" id="btn-select-preset">
+                                <i class="fa fa-tags"></i> 选择预设
+                            </button>
+                        </div>
+                        <div class="quick-create-row">
                             <input type="color" id="input-marker-color" class="form-control form-control-sm form-control-color" value="#ff0000">
+                        </div>
+                        <div class="quick-create-row">
                             <button class="btn btn-sm btn-success" id="btn-create-marker">
                                 <i class="fa fa-plus"></i> 创建
                             </button>
                             <button class="btn btn-sm btn-secondary" id="btn-clear-marker">
                                 <i class="fa fa-eraser"></i>
                             </button>
+                        </div>
+
+                        <!-- 预设选择弹窗 -->
+                        <div class="preset-popup-overlay" id="preset-popup-overlay" style="display: none;">
+                            <div class="preset-popup" id="preset-popup">
+                                <div class="preset-popup-header">
+                                    <h5>选择预设类型</h5>
+                                    <button class="btn-close-preset" id="btn-close-preset">
+                                        <i class="fa fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="preset-grid" id="preset-grid">
+                                    <p class="text-muted text-center">暂无预设</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

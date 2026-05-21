@@ -525,27 +525,27 @@ class FileShowArea(QWidget):
         self.origin = event.pos() + self._offset
 
     def mouseMoveEvent(self, event: QMouseEvent):
-        if self.MousePress:
-            if event.buttons() & Qt.LeftButton:
-                # 设置橡皮筋框选的几何形状
-                # QRect(self.origin, event.pos()) 创建一个矩形，从起点 `self.origin` 到当前鼠标位置 `event.pos()`
-                # .normalized() 确保矩形是标准化的（即左上角为起点，右下角为终点），防止起点与终点位置不同导致的问题
-                self.rubber_band.setGeometry(QRect(self.origin - self._offset, event.pos()).normalized())
-                self.rubber_band.show() 
-                self.selectLabelsInRect(QRect(self.origin, event.pos() + self._offset).normalized(), event.modifiers())
-                mouse_pos_in_scroll_area = event.pos()
-                scroll_area_rect = self.rect()
-                if scroll_area_rect.contains(mouse_pos_in_scroll_area):
-                    self.auto_scroll_timer.stop()
-                else:
-                    self.autoScroll(mouse_pos_in_scroll_area)
+        if not self.MousePress:
+            return
+        if event.buttons() & Qt.LeftButton:
+            # 设置橡皮筋框选的几何形状
+            # QRect(self.origin, event.pos()) 创建一个矩形，从起点 `self.origin` 到当前鼠标位置 `event.pos()`
+            # .normalized() 确保矩形是标准化的（即左上角为起点，右下角为终点），防止起点与终点位置不同导致的问题
+            self.rubber_band.setGeometry(QRect(self.origin - self._offset, event.pos()).normalized())
+            self.rubber_band.show() 
+            self.selectLabelsInRect(QRect(self.origin, event.pos() + self._offset).normalized(), event.modifiers())
+            mouse_pos_in_scroll_area = event.pos()
+            scroll_area_rect = self.rect()
+            if scroll_area_rect.contains(mouse_pos_in_scroll_area):
+                self.auto_scroll_timer.stop()
             else:
-                self.mouseReleaseEvent(event)
+                self.autoScroll(mouse_pos_in_scroll_area)
+        else:
+            self.mouseReleaseEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if self.MousePress:
-            if event.button() == Qt.LeftButton:
-                self.rubber_band.hide()
+        if self.MousePress and event.button() == Qt.LeftButton:
+            self.rubber_band.hide()
         self.auto_scroll_timer.stop()
         self.MousePress = False
         self.ctrl_select_labels_keys.clear()

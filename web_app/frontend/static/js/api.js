@@ -182,3 +182,13 @@ export async function apiDeleteMarker(filePath, markerId) {
   }
 }
 
+// 获取标记预设
+export async function apiGetMarkerPresets() {
+  try {
+    const response = await api.get('/api/audio/marker_presets');
+    return response.data;
+  } catch (error) {
+    console.error('获取标记预设失败:', error);
+    throw error;
+  }
+}
