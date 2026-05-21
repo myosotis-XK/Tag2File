@@ -119,6 +119,7 @@ class Tag2File(QMainWindow, Observer):
         # 创建界面
         self.file_view = QWidget()
         self.MainFileShowArea = MainFileShowArea(self)
+        self.MainFileShowArea.requestManageTags.connect(lambda file_paths: self.showTagView(None, file_paths))
         self.initFileView()
         # 将视图添加到布局中
         self.layout.addWidget(self.file_view)
@@ -334,12 +335,12 @@ class Tag2File(QMainWindow, Observer):
             self.tag_expression = tag_expression
         if self.tag_expression == '':
             file_paths = []
-            self.MainFileShowArea.changeFile(file_paths)
+            self.MainFileShowArea.set_files(file_paths)
         else:
             file_paths = self.get_tag_files(self.tag_expression)
             if file_paths is False:
                 return
-            self.MainFileShowArea.changeFile(file_paths, recover)
+            self.MainFileShowArea.set_files(file_paths, recover_scroll=recover)
 
     def clearInput(self):  
         self.tag_input.clear()

@@ -1,45 +1,54 @@
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QScrollArea, QSizePolicy, QTextEdit, QLayout, QFileIconProvider
-from PyQt5.QtGui import QPixmap, QColor, QFont
-from PyQt5.QtCore import Qt, QPoint, QRect, QSize, QFileInfo
 from datetime import datetime
-from src.core.DictManage import *
-from src.ui.media_viewers import *
+
+from PyQt5.QtCore import QPoint, QRect, QSize, Qt
+from PyQt5.QtGui import QColor, QFont, QPixmap
+from PyQt5.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from src.core.DictManage import DictManage, Observer
+from src.ui.media_viewers import ImageViewer
+
 from .FileShowArea import TagFileShowArea
 
+
+# ---------------- Single File Detail View ----------------
+
 class SingleFileTagView(QScrollArea, Observer):
-    def __init__(self, file_paths:str, TagFileShowArea:TagFileShowArea):
+    def __init__(self, file_paths: str, TagFileShowArea: TagFileShowArea):
         super().__init__()
         self.DictManage = DictManage()
         self.DictManage.add_observer(self)
         self.TagFileShowArea = TagFileShowArea
         self.file_paths = file_paths
         self.current_index = 0
-        if len(file_paths) > 0:
-            self.current_file_path = self.file_paths[0]
-        else:
-            self.current_file_path = None
+        self.current_file_path = self.file_paths[0] if self.file_paths else None
         self.initUI()
 
     def initUI(self):
-        # 左侧：文件缩略图
+        # 左侧专注预览当前文件，右侧显示当前文件的元数据和标签，
+        # 让单文件模式更适合顺序标注和快速浏览。
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.image_label.setMinimumSize(200, 200)  # 设置最小大小
+        self.image_label.setMinimumSize(200, 200)
 
-        # 右侧：标签显示和控制按钮
         right_layout = QVBoxLayout()
 
         fileinfo_area = QScrollArea()
         fileinfo_area.setWidgetResizable(True)
         fileinfo_widget = QWidget()
-        # 创建一个文本编辑器，显示文件属性
         self.text_edit = QTextEdit(fileinfo_widget)
-        self.text_edit.setReadOnly(True)  # 设置为只读
-
-        # 设置字体
-        font = QFont("Arial", 12)  # 使用 Arial 字体，大小为 12
-        self.text_edit.setFont(font)
+        self.text_edit.setReadOnly(True)
+        self.text_edit.setFont(QFont("Arial", 12))
         layout = QVBoxLayout(fileinfo_widget)
         layout.addWidget(self.text_edit)
         fileinfo_area.setWidget(fileinfo_widget)
@@ -47,8 +56,6 @@ class SingleFileTagView(QScrollArea, Observer):
         fileinfo_area.setMaximumWidth(250)
         right_layout.addWidget(fileinfo_area)
 
-
-        # 标签显示区域
         tag_area = QScrollArea()
         tag_area.setWidgetResizable(True)
         tag_widget = QWidget()
@@ -60,7 +67,6 @@ class SingleFileTagView(QScrollArea, Observer):
         right_layout.setStretchFactor(fileinfo_area, 1)
         right_layout.setStretchFactor(tag_area, 2)
 
-        # 控制按钮
         button_layout = QHBoxLayout()
         self.prev_button = QPushButton("上一张")
         self.prev_button.setFixedHeight(30)
@@ -74,14 +80,12 @@ class SingleFileTagView(QScrollArea, Observer):
         button_layout.addWidget(self.next_button)
         right_layout.addLayout(button_layout)
 
-        # 创建一个容器widget来放置所有内容
         container = QWidget()
         layout = QHBoxLayout(container)
         self.image_viewer = ImageViewer(self)
         layout.addWidget(self.image_viewer, 3)
         layout.addLayout(right_layout, 1)
 
-        # 设置主滚动区域的widget
         self.setWidget(container)
         self.setWidgetResizable(True)
         self.show_current_file()
@@ -93,51 +97,43 @@ class SingleFileTagView(QScrollArea, Observer):
     def observer_update(self):
         self.update_tags()
 
-    def show_current_file(self):   
-        # 显示图片
-        if self.current_file_path is None:
+    def show_current_file(self):
+        # 单文件视图不再直接摸 FileShowArea 的内部 FileItem，
+        # 统一通过只读视图对象拿当前文件的展示元数据。
+        view = self.TagFileShowArea.get_file_view(self.current_file_path)
+        if view is None:
             self.pixmap = QPixmap()
+            self.text_edit.clear()
         else:
-            file_item = self.TagFileShowArea.file_items[self.current_file_path]
-            self.pixmap = QPixmap(self.current_file_path)
-            if self.pixmap.isNull():
-                self.pixmap = file_item.icon_source['current'].source
+            self.pixmap = QPixmap(view.file_path)
+            if self.pixmap.isNull() and view.icon_source is not None:
+                self.pixmap = view.icon_source.source
             message = (
-                f"<b>{file_item.file_name}</b><br><br>"
-                f"<b>文件路径: </b>&nbsp; {file_item.file_path}<br><br>"
-                f"<b>文件大小: </b>&nbsp; {format_file_size(file_item.file_size_bytes)}<br><br>"
-                f"<b>修改时间: </b>&nbsp; {datetime.fromtimestamp(file_item.file_date).strftime('%Y年%m月%d日，%H:%M:%S')}<br><br>"
+                f"<b>{view.file_name}</b><br><br>"
+                f"<b>文件路径: </b>&nbsp; {view.file_path}<br><br>"
+                f"<b>文件大小: </b>&nbsp; {view.formatted_size}<br><br>"
+                f"<b>修改时间: </b>&nbsp; {datetime.fromtimestamp(view.file_date).strftime('%Y年%m月%d日，%H:%M:%S')}<br><br>"
             )
             self.text_edit.setHtml(message)
         self.image_viewer.load_image(self.pixmap)
-        # 显示标签
         self.update_tags()
-    
-    def change_image_size(self):
-        if not self.pixmap.isNull():
-            label_size = self.image_label.size()
-            # 计算缩放后的图片大小，保持宽高比
-            scaled_pixmap = self.pixmap.scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            # 设置图片
-            self.image_label.setPixmap(scaled_pixmap)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # 当窗口大小改变时，重新调整图片大小
-        # if hasattr(self, 'image_label') and self.image_label.pixmap():
-        #     self.change_image_size()
 
     def update_tags(self):
-        # 清除现有标签
-        for i in reversed(range(self.tag_layout.count())): 
+        # 标签区每次全量重建，逻辑简单且和 DictManage 的最新状态保持一致。
+        for i in reversed(range(self.tag_layout.count())):
             self.tag_layout.itemAt(i).widget().setParent(None)
 
-        # 添加新标签
-        file_tags = self.DictManage.query('file', self.current_file_path, 'tag')
+        if self.current_file_path is None:
+            return
+
+        file_tags = self.DictManage.query("file", self.current_file_path, "tag")
         for item in self.DictManage.query_category():
             category = item[0]
             color = QColor(item[1])
-            tags = self.DictManage.query('category', category, 'tag')
+            tags = self.DictManage.query("category", category, "tag")
             bg_color = color.name()
             darker_color = QColor(color)
             darker_color.setHsv(color.hue(), color.saturation(), int(color.value() * 0.7))
@@ -145,7 +141,8 @@ class SingleFileTagView(QScrollArea, Observer):
             for tag in tags:
                 if tag in file_tags:
                     label = QLabel(tag, self)
-                    label.setStyleSheet(f"""
+                    label.setStyleSheet(
+                        f"""
                         QLabel {{
                             background-color: {bg_color};
                             color: #333333;
@@ -159,39 +156,52 @@ class SingleFileTagView(QScrollArea, Observer):
                             background-color: {color.lighter(110).name()};
                             border-color: #c0c0c0;
                         }}
-                    """)
-                    label.setCursor(Qt.PointingHandCursor)  # 设置鼠标指针样式
-                    label.mousePressEvent = lambda event, tag=tag: self.delete_tag_current_file(tag) if event.button() == Qt.LeftButton else None  # 绑定点击事件
+                    """
+                    )
+                    label.setCursor(Qt.PointingHandCursor)
+                    label.mousePressEvent = (
+                        lambda event, tag=tag: self.delete_tag_current_file(tag)
+                        if event.button() == Qt.LeftButton
+                        else None
+                    )
                     self.tag_layout.addWidget(label)
 
     def show_previous(self):
-        if len(self.file_paths) > 0:
+        # 上一张 / 下一张始终按 FileShowArea 当前公开的文件顺序导航。
+        self.file_paths = self.TagFileShowArea.get_files()
+        if self.file_paths:
             self.current_index = (self.current_index - 1) % len(self.file_paths)
             self.current_file_path = self.file_paths[self.current_index]
+            self.TagFileShowArea.set_current_file(self.current_file_path, keep_selection=False)
             self.show_current_file()
 
     def show_next(self):
-        if len(self.file_paths) > 0:
+        self.file_paths = self.TagFileShowArea.get_files()
+        if self.file_paths:
             self.current_index = (self.current_index + 1) % len(self.file_paths)
             self.current_file_path = self.file_paths[self.current_index]
+            self.TagFileShowArea.set_current_file(self.current_file_path, keep_selection=False)
             self.show_current_file()
 
     def add_tag_current_file(self, tag):
-        file_path = self.current_file_path
-        self.DictManage.add_tag(tag, [file_path])
-        
+        if self.current_file_path is not None:
+            self.DictManage.add_tag(tag, [self.current_file_path])
+
     def delete_tag_current_file(self, tag):
-        file_path = self.current_file_path
-        self.DictManage.delete_tag(tag, [file_path])
+        if self.current_file_path is not None:
+            self.DictManage.delete_tag(tag, [self.current_file_path])
 
     def update_index(self, file_path=None):
+        # 当前索引始终以 FileShowArea 暴露的文件顺序为准，
+        # 避免排序变化后单文件视图还停留在旧顺序上。
+        self.file_paths = self.TagFileShowArea.get_files()
         if file_path is not None:
             self.current_file_path = file_path
         if self.current_file_path in self.file_paths:
             self.current_index = self.file_paths.index(self.current_file_path)
         else:
             self.current_index = 0
-        if len(self.file_paths) > 0:
+        if self.file_paths:
             self.current_file_path = self.file_paths[self.current_index]
         else:
             self.current_file_path = None
@@ -257,8 +267,12 @@ class QFlowLayout(QLayout):
 
         for item in self.itemList:
             wid = item.widget()
-            spaceX = self.spacing() + wid.style().layoutSpacing(QSizePolicy.PushButton, QSizePolicy.PushButton, Qt.Horizontal)
-            spaceY = self.spacing() + wid.style().layoutSpacing(QSizePolicy.PushButton, QSizePolicy.PushButton, Qt.Vertical)
+            spaceX = self.spacing() + wid.style().layoutSpacing(
+                QSizePolicy.PushButton, QSizePolicy.PushButton, Qt.Horizontal
+            )
+            spaceY = self.spacing() + wid.style().layoutSpacing(
+                QSizePolicy.PushButton, QSizePolicy.PushButton, Qt.Vertical
+            )
             nextX = x + item.sizeHint().width() + spaceX
             if nextX - spaceX > rect.right() and lineHeight > 0:
                 x = rect.x()

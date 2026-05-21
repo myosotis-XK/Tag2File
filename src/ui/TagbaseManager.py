@@ -158,7 +158,7 @@ class TagbaseManager(QDialog):
         config.set('DictManage', 'tagbase_name', name)
         config.set('DictManage', 'tagbase_folder', path)
         save_config()
-        self.father.MainFileShowArea.changeFile([])
+        self.father.MainFileShowArea.set_files([])
         self.DictManage.load_tagbase(os.path.join(path, name + self.file_ext[0]).replace('\\', '/'))
         # 更新显示
         self.current_tagbase_name = name
