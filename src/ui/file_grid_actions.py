@@ -1,6 +1,8 @@
 import os
 import shutil
 import subprocess
+import ctypes
+from ctypes import wintypes
 from typing import Optional
 
 from src.core.DictManage import DictManage
@@ -16,7 +18,13 @@ class FileActionService:
         self.dict_manage = dict_manage or DictManage()
 
     def open_folder(self, file_path: str) -> ActionResult:
-        subprocess.Popen(f'explorer /select,"{file_path.replace("/", "\\")}"')
+        normalized_path = os.path.normpath(file_path)
+        try:
+            if os.name == "nt" and self._open_folder_and_select_windows(normalized_path):
+                return ActionResult(success=True, changed_paths=[file_path])
+        except Exception:
+            pass
+        subprocess.Popen(["explorer.exe", "/select,", normalized_path])
         return ActionResult(success=True, changed_paths=[file_path])
 
     def copy_or_move_files(
@@ -167,3 +175,26 @@ class FileActionService:
         for file_path in get_all_files(new_parent):
             old_file_path = file_path.replace(new_parent, old_parent)
             self.dict_manage.dataAPI.rename_file(old_file_path, file_path)
+
+    def _open_folder_and_select_windows(self, file_path: str) -> bool:
+        shell32 = ctypes.windll.shell32
+        ole32 = ctypes.windll.ole32
+        pidl = ctypes.c_void_p()
+        attrs = wintypes.DWORD()
+
+        # 让 Shell 自己完成“打开目录并选中文件”，比重复拉起 explorer 更稳。
+        result = shell32.SHParseDisplayName(
+            ctypes.c_wchar_p(file_path),
+            None,
+            ctypes.byref(pidl),
+            0,
+            ctypes.byref(attrs),
+        )
+        if result != 0 or not pidl.value:
+            return False
+
+        try:
+            result = shell32.SHOpenFolderAndSelectItems(pidl, 0, None, 0)
+            return result == 0
+        finally:
+            ole32.CoTaskMemFree(pidl)

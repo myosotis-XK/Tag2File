@@ -125,6 +125,8 @@ class FileShowArea(QWidget):
         self._horizontal_spacing = self.LABEL_SPACING
         self._max_col = 0
         self._max_row = 0
+        self._pending_thumbnail_files: list[str] = []
+        self._last_thumbnail_request_key: tuple[int, frozenset[str]] | None = None
 
         self.mouse_press = False
         self.mouse_move = False
@@ -134,6 +136,11 @@ class FileShowArea(QWidget):
 
         self.auto_scroll_timer = QTimer(self)
         self.auto_scroll_timer.setInterval(round(1000 / self.WINDOW_FRAMES))
+        self.thumbnail_request_timer = QTimer(self)
+        self.thumbnail_request_timer.setSingleShot(True)
+        # 合并连续滚动产生的缩略图请求，避免每一帧都重提后台任务。
+        self.thumbnail_request_timer.setInterval(30)
+        self.thumbnail_request_timer.timeout.connect(self._flush_thumbnail_request)
 
         self.infoRequested.connect(self._show_info_message)
         self.errorOccurred.connect(self._show_error_message)
@@ -190,6 +197,7 @@ class FileShowArea(QWidget):
     def closeEvent(self, event):
         self.thumbnail_controller.invalidate()
         self.auto_scroll_timer.stop()
+        self.thumbnail_request_timer.stop()
         for widget in self.child_widget[:]:
             widget.close()
         for viewer in self.image_viewers[:]:
@@ -512,7 +520,8 @@ class FileShowArea(QWidget):
                 label.show()
 
         self.state.set_visible_files(visible_files)
-        self.thumbnail_controller.load(self.state, list(visible_files), self.image_size)
+        # 标签位置照常即时更新；缩略图请求延后一点统一提交。
+        self._schedule_thumbnail_request(visible_files)
         self.v_scroll.raise_()
         self.h_scroll.raise_()
         self.corner.raise_()
@@ -839,7 +848,7 @@ class FileShowArea(QWidget):
             open_default_action.triggered.connect(lambda: self.openFile(None, label, default=True))
             file_menu.addAction(open_default_action)
 
-            open_folder_action = QAction("打开所在位置", self)
+            open_folder_action = QAction("打开文件所在位置", self)
             open_folder_action.triggered.connect(lambda: self._handle_action_result(self.action_service.open_folder(file_path)))
             file_menu.addAction(open_folder_action)
 
@@ -1136,6 +1145,23 @@ class FileShowArea(QWidget):
             self.recycleFileLabel(file_path)
         self.state.set_visible_files(set())
 
+    def _schedule_thumbnail_request(self, visible_files: set[str]) -> None:
+        request_key = (self.image_size, frozenset(visible_files))
+        if request_key == self._last_thumbnail_request_key:
+            return
+        # 滚动期间只保留“最后一次看到的可见集”，等定时器触发时再真正提交。
+        self._pending_thumbnail_files = list(visible_files)
+        self.thumbnail_request_timer.start()
+
+    def _flush_thumbnail_request(self) -> None:
+        if not self._pending_thumbnail_files:
+            return
+        request_key = (self.image_size, frozenset(self._pending_thumbnail_files))
+        if request_key == self._last_thumbnail_request_key:
+            return
+        self._last_thumbnail_request_key = request_key
+        self.thumbnail_controller.load(self.state, self._pending_thumbnail_files, self.image_size)
+
     def _refresh_item_style(self, file_path: str):
         file_item = self.state.get_item_if_exists(file_path)
         if file_item is None:
@@ -1179,10 +1205,6 @@ class FileShowArea(QWidget):
 
         if result.errors:
             self.errorOccurred.emit("\n".join(result.errors))
-        elif result.notifications:
-            self.infoRequested.emit("\n".join(result.notifications))
-        elif result.success and result.changed_paths:
-            self.infoRequested.emit("操作完成。")
 
 
 # ---------------- Scenario Specializations ----------------
