@@ -2,7 +2,7 @@ import os
 from enum import Enum
 from PyQt5.QtWidgets import QLabel, QApplication
 from PyQt5.QtCore import QTimer
-from PyQt5.QtGui import QFontMetrics
+from PyQt5.QtGui import QFont, QFontMetrics
 from src.utils import config
 from .IconSource import IconSource
 
@@ -17,9 +17,18 @@ class Background(Enum):
     DARKBLUE = "background-color: #cde8ff;"
 
 class FileItem():
-    font_metrics = QFontMetrics(QApplication.font())
-    single_line_height = font_metrics.lineSpacing()
     SPACING_RATE = config.getfloat('FileShowArea', 'SPACING_RATE', fallback=0.05)
+    _font_metrics: QFontMetrics | None = None
+    _single_line_height: int | None = None
+
+    @classmethod
+    def _get_font_metrics(cls) -> tuple[QFontMetrics, int]:
+        if cls._font_metrics is None or cls._single_line_height is None:
+            app = QApplication.instance()
+            font = app.font() if app is not None else QFont()
+            cls._font_metrics = QFontMetrics(font)
+            cls._single_line_height = cls._font_metrics.lineSpacing()
+        return cls._font_metrics, cls._single_line_height
 
     def __init__(self, file_path:str, file_size_bytes: int, file_date: float, label_width: int):
         self.file_path = file_path
@@ -52,10 +61,11 @@ class FileItem():
 
     # 计算文件名标签的高度
     def calculate_name_height(self, file_name: str, label_width: int, max_lines: int) -> int:
-        text_width = self.font_metrics.horizontalAdvance(file_name)  # 文本总宽度
+        font_metrics, single_line_height = self._get_font_metrics()
+        text_width = font_metrics.horizontalAdvance(file_name)  # 文本总宽度
         num_lines = max(1, (text_width // (label_width-4)) + 1)  # 计算需要的行数
         total_lines = min(num_lines, max_lines)  # 限制最大行数
-        name_height = total_lines * self.single_line_height  # 总高度
+        name_height = total_lines * single_line_height  # 总高度
         return name_height + int(label_width*self.SPACING_RATE)
     
     def apply(self, label: QLabel):

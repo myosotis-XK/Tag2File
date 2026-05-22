@@ -68,6 +68,7 @@ class FileShowArea(QWidget):
     currentFileChanged = pyqtSignal(object)
     filesChanged = pyqtSignal(list)
     fileActivated = pyqtSignal(str)
+    folderActivated = pyqtSignal(str)
     requestManageTags = pyqtSignal(list)
     requestRemoveFiles = pyqtSignal(list)
     errorOccurred = pyqtSignal(str)
@@ -317,6 +318,35 @@ class FileShowArea(QWidget):
         previous = self.state.clear_selection()
         self._refresh_item_styles(previous)
         self._emit_selection_changed()
+
+    def get_scroll_offset(self) -> QPoint:
+        return QPoint(self._offset)
+
+    def set_scroll_offset(self, offset: QPoint | int) -> None:
+        if isinstance(offset, int):
+            x_value = self.h_scroll.value()
+            y_value = offset
+        else:
+            x_value = offset.x()
+            y_value = offset.y()
+        self.h_scroll.setValue(max(0, x_value))
+        self.v_scroll.setValue(max(0, y_value))
+
+    def set_selected_files(self, file_paths: list[str], current_file: Optional[str] = None) -> None:
+        previous = self.state.clear_selection()
+        changed = set(previous)
+        previous_current = self.state.set_current_file(current_file)
+        if previous_current:
+            changed.add(previous_current)
+        valid_paths = [file_path for file_path in file_paths if self.state.contains(file_path)]
+        for file_path in valid_paths:
+            self.state.set_selected(file_path, True)
+            changed.add(file_path)
+        if current_file is not None and self.state.contains(current_file):
+            changed.add(current_file)
+        self._refresh_item_styles(changed)
+        self._emit_selection_changed()
+        self._emit_current_changed()
 
     # ---------------- Label Creation & Rendering ----------------
 
@@ -742,6 +772,15 @@ class FileShowArea(QWidget):
             self.errorOccurred.emit(f"无法打开文件：\n{file_path}\n文件已不存在。")
             return
 
+        if os.path.isdir(file_path):
+            if self._handle_directory_activation(file_path):
+                return
+            try:
+                os.startfile(file_path)
+            except Exception as exc:
+                self.errorOccurred.emit(f"无法打开文件：\n{file_path}\n{exc}")
+            return
+
         self.fileActivated.emit(file_path)
 
         supported_image_formats = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"]
@@ -1050,6 +1089,9 @@ class FileShowArea(QWidget):
         if previous:
             self._refresh_item_style(previous)
 
+    def _handle_directory_activation(self, file_path: str) -> bool:
+        return False
+
     def _normalize_file_meta_datas(self, file_meta_datas: list[tuple[str, int, float]]) -> list[tuple[str, int, float]]:
         # 外部传入 (path, 0, 0) 时，按“需要即时补齐元数据”处理，
         # 让 append / set_files / 刷新入口都能共用同一种输入格式。
@@ -1149,6 +1191,10 @@ class MainFileShowArea(FileShowArea):
     def __init__(self, main_window, file_paths: list | None = None):
         super().__init__(file_paths)
         self.main_window = main_window
+
+    def _handle_directory_activation(self, file_path: str) -> bool:
+        self.folderActivated.emit(file_path)
+        return True
 
     def showLabelMenu(self, pos: QPoint, label: QLabel):
         result = super().showLabelMenu(pos, label)
