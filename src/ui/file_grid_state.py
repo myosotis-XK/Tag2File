@@ -1,6 +1,8 @@
 from typing import Optional
 
 from src.models import FileItem
+from src.utils.cache import AutoCleanupCache
+
 
 
 # ---------------- 状态层 ----------------
@@ -10,7 +12,7 @@ class FileGridState:
         # 持有文件墙的核心状态；外部通过 FileShowArea 的 API 间接读写这些数据。
         self._file_paths: list[str] = []
         self._items: dict[str, FileItem] = {}
-        self._item_cache: dict[str, FileItem] = {}
+        self._item_cache: dict[str, FileItem] = AutoCleanupCache(max_size=0, ttl=3600, cleanup_interval=600)
         self._selected: set[str] = set()
         self._ctrl_selected: set[str] = set()
         self._visible: set[str] = set()
