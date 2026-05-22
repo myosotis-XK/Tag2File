@@ -1,964 +1,731 @@
-// audioPlayer.js - 音频播放器核心控制器
-
-import { apiGetAudioMetadata, apiGetLyric, apiOpenFile, apiAddOrUpdateMarker, apiDeleteMarker, apiGetMarkerPresets } from '../api.js';
+import {
+  apiAddOrUpdateMarker,
+  apiDeleteMarker,
+  apiGetAudioMetadata,
+  apiGetLyric,
+  apiGetMarkerPresets,
+  apiOpenFile,
+} from '../api.js';
+import {
+  getAdjacentPlaylistIndex,
+  loadAudioPlayerContext,
+  loadLegacyAudioPlayerContext,
+  saveAudioPlayerContext,
+  updateAudioPlayerIndex,
+} from './audioPlayerContext.js';
+import {
+  parseLyricContent,
+  renderLyricLines,
+  updateLyricActiveLine,
+} from './audioPlayerLyrics.js';
+import {
+  buildMarkerPayload,
+  populateMarkerForm,
+  renderMarkerItems,
+  renderPresetItems,
+  resetMarkerForm,
+} from './audioPlayerMarkers.js';
+import {
+  renderPlaylistItems,
+  updatePlaylistPlayingState,
+} from './audioPlayerPlaylist.js';
 
 export class AudioPlayerController {
-    constructor() {
-        // 音频对象
-        this.audio = new Audio();
+  constructor() {
+    this.audio = new Audio();
+    this.playlist = [];
+    this.playlistMetadata = [];
+    this.currentIndex = 0;
+    this.playMode = 0;
+    this.lyricData = [];
+    this.currentLyricIndex = -1;
+    this.markers = [];
+    this.markerPresets = [];
+    this.inPoint = null;
+    this.outPoint = null;
+    this.isShowingLyric = false;
 
-        // 播放列表
-        this.playlist = [];
-        this.currentIndex = 0;
+    this.initDOMElements();
+    this.cacheInitialUIState();
+    this.initEventListeners();
+    this.restoreInitialVolume();
+    this.loadInitialContext();
+    this.loadMarkerPresets();
+  }
 
-        // 播放模式：0=顺序，1=随机，2=单曲循环
-        this.playMode = 0;
+  initDOMElements() {
+    this.btnPlay = document.getElementById('btn-play');
+    this.btnRewind = document.getElementById('btn-rewind');
+    this.btnForward = document.getElementById('btn-forward');
+    this.btnMode = document.getElementById('btn-mode');
+    this.btnVolume = document.getElementById('btn-volume');
+    this.btnBack = document.getElementById('btn-back');
 
-        // 歌词数据
-        this.lyricData = [];
-        this.currentLyricIndex = -1;
+    this.progressSlider = document.getElementById('progress-slider');
+    this.currentTimeLabel = document.getElementById('current-time');
+    this.durationTimeLabel = document.getElementById('duration-time');
 
-        // 标记数据
-        this.markers = [];
+    this.volumePopup = document.getElementById('volume-popup');
+    this.volumeSlider = document.getElementById('volume-slider');
+    this.volumeValue = document.getElementById('volume-value');
 
-        // 标记预设
-        this.markerPresets = [];
+    this.displayArea = document.getElementById('display-area');
+    this.coverView = document.getElementById('cover-view');
+    this.lyricView = document.getElementById('lyric-view');
+    this.coverImage = document.getElementById('cover-image');
+    this.trackTitle = document.getElementById('track-title');
+    this.trackArtist = document.getElementById('track-artist');
 
-        // 入点/出点（用于创建标记）
-        this.inPoint = null;
-        this.outPoint = null;
+    this.sidebar = document.getElementById('sidebar');
+    this.sidebarOverlay = document.getElementById('sidebar-overlay');
+    this.btnSidebarToggle = document.getElementById('btn-sidebar-toggle');
+    this.btnSidebarClose = document.getElementById('btn-sidebar-close');
+    this.sidebarTabButtons = document.querySelectorAll('.sidebar-tab-btn');
+    this.sidebarPanes = document.querySelectorAll('.sidebar-pane');
 
-        // DOM 元素
-        this.initDOMElements();
+    this.lyricContainer = document.getElementById('lyric-container');
+    this.markerList = document.getElementById('marker-list');
+    this.playlistContainer = document.getElementById('playlist-container');
 
-        // 事件监听
-        this.initEventListeners();
+    this.btnMarkIn = document.getElementById('btn-mark-in');
+    this.btnMarkOut = document.getElementById('btn-mark-out');
+    this.inputInPoint = document.getElementById('input-in-point');
+    this.inputOutPoint = document.getElementById('input-out-point');
+    this.inputMarkerLabel = document.getElementById('input-marker-label');
+    this.btnSelectPreset = document.getElementById('btn-select-preset');
+    this.inputMarkerColor = document.getElementById('input-marker-color');
+    this.btnCreateMarker = document.getElementById('btn-create-marker');
+    this.btnClearMarker = document.getElementById('btn-clear-marker');
 
-        // 从 URL 参数加载播放列表
-        this.loadPlaylistFromURL();
+    this.presetPopupOverlay = document.getElementById('preset-popup-overlay');
+    this.presetPopup = document.getElementById('preset-popup');
+    this.btnClosePreset = document.getElementById('btn-close-preset');
+    this.presetGrid = document.getElementById('preset-grid');
+  }
 
-        // 加载标记预设
-        this.loadMarkerPresets();
+  cacheInitialUIState() {
+    this.defaultLyricHTML = this.lyricContainer.innerHTML;
+    this.defaultMarkerHTML = this.markerList.innerHTML;
+    this.defaultPlaylistHTML = this.playlistContainer.innerHTML;
+    this.defaultCreateMarkerHTML = this.btnCreateMarker.innerHTML;
+  }
+
+  initEventListeners() {
+    this.audio.addEventListener('loadedmetadata', () => this.onLoadedMetadata());
+    this.audio.addEventListener('timeupdate', () => this.onTimeUpdate());
+    this.audio.addEventListener('ended', () => this.onEnded());
+    this.audio.addEventListener('play', () => this.updatePlayButton(true));
+    this.audio.addEventListener('pause', () => this.updatePlayButton(false));
+
+    this.btnPlay.addEventListener('click', () => this.togglePlay());
+    this.btnRewind.addEventListener('click', () => this.rewindSeconds());
+    this.btnForward.addEventListener('click', () => this.forwardSeconds());
+    this.btnMode.addEventListener('click', () => this.togglePlayMode());
+    this.btnVolume.addEventListener('click', () => this.toggleVolumePopup());
+    this.btnBack.addEventListener('click', () => this.goBack());
+
+    this.progressSlider.addEventListener('input', event => this.onProgressChange(event));
+    this.volumeSlider.addEventListener('input', event => this.onVolumeChange(event));
+    this.displayArea.addEventListener('click', () => this.toggleDisplayView());
+
+    this.btnSidebarToggle.addEventListener('click', () => this.openSidebar());
+    this.btnSidebarClose.addEventListener('click', () => this.closeSidebar());
+    this.sidebarOverlay.addEventListener('click', () => this.closeSidebar());
+
+    this.sidebarTabButtons.forEach(button => {
+      button.addEventListener('click', () => this.switchSidebarTab(button.dataset.tab));
+    });
+
+    this.btnMarkIn.addEventListener('click', () => this.markInPoint());
+    this.btnMarkOut.addEventListener('click', () => this.markOutPoint());
+    this.btnSelectPreset.addEventListener('click', () => this.openPresetPopup());
+    this.btnClosePreset.addEventListener('click', () => this.closePresetPopup());
+    this.presetPopupOverlay.addEventListener('click', () => this.closePresetPopup());
+    this.btnCreateMarker.addEventListener('click', () => this.createMarker());
+    this.btnClearMarker.addEventListener('click', () => this.clearMarkerInputs());
+
+    document.addEventListener('click', event => {
+      if (!this.btnVolume.contains(event.target) && !this.volumePopup.contains(event.target)) {
+        this.volumePopup.style.display = 'none';
+      }
+    });
+
+    document.addEventListener('keydown', event => this.handleKeyboardShortcuts(event));
+  }
+
+  restoreInitialVolume() {
+    this.audio.volume = 0.5;
+    this.volumeSlider.value = '50';
+    this.volumeValue.textContent = '50%';
+  }
+
+  async loadInitialContext() {
+    const storedContext = loadAudioPlayerContext();
+    if (storedContext) {
+      await this.applyPlaylistContext(storedContext);
+      return;
     }
 
-    initDOMElements() {
-        // 播放控制
-        this.btnPlay = document.getElementById('btn-play');
-        this.btnRewind = document.getElementById('btn-rewind');
-        this.btnForward = document.getElementById('btn-forward');
-        this.btnMode = document.getElementById('btn-mode');
-        this.btnVolume = document.getElementById('btn-volume');
-        this.btnBack = document.getElementById('btn-back');
-
-        // 进度条
-        this.progressSlider = document.getElementById('progress-slider');
-        this.currentTimeLabel = document.getElementById('current-time');
-        this.durationTimeLabel = document.getElementById('duration-time');
-
-        // 音量控制
-        this.volumePopup = document.getElementById('volume-popup');
-        this.volumeSlider = document.getElementById('volume-slider');
-        this.volumeValue = document.getElementById('volume-value');
-
-        // 显示区域：封面/歌词切换
-        this.displayArea = document.getElementById('display-area');
-        this.coverView = document.getElementById('cover-view');
-        this.lyricView = document.getElementById('lyric-view');
-        this.coverImage = document.getElementById('cover-image');
-        this.trackTitle = document.getElementById('track-title');
-        this.trackArtist = document.getElementById('track-artist');
-
-        // 侧边栏
-        this.sidebar = document.getElementById('sidebar');
-        this.sidebarOverlay = document.getElementById('sidebar-overlay');
-        this.btnSidebarToggle = document.getElementById('btn-sidebar-toggle');
-        this.btnSidebarClose = document.getElementById('btn-sidebar-close');
-        this.sidebarTabButtons = document.querySelectorAll('.sidebar-tab-btn');
-        this.sidebarPanes = document.querySelectorAll('.sidebar-pane');
-
-        // 内容容器
-        this.lyricContainer = document.getElementById('lyric-container');
-        this.markerList = document.getElementById('marker-list');
-        this.playlistContainer = document.getElementById('playlist-container');
-
-        // 标记快速创建
-        this.btnMarkIn = document.getElementById('btn-mark-in');
-        this.btnMarkOut = document.getElementById('btn-mark-out');
-        this.inputInPoint = document.getElementById('input-in-point');
-        this.inputOutPoint = document.getElementById('input-out-point');
-        this.inputMarkerLabel = document.getElementById('input-marker-label');
-        this.btnSelectPreset = document.getElementById('btn-select-preset');
-        this.inputMarkerColor = document.getElementById('input-marker-color');
-        this.btnCreateMarker = document.getElementById('btn-create-marker');
-        this.btnClearMarker = document.getElementById('btn-clear-marker');
-        
-        // 预设选择弹窗
-        this.presetPopupOverlay = document.getElementById('preset-popup-overlay');
-        this.presetPopup = document.getElementById('preset-popup');
-        this.btnClosePreset = document.getElementById('btn-close-preset');
-        this.presetGrid = document.getElementById('preset-grid');
-
-        // 视图状态
-        this.isShowingLyric = false;
+    const legacyContext = loadLegacyAudioPlayerContext();
+    if (legacyContext) {
+      saveAudioPlayerContext(legacyContext);
+        window.history.replaceState({}, '', '/audio/player');
+      await this.applyPlaylistContext(legacyContext);
+      return;
     }
 
-    initEventListeners() {
-        // 音频事件
-        this.audio.addEventListener('loadedmetadata', () => this.onLoadedMetadata());
-        this.audio.addEventListener('timeupdate', () => this.onTimeUpdate());
-        this.audio.addEventListener('ended', () => this.onEnded());
-        this.audio.addEventListener('play', () => this.updatePlayButton(true));
-        this.audio.addEventListener('pause', () => this.updatePlayButton(false));
+    this.trackTitle.textContent = '未找到播放列表';
+  }
 
-        // 播放控制按钮
-        this.btnPlay.addEventListener('click', () => this.togglePlay());
-        this.btnRewind.addEventListener('click', () => this.rewindSeconds());
-        this.btnForward.addEventListener('click', () => this.forwardSeconds());
-        this.btnMode.addEventListener('click', () => this.togglePlayMode());
-        this.btnVolume.addEventListener('click', () => this.toggleVolumePopup());
-        this.btnBack.addEventListener('click', () => this.goBack());
+  async applyPlaylistContext(context) {
+    this.playlist = context.playlist;
+    this.currentIndex = context.currentIndex;
+    await this.loadMetadata();
+    this.renderPlaylist();
+    await this.loadCurrentSong();
+  }
 
-        // 进度条
-        this.progressSlider.addEventListener('input', (e) => this.onProgressChange(e));
+  getCurrentFilePath() {
+    return this.playlist[this.currentIndex] || null;
+  }
 
-        // 音量控制
-        this.volumeSlider.addEventListener('input', (e) => this.onVolumeChange(e));
+  getCurrentMetadata() {
+    return this.playlistMetadata?.[this.currentIndex] || null;
+  }
 
-        // 封面/歌词切换
-        this.displayArea.addEventListener('click', () => this.toggleDisplayView());
+  saveCurrentPlaybackContext() {
+    if (this.playlist.length > 0) {
+      updateAudioPlayerIndex(this.currentIndex);
+    }
+  }
 
-        // 侧边栏控制
-        this.btnSidebarToggle.addEventListener('click', () => this.openSidebar());
-        this.btnSidebarClose.addEventListener('click', () => this.closeSidebar());
-        this.sidebarOverlay.addEventListener('click', () => this.closeSidebar());
-
-        // 侧边栏标签页切换
-        this.sidebarTabButtons.forEach(btn => {
-            btn.addEventListener('click', () => this.switchSidebarTab(btn.dataset.tab));
-        });
-
-        // 标记快速创建
-        this.btnMarkIn.addEventListener('click', () => this.markInPoint());
-        this.btnMarkOut.addEventListener('click', () => this.markOutPoint());
-        this.btnSelectPreset.addEventListener('click', () => this.openPresetPopup());
-        this.btnClosePreset.addEventListener('click', () => this.closePresetPopup());
-        this.presetPopupOverlay.addEventListener('click', () => this.closePresetPopup());
-        this.btnCreateMarker.addEventListener('click', () => this.createMarker());
-        this.btnClearMarker.addEventListener('click', () => this.clearMarkerInputs());
-
-        // 点击外部关闭音量弹窗
-        document.addEventListener('click', (e) => {
-            if (!this.btnVolume.contains(e.target) && !this.volumePopup.contains(e.target)) {
-                this.volumePopup.style.display = 'none';
-            }
-        });
-
-        // 初始化音量
-        this.audio.volume = 0.5;
-
-        // 键盘快捷键
-        this.initKeyboardShortcuts();
+  handleKeyboardShortcuts(event) {
+    if (!(event.ctrlKey && event.shiftKey && event.altKey)) {
+      return;
     }
 
-    initKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+    event.preventDefault();
+    switch (event.key) {
+      case 'ArrowLeft':
+        this.rewindSeconds();
+        break;
+      case 'ArrowRight':
+        this.forwardSeconds();
+        break;
+      case 'i':
+      case 'I':
+        this.markInPoint();
+        break;
+      case 'o':
+      case 'O':
+        this.markOutPoint();
+        break;
+      case 'p':
+      case 'P':
+        this.createPointMarker();
+        break;
+      case 'r':
+      case 'R':
+        this.createRangeMarker();
+        break;
+      default:
+        break;
+    }
+  }
+
+  playShortcutErrorSound() {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      oscillator.frequency.value = 800;
+      oscillator.type = 'square';
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+      setTimeout(() => audioContext.close(), 200);
+    } catch (error) {
+      console.warn('无法播放快捷键错误提示音:', error);
+    }
+  }
+
+  async createPointMarker() {
+    await this.createQuickPointMarker(this.audio.currentTime);
+  }
+
+  async createRangeMarker() {
+    if (this.inPoint === null || this.outPoint === null || this.inPoint >= this.outPoint) {
+      this.playShortcutErrorSound();
+      return;
     }
 
-    handleKeyboardShortcuts(e) {
-        // 检查是否按下了 Ctrl+Shift+Alt 组合键
-        if (e.ctrlKey && e.shiftKey && e.altKey) {
-            e.preventDefault(); // 阻止默认行为
-            
-            switch(e.key) {
-                case 'ArrowLeft':
-                    // Ctrl+Shift+Alt+Left: 后退5秒
-                    this.rewindSeconds();
-                    break;
-                case 'ArrowRight':
-                    // Ctrl+Shift+Alt+Right: 前进5秒
-                    this.forwardSeconds();
-                    break;
-                // Ctrl+Shift+Alt+I: 设置开始时间
-                case 'i':
-                    this.markInPoint();
-                    break;
-                case 'I':
-                    this.markInPoint();
-                    break;
-                // Ctrl+Shift+Alt+O: 设置结束时间
-                case 'o':
-                    this.markOutPoint();
-                    break;
-                case 'O':
-                    this.markOutPoint();
-                    break;
-                // Ctrl+Shift+Alt+P: 创建点标记
-                case 'p':
-                    this.createPointMarker();
-                    break;
-                case 'P':
-                    this.createPointMarker();
-                    break;
-                // Ctrl+Shift+Alt+R: 创建范围标记
-                case 'r':
-                    this.createRangeMarker();
-                    break;
-                case 'R':
-                    this.createRangeMarker();
-                    break;
-            }
-        }
-    }
+    await this.createQuickRangeMarker(this.inPoint, this.outPoint);
+  }
 
-    playShortcutErrorSound() {
-        // 创建简短的错误提示音
-        try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            // 设置声音参数
-            oscillator.frequency.value = 800; // 高频提示音
-            oscillator.type = 'square';
-            
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.1);
-            
-            // 自动关闭音频上下文
-            setTimeout(() => {
-                audioContext.close();
-            }, 200);
-        } catch (error) {
-            console.warn('无法播放快捷键错误提示音:', error);
-        }
-    }
+  async createQuickPointMarker(timePoint) {
+    await this.saveQuickMarker({
+      id: null,
+      type: 0,
+      label: '快速标记',
+      color: '#000000',
+      time: this.secondsToMilliseconds(timePoint),
+      start: 0,
+      end: 0,
+    });
+  }
 
+  async createQuickRangeMarker(startTime, endTime) {
+    await this.saveQuickMarker({
+      id: null,
+      type: 1,
+      label: '快速标记',
+      color: '#000000',
+      time: this.secondsToMilliseconds(startTime),
+      start: this.secondsToMilliseconds(startTime),
+      end: this.secondsToMilliseconds(endTime),
+    });
+    this.clearMarkerInputs();
+  }
 
-    async createPointMarker() {
-        // 创建点标记（当前位置），不影响当前的开始和结束时间设置
-        const currentTime = this.audio.currentTime;
-        
-        // 直接调用创建点标记接口
-        await this.createQuickPointMarker(currentTime);
-    }
-
-    async createRangeMarker() {
-        // 创建范围标记（需要已设置开始和结束时间）
-        if (this.inPoint === null || this.outPoint === null) {
-            this.playShortcutErrorSound();
-            return;
-        }
-        
-        if (this.inPoint >= this.outPoint) {
-            this.playShortcutErrorSound();
-            return;
-        }
-        
-        // 直接调用创建范围标记接口
-        await this.createQuickRangeMarker(this.inPoint, this.outPoint);
-    }
-
-    async createQuickPointMarker(timePoint) {
-        // 创建点标记数据
-        const markerData = {
-            id: null,  // null 表示新建
-            type: 0,   // 点标记
-            label: '快速标记',
-            color: '#000000',  // 默认颜色
-            time: timePoint * 1000
-        };
-
-        await this.saveQuickMarker(markerData);
-    }
-
-    async createQuickRangeMarker(startTime, endTime) {
-        // 创建范围标记数据
-        const markerData = {
-            id: null,  // null 表示新建
-            type: 1,   // 范围标记
-            label: '快速标记',
-            color: '#000000',  // 默认颜色
-            start: startTime * 1000,
-            end: endTime * 1000
-        };
-
-        await this.saveQuickMarker(markerData);
-        // 清空输入框
-        this.clearMarkerInputs();
-    }
-
-    async saveQuickMarker(markerData) {
-        try {
-            const filePath = this.playlist[this.currentIndex];
-            
-            // 调用后端 API 保存标记
-            const result = await apiAddOrUpdateMarker(filePath, markerData);
-            
-            if (result.success) {
-                // 更新本地标记列表
-                this.markers = result.markers;
-                // 刷新标记列表
-                this.renderMarkers();
-            }
-        } catch (error) {
-            console.error('创建标记失败:', error);
-            this.playShortcutErrorSound();
-        }
-    }
-
-    async loadPlaylistFromURL() {
-        const params = new URLSearchParams(window.location.search);
-        const playlistParam = params.get('playlist');
-        const indexParam = params.get('index');
-
-        if (!playlistParam) {
-            this.trackTitle.textContent = '未找到播放列表';
-            return;
-        }
-
-        try {
-            this.playlist = JSON.parse(decodeURIComponent(playlistParam));
-            this.currentIndex = indexParam ? parseInt(indexParam) : 0;
-
-            // 加载元数据
-            await this.loadMetadata();
-
-            // 渲染播放列表
-            this.renderPlaylist();
-
-            // 加载并播放当前歌曲
-            await this.loadCurrentSong();
-        } catch (error) {
-            console.error('加载播放列表失败:', error);
-            this.trackTitle.textContent = '加载失败';
-        }
-    }
-
-    async loadMetadata() {
-        try {
-            const response = await apiGetAudioMetadata(this.playlist);
-            this.playlistMetadata = response.metadata;
-        } catch (error) {
-            console.error('加载元数据失败:', error);
-            this.playlistMetadata = [];
-        }
-    }
-
-    async loadMarkerPresets() {
-        try {
-            const response = await apiGetMarkerPresets();
-            if (response.success) {
-                this.markerPresets = response.presets;
-                console.log('标记预设加载成功:', this.markerPresets);
-            }
-        } catch (error) {
-            console.error('加载标记预设失败:', error);
-            // 使用默认预设
-            this.markerPresets = [
-                { id: 1, name: '重要', color: '#e74c3c', order_index: 0 },
-                { id: 2, name: '一般', color: '#3498db', order_index: 1 },
-                { id: 3, name: '参考', color: '#2ecc71', order_index: 2 }
-            ];
-        }
-    }
-
-    openPresetPopup() {
-        // 更新预设网格
-        this.renderPresetGrid();
-        // 显示弹窗
-        this.presetPopupOverlay.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-    }
-
-    closePresetPopup() {
-        this.presetPopupOverlay.style.display = 'none';
-        document.body.style.overflow = '';
-    }
-
-    renderPresetGrid() {
-        if (this.markerPresets.length === 0) {
-            this.presetGrid.innerHTML = '<p class="text-muted text-center">暂无预设</p>';
-            return;
-        }
-
-        this.presetGrid.innerHTML = this.markerPresets.map(preset => `
-            <div class="preset-item" data-preset-id="${preset.id}" data-preset-name="${preset.name}" data-preset-color="${preset.color}" style="border-left-color: ${preset.color};">
-                <div class="preset-color" style="background-color: ${preset.color};"></div>
-                <span class="preset-name">${preset.name}</span>
-            </div>
-        `).join('');
-
-        // 添加点击事件
-        this.presetGrid.querySelectorAll('.preset-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const presetId = parseInt(item.dataset.presetId);
-                const presetName = item.dataset.presetName;
-                const presetColor = item.dataset.presetColor;
-                
-                // 更新输入框
-                this.inputMarkerLabel.value = presetName;
-                this.inputMarkerColor.value = presetColor;
-                
-                // 关闭弹窗
-                this.closePresetPopup();
-            });
-        });
-    }
-
-    async loadCurrentSong() {
-        if (this.playlist.length === 0) return;
-
-        const filePath = this.playlist[this.currentIndex];
-        const metadata = this.playlistMetadata?.[this.currentIndex];
-
-        // 更新歌曲信息
-        this.trackTitle.textContent = metadata?.title || '未知歌曲';
-        this.trackArtist.textContent = metadata?.artist || '未知艺术家';
-
-        // 加载封面（使用缩略图 API）
-        this.coverImage.src = `/get_thumb?path=${encodeURIComponent(filePath)}&size=250`;
-
-        // 加载音频
-        this.audio.src = apiOpenFile(filePath);
-
-        // 加载歌词
-        if (metadata?.has_lyric) {
-            await this.loadLyric(filePath);
-        } else {
-            this.lyricData = [];
-            this.renderLyric();
-        }
-
-        // 加载标记
-        this.markers = metadata?.markers || [];
+  async saveQuickMarker(markerData) {
+    try {
+      const result = await apiAddOrUpdateMarker(this.getCurrentFilePath(), markerData);
+      if (result.success) {
+        this.markers = result.markers;
         this.renderMarkers();
+      }
+    } catch (error) {
+      console.error('创建标记失败:', error);
+      this.playShortcutErrorSound();
+    }
+  }
 
-        // 更新播放列表高亮
-        this.updatePlaylistHighlight();
+  async loadMetadata() {
+    try {
+      const response = await apiGetAudioMetadata(this.playlist);
+      this.playlistMetadata = response.metadata || [];
+    } catch (error) {
+      console.error('加载音频元数据失败:', error);
+      this.playlistMetadata = [];
+    }
+  }
 
-        // 开始播放
-        try {
-            await this.audio.play();
-        } catch (error) {
-            console.log('自动播放被阻止，需要用户交互');
-        }
+  async loadMarkerPresets() {
+    try {
+      const response = await apiGetMarkerPresets();
+      if (response.success) {
+        this.markerPresets = response.presets;
+      }
+    } catch (error) {
+      console.error('加载标记预设失败:', error);
+      this.markerPresets = [
+        { id: 1, name: '重要', color: '#e74c3c', order_index: 0 },
+        { id: 2, name: '一般', color: '#3498db', order_index: 1 },
+        { id: 3, name: '参考', color: '#2ecc71', order_index: 2 },
+      ];
+    }
+  }
+
+  openPresetPopup() {
+    this.renderPresetGrid();
+    this.presetPopupOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  closePresetPopup() {
+    this.presetPopupOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  renderPresetGrid() {
+    renderPresetItems({
+      markerPresets: this.markerPresets,
+      presetGrid: this.presetGrid,
+      emptyHTML: '<p class="text-muted text-center">暂无预设</p>',
+      onSelect: preset => {
+        this.inputMarkerLabel.value = preset.name;
+        this.inputMarkerColor.value = preset.color;
+        this.closePresetPopup();
+      },
+    });
+  }
+
+  async loadCurrentSong() {
+    if (this.playlist.length === 0) {
+      return;
     }
 
-    async loadLyric(filePath) {
-        try {
-            const response = await apiGetLyric(filePath);
-            if (response.exists) {
-                this.lyricData = this.parseLyric(response.content);
-                this.renderLyric();
-            }
-        } catch (error) {
-            console.error('加载歌词失败:', error);
-        }
+    const filePath = this.getCurrentFilePath();
+    const metadata = this.getCurrentMetadata();
+
+    this.trackTitle.textContent = metadata?.title || '未知歌曲';
+    this.trackArtist.textContent = metadata?.artist || '未知艺术家';
+    this.coverImage.src = `/get_thumb?path=${encodeURIComponent(filePath)}&size=250`;
+    this.audio.src = apiOpenFile(filePath);
+
+    if (metadata?.has_lyric) {
+      await this.loadLyric(filePath);
+    } else {
+      this.lyricData = [];
+      this.renderLyric();
     }
 
-    parseLyric(lrcContent) {
-        const lines = lrcContent.split('\n');
-        const parsed = [];
+    this.markers = Array.isArray(metadata?.markers) ? metadata.markers : [];
+    this.renderMarkers();
+    this.updatePlaylistHighlight();
+    this.saveCurrentPlaybackContext();
 
-        lines.forEach(line => {
-            // 匹配 [mm:ss.xx]歌词文本 格式
-            const match = line.match(/\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/);
-            if (match) {
-                const minutes = parseInt(match[1]);
-                const seconds = parseInt(match[2]);
-                const milliseconds = parseInt(match[3]);
-                const time = minutes * 60 + seconds + milliseconds / 100;
-                const text = match[4].trim();
+    try {
+      await this.audio.play();
+    } catch (error) {
+      console.log('自动播放被阻止，需要用户交互');
+    }
+  }
 
-                if (text) {
-                    parsed.push({ time, text });
-                }
-            }
-        });
+  async loadLyric(filePath) {
+    try {
+      const response = await apiGetLyric(filePath);
+      if (response.exists) {
+        this.lyricData = this.parseLyric(response.content);
+      } else {
+        this.lyricData = [];
+      }
+      this.renderLyric();
+    } catch (error) {
+      console.error('加载歌词失败:', error);
+      this.lyricData = [];
+      this.renderLyric();
+    }
+  }
 
-        return parsed.sort((a, b) => a.time - b.time);
+  parseLyric(lrcContent) {
+    return parseLyricContent(lrcContent);
+  }
+
+  renderLyric() {
+    renderLyricLines({
+      lyricData: this.lyricData,
+      lyricContainer: this.lyricContainer,
+      emptyHTML: this.defaultLyricHTML,
+      onSeek: time => {
+        this.audio.currentTime = time;
+      },
+    });
+  }
+
+  renderMarkers() {
+    renderMarkerItems({
+      markers: this.markers,
+      markerList: this.markerList,
+      emptyHTML: this.defaultMarkerHTML,
+      formatTime: value => this.formatTime(value),
+      onSeek: time => {
+        this.audio.currentTime = time / 1000;
+      },
+      onEdit: marker => this.editMarker(marker),
+      onDelete: marker => this.deleteMarker(marker),
+    });
+  }
+
+  renderPlaylist() {
+    renderPlaylistItems({
+      playlist: this.playlist,
+      playlistMetadata: this.playlistMetadata,
+      playlistContainer: this.playlistContainer,
+      emptyHTML: this.defaultPlaylistHTML,
+      currentIndex: this.currentIndex,
+      onSelect: index => this.playAtIndex(index),
+    });
+  }
+
+  updatePlaylistHighlight() {
+    updatePlaylistPlayingState({
+      playlistContainer: this.playlistContainer,
+      currentIndex: this.currentIndex,
+    });
+  }
+
+  togglePlay() {
+    if (this.audio.paused) {
+      this.audio.play();
+    } else {
+      this.audio.pause();
+    }
+  }
+
+  updatePlayButton(isPlaying) {
+    const icon = this.btnPlay.querySelector('i');
+    if (isPlaying) {
+      icon.className = 'fa fa-pause';
+      this.btnPlay.title = '暂停';
+    } else {
+      icon.className = 'fa fa-play';
+      this.btnPlay.title = '播放';
+    }
+  }
+
+  async playPrevious() {
+    if (this.playlist.length === 0) {
+      return;
+    }
+    this.currentIndex = getAdjacentPlaylistIndex(this.playMode, this.playlist.length, this.currentIndex, -1);
+    await this.loadCurrentSong();
+  }
+
+  async playNext() {
+    if (this.playlist.length === 0) {
+      return;
+    }
+    this.currentIndex = getAdjacentPlaylistIndex(this.playMode, this.playlist.length, this.currentIndex, 1);
+    await this.loadCurrentSong();
+  }
+
+  async playAtIndex(index) {
+    this.currentIndex = index;
+    await this.loadCurrentSong();
+  }
+
+  togglePlayMode() {
+    this.playMode = (this.playMode + 1) % 3;
+    const icon = this.btnMode.querySelector('i');
+
+    if (this.playMode === 0) {
+      icon.className = 'fa fa-retweet';
+      this.btnMode.title = '顺序播放';
+    } else if (this.playMode === 1) {
+      icon.className = 'fa fa-random';
+      this.btnMode.title = '随机播放';
+    } else {
+      icon.className = 'fa fa-repeat';
+      this.btnMode.title = '单曲循环';
+    }
+  }
+
+  onEnded() {
+    if (this.playMode === 2) {
+      this.audio.currentTime = 0;
+      this.audio.play();
+      return;
+    }
+    this.playNext();
+  }
+
+  onLoadedMetadata() {
+    this.progressSlider.max = this.audio.duration;
+    this.durationTimeLabel.textContent = this.formatTime(this.audio.duration * 1000);
+  }
+
+  onTimeUpdate() {
+    this.progressSlider.value = this.audio.currentTime;
+    this.currentTimeLabel.textContent = this.formatTime(this.audio.currentTime * 1000);
+    this.updateLyricHighlight();
+  }
+
+  onProgressChange(event) {
+    this.audio.currentTime = Number.parseFloat(event.target.value);
+  }
+
+  updateLyricHighlight() {
+    this.currentLyricIndex = updateLyricActiveLine({
+      lyricData: this.lyricData,
+      lyricContainer: this.lyricContainer,
+      currentTime: this.audio.currentTime,
+      currentLyricIndex: this.currentLyricIndex,
+    });
+  }
+
+  formatTime(milliseconds) {
+    if (Number.isNaN(milliseconds)) {
+      return '0:00';
+    }
+    const mins = Math.floor((milliseconds / 1000) / 60);
+    const secs = Math.floor((milliseconds / 1000) % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  secondsToMilliseconds(seconds) {
+    return Math.round((seconds || 0) * 1000);
+  }
+
+  toggleVolumePopup() {
+    this.volumePopup.style.display = this.volumePopup.style.display === 'none' ? 'flex' : 'none';
+  }
+
+  onVolumeChange(event) {
+    const volume = Number.parseInt(event.target.value, 10) / 100;
+    this.audio.volume = volume;
+    this.volumeValue.textContent = `${event.target.value}%`;
+
+    const icon = this.btnVolume.querySelector('i');
+    if (volume === 0) {
+      icon.className = 'fa fa-volume-off';
+    } else if (volume < 0.5) {
+      icon.className = 'fa fa-volume-down';
+    } else {
+      icon.className = 'fa fa-volume-up';
+    }
+  }
+
+  toggleDisplayView() {
+    this.isShowingLyric = !this.isShowingLyric;
+
+    if (this.isShowingLyric) {
+      this.coverView.style.opacity = '0';
+      this.coverView.style.transform = 'scale(0.9)';
+      this.lyricView.style.display = 'flex';
+      setTimeout(() => {
+        this.lyricView.style.opacity = '1';
+        this.lyricView.style.transform = 'scale(1)';
+      }, 50);
+    } else {
+      this.lyricView.style.opacity = '0';
+      this.lyricView.style.transform = 'scale(0.9)';
+      setTimeout(() => {
+        this.lyricView.style.display = 'none';
+        this.coverView.style.opacity = '1';
+        this.coverView.style.transform = 'scale(1)';
+      }, 300);
+    }
+  }
+
+  openSidebar() {
+    this.sidebar.classList.add('active');
+    this.sidebarOverlay.classList.add('active');
+  }
+
+  closeSidebar() {
+    this.sidebar.classList.remove('active');
+    this.sidebarOverlay.classList.remove('active');
+  }
+
+  rewindSeconds() {
+    this.audio.currentTime = Math.max(0, this.audio.currentTime - 5);
+  }
+
+  forwardSeconds() {
+    this.audio.currentTime = Math.min(this.audio.duration, this.audio.currentTime + 5);
+  }
+
+  switchSidebarTab(tabName) {
+    this.sidebarTabButtons.forEach(button => {
+      button.classList.toggle('active', button.dataset.tab === tabName);
+    });
+
+    this.sidebarPanes.forEach(pane => {
+      pane.classList.toggle('active', pane.id === `sidebar-${tabName}`);
+    });
+  }
+
+  markInPoint() {
+    this.inPoint = this.audio.currentTime;
+    this.inputInPoint.value = this.formatTime(this.secondsToMilliseconds(this.inPoint));
+    return this.inPoint;
+  }
+
+  markOutPoint() {
+    this.outPoint = this.audio.currentTime;
+    this.inputOutPoint.value = this.formatTime(this.secondsToMilliseconds(this.outPoint));
+    return this.outPoint;
+  }
+
+  clearMarkerInputs() {
+    this.inPoint = null;
+    this.outPoint = null;
+    resetMarkerForm({
+      inputInPoint: this.inputInPoint,
+      inputOutPoint: this.inputOutPoint,
+      inputMarkerLabel: this.inputMarkerLabel,
+      inputMarkerColor: this.inputMarkerColor,
+      btnCreateMarker: this.btnCreateMarker,
+      defaultCreateMarkerHTML: this.defaultCreateMarkerHTML,
+      markerPresets: this.markerPresets,
+    });
+  }
+
+  async createMarker() {
+    const label = this.inputMarkerLabel.value.trim();
+    if (!label) {
+      alert('请输入标记名称');
+      return;
     }
 
-    renderLyric() {
-        if (this.lyricData.length === 0) {
-            this.lyricContainer.innerHTML = '<p class="text-muted text-center">暂无歌词</p>';
-            return;
-        }
+    const editingMarkerId = this.btnCreateMarker.dataset.editingMarkerId
+      ? Number.parseInt(this.btnCreateMarker.dataset.editingMarkerId, 10)
+      : null;
 
-        this.lyricContainer.innerHTML = this.lyricData.map((line, index) =>
-            `<div class="lyric-line" data-lyric-index="${index}" data-time="${line.time}">
-                ${line.text}
-            </div>`
-        ).join('');
+    const markerData = buildMarkerPayload({
+      label,
+      color: this.inputMarkerColor.value,
+      markerPresets: this.markerPresets,
+      editingMarkerId,
+      inPoint: this.inPoint,
+      outPoint: this.outPoint,
+      currentTime: this.audio.currentTime,
+      secondsToMilliseconds: value => this.secondsToMilliseconds(value),
+    });
 
-        // 添加点击事件
-        this.lyricContainer.querySelectorAll('.lyric-line').forEach(el => {
-            el.addEventListener('click', () => {
-                const time = parseFloat(el.dataset.time);
-                this.audio.currentTime = time;
-            });
-        });
+    try {
+      const response = await apiAddOrUpdateMarker(this.getCurrentFilePath(), markerData);
+      if (response.success) {
+        this.markers = response.markers;
+        this.renderMarkers();
+        this.clearMarkerInputs();
+      } else {
+        alert(`创建标记失败: ${response.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error('创建标记失败:', error);
+      alert('创建标记失败，请检查网络连接');
+    }
+  }
+
+  editMarker(marker) {
+    if (marker.type === 1) {
+      this.inPoint = marker.start / 1000;
+      this.outPoint = marker.end / 1000;
+    } else {
+      this.inPoint = marker.time / 1000;
+      this.outPoint = null;
     }
 
-    renderMarkers() {
-        if (this.markers.length === 0) {
-            this.markerList.innerHTML = '<p class="text-muted text-center">暂无标记</p>';
-            return;
-        }
+    populateMarkerForm({
+      marker,
+      inputInPoint: this.inputInPoint,
+      inputOutPoint: this.inputOutPoint,
+      inputMarkerLabel: this.inputMarkerLabel,
+      inputMarkerColor: this.inputMarkerColor,
+      btnCreateMarker: this.btnCreateMarker,
+      formatTime: value => this.formatTime(value),
+    });
+    this.switchSidebarTab('marker');
+    alert('标记已加载到编辑面板，修改后点击"创建"按钮更新');
+  }
 
-        this.markerList.innerHTML = this.markers.map(marker => {
-            const time = marker.type === 0
-                ? this.formatTime(marker.time)
-                : `${this.formatTime(marker.start)} - ${this.formatTime(marker.end)}`;
-
-            const dataTime = marker.type === 0 ? marker.time : marker.start;
-            return `
-                <div class="marker-item" data-marker-id="${marker.id}" data-time="${dataTime}">
-                    <div class="marker-color" style="background: ${marker.color}"></div>
-                    <div class="marker-info">
-                        <div class="marker-time">${time}</div>
-                        <div class="marker-label">${marker.label}</div>
-                    </div>
-                    <div class="marker-actions">
-                        <button class="btn btn-sm btn-outline-light btn-edit-marker" title="编辑">
-                            <i class="fa fa-edit"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger btn-delete-marker" title="删除">
-                            <i class="fa fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        // 添加点击跳转事件
-        this.markerList.querySelectorAll('.marker-item').forEach(el => {
-            const markerId = parseInt(el.dataset.markerId);
-            const marker = this.markers.find(m => m.id === markerId);
-
-            // 点击标记主体区域跳转
-            const markerInfo = el.querySelector('.marker-info');
-            markerInfo.addEventListener('click', () => {
-                const time = parseFloat(el.dataset.time);
-                this.audio.currentTime = time / 1000;
-            });
-
-            // 编辑按钮
-            const btnEdit = el.querySelector('.btn-edit-marker');
-            btnEdit.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.editMarker(marker);
-            });
-
-            // 删除按钮
-            const btnDelete = el.querySelector('.btn-delete-marker');
-            btnDelete.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.deleteMarker(marker);
-            });
-        });
+  async deleteMarker(marker) {
+    if (!confirm(`确定要删除标记"${marker.label}" 吗？`)) {
+      return;
     }
 
-    renderPlaylist() {
-        if (this.playlist.length === 0) {
-            this.playlistContainer.innerHTML = '<p class="text-muted text-center">播放列表为空</p>';
-            return;
-        }
-
-        this.playlistContainer.innerHTML = this.playlist.map((filePath, index) => {
-            const metadata = this.playlistMetadata?.[index];
-            const title = metadata?.title || filePath.split('/').pop();
-            const isPlaying = index === this.currentIndex;
-
-            return `
-                <div class="playlist-item ${isPlaying ? 'playing' : ''}" data-index="${index}">
-                    <span class="playlist-title">${title}</span>
-                </div>
-            `;
-        }).join('');
-
-        // 添加点击事件
-        this.playlistContainer.querySelectorAll('.playlist-item').forEach(el => {
-            el.addEventListener('click', () => {
-                const index = parseInt(el.dataset.index);
-                this.playAtIndex(index);
-            });
-        });
+    try {
+      const response = await apiDeleteMarker(this.getCurrentFilePath(), marker.id);
+      if (response.success) {
+        this.markers = response.markers;
+        this.renderMarkers();
+      } else {
+        alert(`删除标记失败: ${response.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error('删除标记失败:', error);
+      alert('删除标记失败，请检查网络连接');
     }
+  }
 
-    updatePlaylistHighlight() {
-        const items = this.playlistContainer.querySelectorAll('.playlist-item');
-        items.forEach((item, index) => {
-            if (index === this.currentIndex) {
-                item.classList.add('playing');
-            } else {
-                item.classList.remove('playing');
-            }
-        });
-    }
-
-    // ========== 播放控制 ==========
-
-    togglePlay() {
-        if (this.audio.paused) {
-            this.audio.play();
-        } else {
-            this.audio.pause();
-        }
-    }
-
-    updatePlayButton(isPlaying) {
-        const icon = this.btnPlay.querySelector('i');
-        if (isPlaying) {
-            icon.className = 'fa fa-pause';
-            this.btnPlay.title = '暂停';
-        } else {
-            icon.className = 'fa fa-play';
-            this.btnPlay.title = '播放';
-        }
-    }
-
-    async playPrevious() {
-        if (this.playMode === 1) {
-            // 随机模式
-            this.currentIndex = Math.floor(Math.random() * this.playlist.length);
-        } else {
-            this.currentIndex = (this.currentIndex - 1 + this.playlist.length) % this.playlist.length;
-        }
-        await this.loadCurrentSong();
-    }
-
-    async playNext() {
-        if (this.playMode === 1) {
-            // 随机模式
-            const candidates = [...Array(this.playlist.length).keys()]
-                .filter(i => i !== this.currentIndex);
-            this.currentIndex = candidates[Math.floor(Math.random() * candidates.length)];
-        } else {
-            this.currentIndex = (this.currentIndex + 1) % this.playlist.length;
-        }
-        await this.loadCurrentSong();
-    }
-
-    async playAtIndex(index) {
-        this.currentIndex = index;
-        await this.loadCurrentSong();
-    }
-
-    togglePlayMode() {
-        this.playMode = (this.playMode + 1) % 3;
-        const icon = this.btnMode.querySelector('i');
-
-        if (this.playMode === 0) {
-            icon.className = 'fa fa-retweet';
-            this.btnMode.title = '顺序播放';
-        } else if (this.playMode === 1) {
-            icon.className = 'fa fa-random';
-            this.btnMode.title = '随机播放';
-        } else {
-            icon.className = 'fa fa-repeat';
-            this.btnMode.title = '单曲循环';
-        }
-    }
-
-    onEnded() {
-        if (this.playMode === 2) {
-            // 单曲循环
-            this.audio.currentTime = 0;
-            this.audio.play();
-        } else {
-            this.playNext();
-        }
-    }
-
-    // ========== 进度和时间 ==========
-
-    onLoadedMetadata() {
-        this.progressSlider.max = this.audio.duration;
-        this.durationTimeLabel.textContent = this.formatTime(this.audio.duration * 1000);
-    }
-
-    onTimeUpdate() {
-        // 更新进度条
-        this.progressSlider.value = this.audio.currentTime;
-        this.currentTimeLabel.textContent = this.formatTime(this.audio.currentTime * 1000);
-
-        // 更新歌词
-        this.updateLyricHighlight();
-    }
-
-    onProgressChange(e) {
-        this.audio.currentTime = e.target.value;
-    }
-
-    updateLyricHighlight() {
-        if (this.lyricData.length === 0) return;
-
-        const currentTime = this.audio.currentTime;
-        let newIndex = -1;
-
-        for (let i = 0; i < this.lyricData.length; i++) {
-            if (i === this.lyricData.length - 1 ||
-                currentTime < this.lyricData[i + 1].time) {
-                newIndex = i;
-                break;
-            }
-        }
-
-        if (newIndex !== this.currentLyricIndex) {
-            this.currentLyricIndex = newIndex;
-
-            // 更新高亮
-            const lines = this.lyricContainer.querySelectorAll('.lyric-line');
-            lines.forEach((line, index) => {
-                if (index === newIndex) {
-                    line.classList.add('active');
-                    line.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                } else {
-                    line.classList.remove('active');
-                }
-            });
-        }
-    }
-
-    formatTime(seconds) {
-        if (isNaN(seconds)) return '0:00';
-        const mins = Math.floor((seconds / 1000) / 60);
-        const secs = Math.floor((seconds / 1000) % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    // ========== 音量控制 ==========
-
-    toggleVolumePopup() {
-        const isHidden = this.volumePopup.style.display === 'none';
-        this.volumePopup.style.display = isHidden ? 'flex' : 'none';
-    }
-
-    onVolumeChange(e) {
-        const volume = e.target.value / 100;
-        this.audio.volume = volume;
-        this.volumeValue.textContent = `${e.target.value}%`;
-
-        // 更新音量图标
-        const icon = this.btnVolume.querySelector('i');
-        if (volume === 0) {
-            icon.className = 'fa fa-volume-off';
-        } else if (volume < 0.5) {
-            icon.className = 'fa fa-volume-down';
-        } else {
-            icon.className = 'fa fa-volume-up';
-        }
-    }
-
-    // ========== 显示视图切换 ==========
-
-    toggleDisplayView() {
-        this.isShowingLyric = !this.isShowingLyric;
-
-        if (this.isShowingLyric) {
-            // 显示歌词视图
-            this.coverView.style.opacity = '0';
-            this.coverView.style.transform = 'scale(0.9)';
-            this.lyricView.style.display = 'flex';
-            setTimeout(() => {
-                this.lyricView.style.opacity = '1';
-                this.lyricView.style.transform = 'scale(1)';
-            }, 50);
-        } else {
-            // 显示封面视图
-            this.lyricView.style.opacity = '0';
-            this.lyricView.style.transform = 'scale(0.9)';
-            setTimeout(() => {
-                this.lyricView.style.display = 'none';
-                this.coverView.style.opacity = '1';
-                this.coverView.style.transform = 'scale(1)';
-            }, 300);
-        }
-    }
-
-    // ========== 侧边栏控制 ==========
-
-    openSidebar() {
-        this.sidebar.classList.add('active');
-        this.sidebarOverlay.classList.add('active');
-    }
-
-    closeSidebar() {
-        this.sidebar.classList.remove('active');
-        this.sidebarOverlay.classList.remove('active');
-    }
-
-    rewindSeconds() {
-        this.audio.currentTime = Math.max(0, this.audio.currentTime - 5);
-    }
-
-    forwardSeconds() {
-        this.audio.currentTime = Math.min(this.audio.duration, this.audio.currentTime + 5);
-    }
-
-    switchSidebarTab(tabName) {
-        // 切换标签按钮状态
-        this.sidebarTabButtons.forEach(btn => {
-            if (btn.dataset.tab === tabName) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-
-        // 切换面板显示
-        this.sidebarPanes.forEach(pane => {
-            if (pane.id === `sidebar-${tabName}`) {
-                pane.classList.add('active');
-            } else {
-                pane.classList.remove('active');
-            }
-        });
-    }
-
-    // ========== 标记功能 ==========
-
-    markInPoint() {
-        this.inPoint = this.audio.currentTime;
-        this.inputInPoint.value = this.formatTime(this.inPoint * 1000);
-        return this.inPoint;
-    }
-
-    markOutPoint() {
-        this.outPoint = this.audio.currentTime;
-        this.inputOutPoint.value = this.formatTime(this.outPoint * 1000);
-        return this.outPoint;
-    }
-
-    clearMarkerInputs() {
-        this.inPoint = null;
-        this.outPoint = null;
-        this.inputInPoint.value = '';
-        this.inputOutPoint.value = '';
-        this.inputMarkerLabel.value = '';
-        // 设置默认颜色为第一个预设的颜色，或使用红色作为默认
-        const defaultColor = this.markerPresets.length > 0 ? this.markerPresets[0].color : '#ff0000';
-        this.inputMarkerColor.value = defaultColor;
-        this.btnCreateMarker.innerHTML = '<i class="fa fa-plus"></i> 创建';
-        delete this.btnCreateMarker.dataset.editingMarkerId;
-    }
-
-    async createMarker() {
-        const label = this.inputMarkerLabel.value.trim();
-        if (!label) {
-            alert('请输入标记名称');
-            return;
-        }
-
-        const color = this.inputMarkerColor.value;
-        const filePath = this.playlist[this.currentIndex];
-
-        // 根据颜色查找对应的预设 ID
-        const preset = this.markerPresets.find(p => p.color === color);
-        const presetId = preset?.id || null;
-
-        // 创建标记数据
-        const markerData = {
-            id: null,  // null 表示新建
-            type: this.inPoint !== null && this.outPoint !== null ? 1 : 0,
-            label: label,
-            color: color,
-            preset_id: presetId,
-            time: this.inPoint * 1000 || this.audio.currentTime * 1000,
-            start: this.inPoint * 1000,
-            end: this.outPoint * 1000
-        };
-
-        try {
-            // 调用后端 API 保存标记
-            const response = await apiAddOrUpdateMarker(filePath, markerData);
-
-            if (response.success) {
-                // 更新本地标记列表
-                this.markers = response.markers;
-                this.renderMarkers();
-
-                // 清空输入
-                this.inputMarkerLabel.value = '';
-                this.inPoint = null;
-                this.outPoint = null;
-                this.inputInPoint.value = '';
-                this.inputOutPoint.value = '';
-
-                console.log('标记创建成功:', markerData);
-            } else {
-                alert('创建标记失败: ' + (response.error || '未知错误'));
-            }
-        } catch (error) {
-            console.error('创建标记失败:', error);
-            alert('创建标记失败，请检查网络连接');
-        }
-    }
-
-    async editMarker(marker) {
-        // 填充入点/出点输入框
-        if (marker.type === 1) {
-            this.inPoint = marker.start;
-            this.outPoint = marker.end;
-            this.inputInPoint.value = this.formatTime(marker.start);
-            this.inputOutPoint.value = this.formatTime(marker.end);
-        } else {
-            this.inPoint = marker.time;
-            this.outPoint = null;
-            this.inputInPoint.value = this.formatTime(marker.time);
-            this.inputOutPoint.value = '';
-        }
-
-        // 填充标签和颜色
-        this.inputMarkerLabel.value = marker.label;
-        this.inputMarkerColor.value = marker.color;
-
-        // 切换到标记面板
-        this.switchTab('marker');
-
-        // 提示用户
-        alert('标记已加载到编辑面板，修改后点击"创建"按钮更新');
-
-        // 修改创建按钮为更新模式
-        this.btnCreateMarker.innerHTML = '<i class="fa fa-save"></i> 更新';
-        this.btnCreateMarker.dataset.editingMarkerId = marker.id;
-    }
-
-    async deleteMarker(marker) {
-        if (!confirm(`确定要删除标记 "${marker.label}" 吗？`)) {
-            return;
-        }
-
-        const filePath = this.playlist[this.currentIndex];
-
-        try {
-            const response = await apiDeleteMarker(filePath, marker.id);
-
-            if (response.success) {
-                // 更新本地标记列表
-                this.markers = response.markers;
-                this.renderMarkers();
-
-                console.log('标记删除成功:', marker);
-            } else {
-                alert('删除标记失败: ' + (response.error || '未知错误'));
-            }
-        } catch (error) {
-            console.error('删除标记失败:', error);
-            alert('删除标记失败，请检查网络连接');
-        }
-    }
-
-    // ========== 其他 ==========
-
-    goBack() {
-        window.history.back();
-    }
+  goBack() {
+    window.history.back();
+  }
 }

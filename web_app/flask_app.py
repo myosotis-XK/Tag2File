@@ -8,12 +8,13 @@ from flask import Flask, Response, request, session, g, \
 send_file, render_template, render_template_string, send_from_directory, jsonify, make_response, abort, redirect, url_for
 from PIL import Image
 from io import BytesIO
-from functools import wraps
 from PyQt5.QtWidgets import QFileIconProvider
 from PyQt5.QtCore import QFileInfo, QSize, QBuffer, QByteArray, QIODevice
 from PyQt5.QtGui import QIcon
 from src.utils import get_cache_path, root, config, thumbnailExtractor
 from src.models import get_file_init_icon
+from web_app.blueprint.audio import audio_api_bp, audio_page_bp
+from web_app.decorators import login_required
 
 warnings.filterwarnings('ignore')
 
@@ -366,14 +367,10 @@ def serve_html(html_path, **context):
     
     return response
 
-# ---------------- 登录保护装饰器 ----------------
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('logged_in'):
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
+app.config['AUDIO_GET_USER_SETTING'] = get_user_setting
+app.config['AUDIO_TAGBASE_DATA_DICT'] = tagbase_data_dict
+app.register_blueprint(audio_page_bp, url_prefix='/audio')
+app.register_blueprint(audio_api_bp, url_prefix='/api/audio')
 
 # ---------------- 登录页 ----------------
 @app.route('/login', methods=['GET', 'POST'])
@@ -797,185 +794,6 @@ def open_file():
         return jsonify({'error': f'无法打开文件: {str(e)}'}), 500
 
 
-# ---------------- 音频播放器相关路由 ----------------
-
-@app.route('/audio_player', methods=['GET'])
-@login_required
-def audio_player():
-    """音频播放器页面"""
-    response = make_response(render_template('audio_player.html'))
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
-
-
-@app.route('/api/audio/metadata', methods=['POST'])
-@login_required
-def get_audio_metadata():
-    """获取音频文件元数据（批量）"""
-    try:
-        data = request.get_json()
-        file_paths = data.get('file_paths', [])
-
-        if not file_paths:
-            return jsonify({'error': '缺少file_paths参数'}), 400
-
-        db_path = get_user_setting(session.get('user_id'), 'database_path')
-        data_api: DataAPI = tagbase_data_dict[db_path]
-
-        metadata_list = []
-        for file_path in file_paths:
-            # 规范化路径
-            normalized_path = file_path.replace('\\', '/')
-
-            # 提取标题（从文件名）
-            filename = os.path.basename(normalized_path)
-            title = os.path.splitext(filename)[0]
-
-            # 检查歌词文件是否存在
-            lyric_path = os.path.splitext(file_path)[0] + '.lrc'
-            has_lyric = os.path.exists(lyric_path)
-
-            # 获取音频标记数据
-            markers = data_api.get_audio_markers(normalized_path)
-            # 根据开始时间排序
-            markers.sort(key=lambda x: x['start'])
-            metadata_list.append({
-                'path': normalized_path,
-                'title': title,
-                'has_lyric': has_lyric,
-                'markers': markers
-            })
-
-        return jsonify({'metadata': metadata_list})
-
-    except Exception as e:
-        print(f"获取音频元数据错误: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/audio/lyric', methods=['GET'])
-@login_required
-def get_audio_lyric():
-    """获取歌词文件内容"""
-    try:
-        audio_path = request.args.get('audio_path')
-        if not audio_path:
-            return jsonify({'error': '缺少audio_path参数'}), 400
-
-        # 将音频路径扩展名替换为.lrc
-        lyric_path = os.path.splitext(audio_path)[0] + '.lrc'
-
-        if not os.path.exists(lyric_path):
-            return jsonify({'exists': False, 'content': ''})
-
-        # 读取歌词文件
-        with open(lyric_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        return jsonify({'exists': True, 'content': content})
-
-    except Exception as e:
-        print(f"获取歌词错误: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/audio/markers', methods=['POST'])
-@login_required
-def add_or_update_marker():
-    """添加或更新音频标记"""
-    try:
-        data = request.get_json()
-        file_path = data.get('file_path')
-        marker = data.get('marker')
-
-        if not file_path or not marker:
-            return jsonify({'error': '缺少必要参数'}), 400
-
-        db_path = get_user_setting(session.get('user_id'), 'database_path')
-        data_api: DataAPI = tagbase_data_dict[db_path]
-        normalized_path = file_path.replace('\\', '/')
-
-        # 添加或更新标记
-        marker_id = marker.get('id')
-        marker['time'] = int(marker['time'])
-        marker['start'] = int(marker['start'])
-        marker['end'] = int(marker['end'])
-        if marker_id:
-            # 更新现有标记
-            data_api.update_audio_marker(normalized_path, marker_id, marker)
-        else:
-            # 添加新标记
-            data_api.add_audio_marker(normalized_path, marker)
-
-        # 返回更新后的标记列表
-        updated_markers = data_api.get_audio_markers(normalized_path)
-        # 根据开始时间排序
-        updated_markers.sort(key=lambda x: x['start'])
-        return jsonify({'success': True, 'markers': updated_markers})
-
-    except Exception as e:
-        print(f"添加/更新标记错误: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/audio/markers/<int:marker_id>', methods=['DELETE'])
-@login_required
-def delete_marker(marker_id):
-    """删除音频标记"""
-    try:
-        file_path = request.args.get('file_path')
-        if not file_path:
-            return jsonify({'error': '缺少file_path参数'}), 400
-
-        db_path = get_user_setting(session.get('user_id'), 'database_path')
-        data_api: DataAPI = tagbase_data_dict[db_path]
-        normalized_path = file_path.replace('\\', '/')
-
-        # 删除标记
-        data_api.delete_audio_marker(normalized_path, marker_id)
-
-        # 返回更新后的标记列表
-        updated_markers = data_api.get_audio_markers(normalized_path)
-        # 根据开始时间排序
-        updated_markers.sort(key=lambda x: x['start'])
-        return jsonify({'success': True, 'markers': updated_markers})
-
-    except Exception as e:
-        print(f"删除标记错误: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/audio/marker_presets', methods=['GET'])
-@login_required
-def get_marker_presets():
-    """获取所有标记预设"""
-    try:
-        db_path = get_user_setting(session.get('user_id'), 'database_path')
-        data_api: DataAPI = tagbase_data_dict[db_path]
-
-        # 从数据库获取所有标记预设
-        presets = data_api.get_all_marker_presets()
-
-        # 转换为列表格式
-        result = []
-        for preset_id, name, color, order_index in presets:
-            result.append({
-                'id': preset_id,
-                'name': name,
-                'color': color,
-                'order_index': order_index
-            })
-
-        return jsonify({'success': True, 'presets': result})
-
-    except Exception as e:
-        print(f"获取标记预设错误: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-
 # ————————————————————————————————————————————————————————————————————————启动服务————————————————————————————————————————————————————————
 
 # 日志过滤器
@@ -1023,7 +841,7 @@ class RouteFilter(logging.Filter):
 
 # 添加过滤器到werkzeug日志
 werkzeug_logger = logging.getLogger('werkzeug')
-route_filter = RouteFilter(['/static/', '/open_file?', '/get_thumb?', '/audio_player?', '/api/audio/lyric?'])
+route_filter = RouteFilter(['/static/', '/open_file?', '/get_thumb?', '/audio/player?', '/api/audio/lyric?'])
 werkzeug_logger.addFilter(route_filter)
 
 if __name__ == '__main__':

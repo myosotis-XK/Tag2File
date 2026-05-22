@@ -1,6 +1,7 @@
 import { globalState, saveUISettings } from '../state.js';
 import { apiGetThumbnail, apiOpenFile, apiSearchFiles } from '../api.js';
 import { throttle } from '../utils.js';
+import { saveAudioPlayerContext } from './audioPlayerContext.js';
 
 // 检测是否为音频文件
 function isAudioFile(filePath) {
@@ -453,9 +454,11 @@ function renderVisibleItems(forceRefresh = false) {
                             // 找到当前文件在音频列表中的索引
                             const currentIndex = audioFiles.indexOf(file.filePath);
 
-                            // 跳转到音频播放器页面
-                            const playlistParam = encodeURIComponent(JSON.stringify(audioFiles));
-                            window.location.href = `/audio_player?playlist=${playlistParam}&index=${currentIndex}`;
+                            saveAudioPlayerContext({
+                                playlist: audioFiles,
+                                currentIndex
+                            });
+                            window.location.href = '/audio/player';
                         } else {
                             // 非音频文件，使用原有逻辑直接打开
                             const targetUrl = apiOpenFile(file.filePath);
