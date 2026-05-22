@@ -146,13 +146,12 @@ class EnhancedInputTagLabel(InputTagLabel):
             else:  # 中间区域
                 self.centerClicked.emit(self)
 
-class TagInputWidget(QWidget, Observer):  
+class TagInputWidget(QWidget):  
     """标签输入控件，支持点击位置插入，输入框默认隐藏"""
     def __init__(self, parent=None):  
-        Observer.__init__(self)
         QWidget.__init__(self, parent)
         self.DictManage = DictManage()
-        self.DictManage.add_observer(self)
+        self.DictManage.tagChanged.connect(self._on_tag_changed)
         self.tag_library = self.DictManage.get_all_tags()
         # 操作符列表  
         self.operators = ['∩', '∪', "'", '(', ')']  
@@ -276,6 +275,9 @@ class TagInputWidget(QWidget, Observer):
     def observer_update(self):
         self.tag_library = self.DictManage.get_all_tags()
         self.tag_model.setStringList(list(self.tag_library))
+
+    def _on_tag_changed(self, action, payload):
+        self.observer_update()
 
     def eventFilter(self, obj, event):
         """处理标签区域的点击事件"""

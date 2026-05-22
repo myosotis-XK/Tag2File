@@ -30,4 +30,4 @@ class MarkerStore:
         return self.dict_manage.get_all_marker_presets()
 
     def get_preset_rows(self):
-        return self.dict_manage.dataAPI.get_all_marker_presets()
+        return self.dict_manage.get_all_marker_presets()

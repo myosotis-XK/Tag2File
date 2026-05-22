@@ -231,6 +231,7 @@ class MarkerPresetManager(QDialog):
 
         from src.core.DictManage import DictManage
         self.dict_manage = DictManage()
+        self.dict_manage.markerPresetsChanged.connect(self.load_presets)
 
         self.init_ui()
         self.load_presets()
@@ -312,7 +313,7 @@ class MarkerPresetManager(QDialog):
         # 清空现有组件
         self.clear_preset_widgets()
 
-        presets = self.dict_manage.dataAPI.get_all_marker_presets()
+        presets = self.dict_manage.get_all_marker_presets()
 
         # 为每个预设创建组件
         for preset_id, name, color, order_index in presets:
@@ -344,13 +345,10 @@ class MarkerPresetManager(QDialog):
 
             try:
                 # 添加到数据库
-                self.dict_manage.dataAPI.create_marker_preset(
+                self.dict_manage.create_marker_preset(
                     data['name'],
                     data['color']
                 )
-
-                # 刷新列表
-                self.load_presets()
 
                 QMessageBox.information(self, "成功", f"预设 '{data['name']}' 已添加")
 
@@ -381,9 +379,6 @@ class MarkerPresetManager(QDialog):
                     data['color']
                 )
 
-                # 刷新列表
-                self.load_presets()
-
                 QMessageBox.information(self, "成功", f"预设 '{data['name']}' 已更新")
 
             except Exception as e:
@@ -413,10 +408,7 @@ class MarkerPresetManager(QDialog):
         """执行删除预设操作"""
         try:
             # 从数据库删除
-            self.dict_manage.dataAPI.delete_marker_preset(preset_data['id'])
-
-            # 刷新列表
-            self.load_presets()
+            self.dict_manage.delete_marker_preset(preset_data['id'])
 
             QMessageBox.information(self, "成功", "预设已删除")
 

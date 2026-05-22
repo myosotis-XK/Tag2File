@@ -77,11 +77,14 @@ class WebUsagePopup(QWidget):
         self.setLayout(layout)
 
 
-class Tag2File(QMainWindow, Observer):
+class Tag2File(QMainWindow):
     def __init__(self):
         super().__init__()
         self.DictManage = DictManage()
-        self.DictManage.add_observer(self)
+        self.DictManage.tagChanged.connect(self._on_tag_changed)
+        self.DictManage.categoryChanged.connect(self._on_category_changed)
+        self.DictManage.fileChanged.connect(self._on_file_changed)
+        self.DictManage.tagbaseChanged.connect(self._on_tagbase_changed)
 
         self.child_widget = [] # 文件属性窗口
         self.tag_view = None
@@ -335,6 +338,21 @@ class Tag2File(QMainWindow, Observer):
         if self.browse_mode == "folder_browse":
             return
         self.changeFile(self.tag_expression, True)
+
+    def _on_tag_changed(self, action, payload):
+        self.observer_update()
+
+    def _on_category_changed(self, action, payload):
+        self.update_tag_widget()
+
+    def _on_file_changed(self, action, payload):
+        self.update_tag_widget()
+        if self.browse_mode == "folder_browse":
+            return
+        self.changeFile(self.tag_expression, True)
+
+    def _on_tagbase_changed(self, db_path):
+        self.observer_update()
 
 
     def closeEvent(self, event):

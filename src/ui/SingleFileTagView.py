@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from src.core.DictManage import DictManage, Observer
+from src.core.DictManage import DictManage
 from src.ui.media_viewers import ImageViewer
 
 from .FileShowArea import TagFileShowArea
@@ -22,11 +22,13 @@ from .FileShowArea import TagFileShowArea
 
 # ---------------- Single File Detail View ----------------
 
-class SingleFileTagView(QScrollArea, Observer):
+class SingleFileTagView(QScrollArea):
     def __init__(self, file_paths: str, TagFileShowArea: TagFileShowArea):
         super().__init__()
         self.DictManage = DictManage()
-        self.DictManage.add_observer(self)
+        self.DictManage.tagChanged.connect(self._on_data_changed)
+        self.DictManage.categoryChanged.connect(self._on_data_changed)
+        self.DictManage.fileChanged.connect(self._on_file_changed)
         self.TagFileShowArea = TagFileShowArea
         self.file_paths = file_paths
         self.current_index = 0
@@ -91,11 +93,33 @@ class SingleFileTagView(QScrollArea, Observer):
         self.show_current_file()
 
     def closeEvent(self, event):
-        self.DictManage.remove_observer(self)
         super().closeEvent(event)
 
     def observer_update(self):
         self.update_tags()
+
+    def _on_data_changed(self, action, payload):
+        self.observer_update()
+
+    def _on_file_changed(self, action, payload):
+        if self.current_file_path is None:
+            return
+        changed_paths = set(payload.get("file_paths", [])) if isinstance(payload, dict) else set()
+        path_mapping = payload.get("path_mapping", {}) if isinstance(payload, dict) else {}
+        old_path = payload.get("old_path") if isinstance(payload, dict) else None
+        new_path = payload.get("new_path") if isinstance(payload, dict) else None
+
+        if old_path and self.current_file_path == old_path:
+            self.current_file_path = new_path
+            self.update_index(new_path)
+            return
+        if self.current_file_path in path_mapping:
+            mapped_path = path_mapping[self.current_file_path]
+            self.current_file_path = mapped_path
+            self.update_index(mapped_path)
+            return
+        if not changed_paths or self.current_file_path in changed_paths:
+            self.update_index(self.current_file_path)
 
     def show_current_file(self):
         # 单文件视图不再直接摸 FileShowArea 的内部 FileItem，

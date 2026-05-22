@@ -60,7 +60,10 @@ class FileActionService:
                 errors.append(f"{file_path}: {exc}")
 
         if changed_paths and move_tags:
-            self.dict_manage.notify_observers()
+            self.dict_manage.fileChanged.emit(
+                "bulk_renamed",
+                {"path_mapping": path_mapping.copy(), "file_paths": list(path_mapping.values())},
+            )
         return ActionResult(
             success=not errors,
             changed_paths=changed_paths,
@@ -74,8 +77,7 @@ class FileActionService:
             return ActionResult(success=False, errors=[f"Target path already exists: {new_file_path}"])
 
         os.rename(file_path, new_file_path)
-        self.dict_manage.dataAPI.rename_file(file_path, new_file_path)
-        self.dict_manage.notify_observers()
+        self.dict_manage.rename_file(file_path, new_file_path)
         return ActionResult(success=True, changed_paths=[new_file_path], path_mapping={file_path: new_file_path})
 
     def delete_files(self, file_paths: list[str], os_delete: bool = False) -> ActionResult:
@@ -94,7 +96,7 @@ class FileActionService:
                 errors.append(f"{file_path}: {exc}")
 
         if changed_paths:
-            self.dict_manage.notify_observers()
+            self.dict_manage.fileChanged.emit("deleted", {"file_paths": list(changed_paths)})
         return ActionResult(success=not errors, changed_paths=changed_paths, errors=errors)
 
     def refresh_file_meta(self, file_paths: list[str]) -> list[tuple[str, int, float]]:
@@ -114,7 +116,10 @@ class FileActionService:
             except Exception as exc:
                 errors.append(f"{original_path}: {exc}")
         if changed_paths:
-            self.dict_manage.notify_observers()
+            self.dict_manage.fileChanged.emit(
+                "bulk_renamed",
+                {"path_mapping": mapping.copy(), "file_paths": list(changed_paths)},
+            )
         return ActionResult(
             success=not errors,
             changed_paths=changed_paths,

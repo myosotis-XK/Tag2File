@@ -4,12 +4,12 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
 from PyQt5.QtCore import Qt  
 from src.core.DictManage import *  
 
-class CategoryManager(QDialog, Observer):  
+class CategoryManager(QDialog):  
     def __init__(self):
-        Observer.__init__(self)
         QDialog.__init__(self)  
         self.DictManage = DictManage()  
-        self.DictManage.add_observer(self)
+        self.DictManage.categoryChanged.connect(self._on_dict_changed)
+        self.DictManage.tagChanged.connect(self._on_dict_changed)
         
         # 记住当前选择的类别和标签  
         self.current_category = None  
@@ -93,10 +93,6 @@ class CategoryManager(QDialog, Observer):
         self.downTagButton.clicked.connect(self.downMoveTag)
         self.tagList.currentItemChanged.connect(self.onTagChanged)  
 
-    def closeEvent(self, event):
-        self.DictManage.remove_observer(self)
-        super().closeEvent(event)
-
     def showCategoryContextMenu(self, position):
         # 检查点击位置是否有项目
         item = self.categoryList.itemAt(position)
@@ -171,10 +167,6 @@ class CategoryManager(QDialog, Observer):
         frame_geometry.moveCenter(center_point)  
         self.move(frame_geometry.topLeft())  
 
-    def closeEvent(self, event):  
-        self.DictManage.remove_observer(self)  
-        super().closeEvent(event)  
-
     def observer_update(self):  
         self.loadCategories()  
         # 恢复选择状态  
@@ -182,6 +174,9 @@ class CategoryManager(QDialog, Observer):
             items = self.categoryList.findItems(self.current_category, Qt.MatchExactly)  
             if items:  
                 self.categoryList.setCurrentItem(items[0])
+
+    def _on_dict_changed(self, action, payload):
+        self.observer_update()
 
     def loadCategories(self):  
         self.categoryList.clear()
@@ -228,7 +223,11 @@ class CategoryManager(QDialog, Observer):
             oldCategory = currentItem.text()  
             newCategory, ok = QInputDialog.getText(self, "编辑类别", "输入新类别名称:", text=oldCategory)  
             if ok and newCategory:  
-                if newCategory != oldCategory:
+                rows = self.DictManage.query_category()
+                categories = [row[0] for row in rows]
+                if newCategory == oldCategory:
+                    return
+                if newCategory in categories:
                     QMessageBox.warning(self, "警告", "类别已存在！")
                     return
                 self.DictManage.rename_category(oldCategory, newCategory)
@@ -236,8 +235,6 @@ class CategoryManager(QDialog, Observer):
                 # 如果正在修改当前选中的类别，需要更新记录  
                 if self.current_category == oldCategory:  
                     self.current_category = newCategory  
-                
-                self.DictManage.notify_observers()
 
     def deleteCategory(self):  
         currentItem = self.categoryList.currentItem()  
@@ -255,7 +252,6 @@ class CategoryManager(QDialog, Observer):
             color = QColorDialog.getColor()  
             if color.isValid():  
                 self.DictManage.set_category_color(category, color.name())
-                self.DictManage.notify_observers()
 
     def changeSpecialCategory(self):
         currentItem = self.categoryList.currentItem()
@@ -263,7 +259,6 @@ class CategoryManager(QDialog, Observer):
             category = currentItem.text()
             is_special = bool(self.DictManage.query_category(category)[0][2])
             self.DictManage.set_category_special(category, int(not is_special))
-            self.DictManage.notify_observers()
 
     def cherk_tag(self, tag):
         operators = [' ∩ ', ' ∪ ', "'", '(', ')', '-']
@@ -318,7 +313,7 @@ class CategoryManager(QDialog, Observer):
             if current_index > 0:
                 tags = [self.tagList.item(i).text() for i in range(self.tagList.count())]
                 tags[current_index], tags[current_index-1] = tags[current_index-1], tags[current_index]
-                self.DictManage.reorder_tags(self.current_category, tags)
+                self.DictManage.reorder_tags(tags)
                 # 保持选中状态
                 self.tagList.setCurrentRow(current_index-1)
 
@@ -329,7 +324,7 @@ class CategoryManager(QDialog, Observer):
             if current_index < self.tagList.count() - 1:
                 tags = [self.tagList.item(i).text() for i in range(self.tagList.count())]
                 tags[current_index], tags[current_index+1] = tags[current_index+1], tags[current_index]
-                self.DictManage.reorder_tags(self.current_category, tags)
+                self.DictManage.reorder_tags(tags)
                 # 保持选中状态
                 self.tagList.setCurrentRow(current_index+1)
 

@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QInputDialog,
 )
 
-from src.core.DictManage import DictManage, Observer
+from src.core.DictManage import DictManage
 from src.utils import config, init_config_section, save_config
 from src.ui.components.style_utils import create_colored_label
 
@@ -34,12 +34,13 @@ save_config()
 
 # ---------------- Tag Management Window ----------------
 
-class TagView(QMainWindow, Observer):
+class TagView(QMainWindow):
     def __init__(self, MainWindow, file_paths):
         super().__init__()
 
         self.DictManage = DictManage()
-        self.DictManage.add_observer(self)
+        self.DictManage.tagChanged.connect(self._on_tag_or_category_changed)
+        self.DictManage.categoryChanged.connect(self._on_tag_or_category_changed)
         self.file_paths = file_paths
 
         self.MainWindow = MainWindow
@@ -139,9 +140,11 @@ class TagView(QMainWindow, Observer):
     def closeEvent(self, event):
         self.TagFileShowArea.closeEvent(event)
         self.MainWindow.tag_view = None
-        self.DictManage.remove_observer(self)
         self.SingleFileTagView.closeEvent(event)
         super().closeEvent(event)
+
+    def _on_tag_or_category_changed(self, action, payload):
+        self.observer_update()
 
     def create_tag_widget(self):
         # 标签列表直接从 DictManage 重建，避免在 UI 层缓存一份容易过期的树结构。

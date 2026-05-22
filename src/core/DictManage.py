@@ -3,7 +3,7 @@ import threading
 import sqlite3
 import time
 import json
-from PyQt5.QtCore import QObject, QThread, Qt, QMetaObject
+from PyQt5.QtCore import QObject, pyqtSignal
 from src.utils import *
 
 default_value = {
@@ -293,7 +293,10 @@ class DataAPI():
             """,
             (file_path,)
         )
-        return {row[0] for row in cur.fetchall()}
+        try:
+            return {row[0] for row in cur.fetchall()}
+        finally:
+            cur.close()
 
     def _tag_to_category(self, tag: str) -> str:
         """返回指定 tag 所属的 category 名称"""
@@ -306,8 +309,11 @@ class DataAPI():
             """,
             (tag,)
         )
-        row = cur.fetchone()
-        return row[0]
+        try:
+            row = cur.fetchone()
+            return row[0]
+        finally:
+            cur.close()
 
     def _category_to_tag(self, category: str) -> list[str]:
         """返回指定 category 下的所有 tag 名称，按顺序"""
@@ -321,7 +327,10 @@ class DataAPI():
             """,
             (category,)
         )
-        return [row[0] for row in cur.fetchall()]
+        try:
+            return [row[0] for row in cur.fetchall()]
+        finally:
+            cur.close()
 
     def query(self, src_group: str, src_entity: str, dst_group: str):
         key = (src_group, dst_group)
@@ -352,7 +361,10 @@ class DataAPI():
             """,
             (tag,)
         )
-        return cur.fetchone()[0]
+        try:
+            return cur.fetchone()[0]
+        finally:
+            cur.close()
 
     def get_all_files(self) -> set[tuple[str, int, float]]:
         with self._lock, self.conn:
@@ -1012,21 +1024,14 @@ class DataAPI():
         self.set_file_extra_data(file_path, "audio_marker", markers)
 
 
-class Observer(QObject):
-    def __init__(self):
-        super().__init__()
-        self.observer_thread = QThread.currentThread()
+class DictManage(QObject):
+    tagChanged = pyqtSignal(str, object)
+    categoryChanged = pyqtSignal(str, object)
+    fileChanged = pyqtSignal(str, object)
+    audioMarkersChanged = pyqtSignal(str)
+    markerPresetsChanged = pyqtSignal()
+    tagbaseChanged = pyqtSignal(str)
 
-    def observer_update(self):
-        pass
-
-    def thread_safe_update(self):
-        if QThread.currentThread() == self.observer_thread:
-            self.observer_update()
-        else:
-            QMetaObject.invokeMethod(self, 'observer_update', Qt.QueuedConnection)
-
-class DictManage():
     # 单例
     _instance = None
     _initialized = False
@@ -1037,6 +1042,7 @@ class DictManage():
     
     def __init__(self):
         if not self._initialized:
+            super().__init__()
             self._initialized = True
 
             self.default_folder = config.get('DictManage', 'default_folder', fallback='default_folder')
@@ -1049,24 +1055,8 @@ class DictManage():
             tagbase_name = config.get('DictManage', 'tagbase_name', fallback='tagbase')
             self.db_path = os.path.join(floder_path, f"{tagbase_name}.db").replace('\\', '/')
             self.dataAPI = DataAPI(self.db_path)
-            
-            self._observers: list[Observer] = []
-   
-    # 观察者模式
-    def add_observer(self, observer: Observer):
-        if observer not in self._observers:
-            self._observers.append(observer)
-
-    def remove_observer(self, observer: Observer):
-        if observer in self._observers:
-            self._observers.remove(observer)
-
-    def notify_observers(self):
-        for observer in self._observers:
-            observer.thread_safe_update()
 
     # DataAPI 方法封装
-    # 不通知观察者
     def query(self, src_group: str, src_entity: str, dst_group: str):
         return self.dataAPI.query(src_group, src_entity, dst_group)
     
@@ -1089,100 +1079,137 @@ class DictManage():
         return self.dataAPI.query_category(category)
 
 
-    # 通知观察者
     def create_tagbase(self, db_path: str) -> None:
         self.dataAPI.create_tagbase(db_path)
-        self.notify_observers()
+        self.tagbaseChanged.emit(db_path)
+        self.categoryChanged.emit("reloaded", {"db_path": db_path})
+        self.tagChanged.emit("reloaded", {"db_path": db_path})
+        self.fileChanged.emit("reloaded", {"db_path": db_path})
 
     def load_tagbase(self, db_path: str) -> None:
         self.dataAPI = DataAPI(db_path)
-        self.notify_observers()
+        self.tagbaseChanged.emit(db_path)
+        self.categoryChanged.emit("reloaded", {"db_path": db_path})
+        self.tagChanged.emit("reloaded", {"db_path": db_path})
+        self.fileChanged.emit("reloaded", {"db_path": db_path})
 
     def rename_tag(self, old_name: str, new_name: str) -> None:
         self.dataAPI.rename_tag(old_name, new_name)
-        self.notify_observers()
+        payload = {"old_name": old_name, "new_name": new_name}
+        self.tagChanged.emit("renamed", payload)
+        self.fileChanged.emit("tag_renamed", payload)
 
     def rename_file(self, old_name: str, new_name: str) -> None:
         self.dataAPI.rename_file(old_name, new_name)
-        self.notify_observers()
+        self.fileChanged.emit("renamed", {"old_path": old_name, "new_path": new_name})
 
     def rename_category(self, old_name: str, new_name: str) -> None:
         self.dataAPI.rename_category(old_name, new_name)
-        self.notify_observers()
+        payload = {"old_name": old_name, "new_name": new_name}
+        self.categoryChanged.emit("renamed", payload)
+        self.tagChanged.emit("category_renamed", payload)
 
 
     def create_category(self, category: str) -> None:
         self.dataAPI.create_category(category)
-        self.notify_observers()
+        self.categoryChanged.emit("created", {"category": category})
 
     def delete_category(self, category: str) -> None:
         self.dataAPI.delete_category(category)
-        self.notify_observers()
+        payload = {"category": category}
+        self.categoryChanged.emit("deleted", payload)
+        self.tagChanged.emit("category_deleted", payload)
 
     def set_category_color(self, category: str, color: str) -> None:
         self.dataAPI.set_category_color(category, color)
-        self.notify_observers()
+        self.categoryChanged.emit("color_changed", {"category": category, "color": color})
 
     def set_category_special(self, category: str, is_special: int) -> None:
         self.dataAPI.set_category_special(category, is_special)
-        self.notify_observers()
+        self.categoryChanged.emit("special_changed", {"category": category, "is_special": bool(is_special)})
 
     def reorder_categories(self, new_order: list[str]) -> None:
         self.dataAPI.reorder_categories(new_order)
-        self.notify_observers()
+        self.categoryChanged.emit("reordered", {"categories": list(new_order)})
 
 
     def create_tag(self, tag: str) -> None:
         self.dataAPI.create_tag(tag)
-        self.notify_observers()
+        self.tagChanged.emit("created", {"tag": tag})
 
     def delete_tag(self, tag: str, file_paths: list[str]) -> None:
         self.dataAPI.delete_tag(tag, file_paths)
-        self.notify_observers()
+        payload = {"tag": tag, "file_paths": list(file_paths)}
+        self.tagChanged.emit("membership_changed", payload)
+        self.fileChanged.emit("tags_removed", payload)
 
     def destroy_tag(self, tag: str) -> None:
         self.dataAPI.destroy_tag(tag)
-        self.notify_observers()
+        payload = {"tag": tag}
+        self.tagChanged.emit("deleted", payload)
+        self.fileChanged.emit("tag_deleted", payload)
 
     def change_special_tags_status(self, tag: str, status: bool) -> None:
         self.dataAPI.change_special_tags_status(tag, status)
-        self.notify_observers()
+        self.tagChanged.emit("special_status_changed", {"tag": tag, "status": bool(status)})
 
     def change_tag_category(self, tag: str, category: str) -> None:
         self.dataAPI.change_tag_category(tag, category)
-        self.notify_observers()
+        payload = {"tag": tag, "category": category}
+        self.tagChanged.emit("category_changed", payload)
+        self.categoryChanged.emit("tag_moved", payload)
 
     def reorder_tags(self, new_order: list[str]) -> None:
         self.dataAPI.reorder_tags(new_order)
-        self.notify_observers()
+        self.tagChanged.emit("reordered", {"tags": list(new_order)})
 
 
     def delete_file(self, file_path: str, notify = True) -> None:
         self.dataAPI.delete_file(file_path)
         if notify:
-            self.notify_observers()
+            self.fileChanged.emit("deleted", {"file_paths": [file_path]})
 
     def add_tag(self, tag: str, file_paths: list[str]) -> None:
         self.dataAPI.add_tag(tag, file_paths)
-        self.notify_observers()
+        payload = {"tag": tag, "file_paths": list(file_paths)}
+        self.tagChanged.emit("membership_changed", payload)
+        self.fileChanged.emit("tags_added", payload)
 
     def get_audio_markers(self, file_path: str) -> list[dict]:
         return self.dataAPI.get_audio_markers(file_path)
 
     def add_audio_marker(self, file_path: str, marker_data: dict):
-        return self.dataAPI.add_audio_marker(file_path, marker_data)
+        marker_id = self.dataAPI.add_audio_marker(file_path, marker_data)
+        self.audioMarkersChanged.emit(file_path)
+        self.fileChanged.emit("audio_markers_changed", {"file_paths": [file_path]})
+        return marker_id
 
     def update_audio_marker(self, file_path: str, marker_id: int, marker_data: dict):
         self.dataAPI.update_audio_marker(file_path, marker_id, marker_data)
+        self.audioMarkersChanged.emit(file_path)
+        self.fileChanged.emit("audio_markers_changed", {"file_paths": [file_path]})
 
     def delete_audio_marker(self, file_path: str, marker_id: int):
         self.dataAPI.delete_audio_marker(file_path, marker_id)
+        self.audioMarkersChanged.emit(file_path)
+        self.fileChanged.emit("audio_markers_changed", {"file_paths": [file_path]})
 
     def get_all_marker_presets(self):
         return self.dataAPI.get_all_marker_presets()
+
+    def create_marker_preset(self, name: str, color: str):
+        preset_id = self.dataAPI.create_marker_preset(name, color)
+        self.markerPresetsChanged.emit()
+        return preset_id
+
+    def delete_marker_preset(self, preset_id: int):
+        self.dataAPI.delete_marker_preset(preset_id)
+        self.markerPresetsChanged.emit()
     
     def update_marker_preset_order(self, preset_id: int, new_order_index: int):
         self.dataAPI.update_marker_preset_order(preset_id, new_order_index)
+        self.markerPresetsChanged.emit()
 
     def update_marker_preset(self, preset_id: int, name: str, color: str):
         self.dataAPI.update_marker_preset(preset_id, name, color)
+        self.markerPresetsChanged.emit()
