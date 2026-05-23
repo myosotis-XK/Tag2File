@@ -263,7 +263,7 @@ class CategoryManager(QDialog):
             self.DictManage.set_category_special(category, int(not is_special))
 
     def cherk_tag(self, tag):
-        operators = [' ∩ ', ' ∪ ', "'", '(', ')', '-']
+        operators = [' ∩ ', ' ∪ ', "'", '(', ')']
         for op in operators:
             if op in tag:
                 # 提示错误的消息框
@@ -326,15 +326,11 @@ class CategoryManager(QDialog):
         if currentCategory and currentTag:  
             category = currentCategory.text()  
             tag = currentTag.text()  
-            reply = QMessageBox.question(self, "确认移除", f"确定要从类别 '{category}' 中移除标签 '{tag}' 吗？",  
-                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)  
-            if reply == QMessageBox.Yes:  
-                # 清除当前选中的标签记录  
-                if self.current_tag == tag:  
-                    self.current_tag = None  
-                
-                self.DictManage.change_tag_category(tag, '未分类')  
-                self.onCategoryChanged(category)  
+            if self.current_tag == tag:  
+                self.current_tag = None  
+            
+            self.DictManage.change_tag_category(tag, '未分类')  
+            self.onCategoryChanged(category)  
 
     def upMoveTag(self):
         currentTag = self.tagList.currentItem()

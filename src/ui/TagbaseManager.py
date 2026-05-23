@@ -178,8 +178,7 @@ class TagbaseManager(QDialog):
         path = selected.text(1)  # 第二列：路径
 
         self._switch_tagbase(name, path)
-        
-        QMessageBox.information(self, "成功", f"已切换到标签库: {name}")
+        self.close()
     
     def create_tagbase(self):
         """创建新标签库"""

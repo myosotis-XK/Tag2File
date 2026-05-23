@@ -344,10 +344,10 @@ class Tag:
 
 def parse_set_expression(expression) -> Tag:
     """
-    将集合表达式解析为 Tag 对象，支持 ∩、∪、-、' 和括号。
+    将集合表达式解析为 Tag 对象，支持 ∩、∪、' 和括号。
     标签名可以包含空格或中文，只要不包含运算符字符本身。
     """
-    precedence = {"∪": 1, "∩": 2, "-": 2}
+    precedence = {"∪": 1, "∩": 2}
     operators = {"∪", "∩", "(", ")", "'"}
 
     def tokenize(expr):
