@@ -2,6 +2,7 @@ import re
 from PyQt5.QtWidgets import QLabel, QTreeWidget
 from PyQt5.QtCore import Qt, QRect, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QPainter, QColor
+from src.ui.components.style_utils import build_colored_label_color_styles, build_tag_color_tokens
 from src.utils import *
 
 class CategoryTreeWidget(QTreeWidget):
@@ -97,7 +98,7 @@ class TagLabel(QLabel):
         super().__init__(parent)
         self.father = parent
         self.tag = text
-        self.color = color
+        self.color_tokens = build_tag_color_tokens(color)
         self.count = self.format_count(count)
         self.setStyleSheet("border: none; padding: 0px; margin: 2px;")
         # 设置标签字体
@@ -129,9 +130,9 @@ class TagLabel(QLabel):
         
         # 设置悬停时的颜色
         if self.hovered:
-            painter.setPen(self.get_highlight_color())
+            painter.setPen(self.color_tokens["text_hover"])
         else:
-            painter.setPen(self.color)
+            painter.setPen(self.color_tokens["text_normal"])
         
         # 绘制标签文本
         fm = painter.fontMetrics()
@@ -145,21 +146,6 @@ class TagLabel(QLabel):
 
         # 更新标签文本宽度
         self.tag_width = painter.fontMetrics().width(self.tag)
-
-    def get_highlight_color(self):
-        r, g, b = self.color.red(), self.color.green(), self.color.blue()
-        
-        # 增加亮度
-        r = min(r + 20 + (255 - r) // 3, 255)
-        g = min(g + 20 + (255 - g) // 3, 255)
-        b = min(b + 20 + (255 - b) // 3, 255)
-        
-        # 降低饱和度（向白色靠拢）
-        r = r + (255 - r) // 16
-        g = g + (255 - g) // 16
-        b = b + (255 - b) // 16
-        
-        return QColor(r, g, b)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and event.x() <= self.tag_width:
@@ -219,9 +205,9 @@ class SpecialTagLabel(TagLabel):
 
         # 设置悬停时的颜色
         if self.hovered:
-            painter.setPen(self.get_highlight_color())
+            painter.setPen(self.color_tokens["text_hover"])
         else:
-            painter.setPen(self.color)
+            painter.setPen(self.color_tokens["text_normal"])
         
         # 绘制标签文本，考虑勾选框的宽度
         checkbox_width = self.checkbox_size + 5  # 额外的5像素作为间距
@@ -272,30 +258,21 @@ class InputTagLabel(QLabel):
     def __init__(self, text, color, parent=None, ):  
         super().__init__(text, parent)  
         self.text = text  
-        # 从 color 生成背景色和边框色  
-        self.color = QColor(color)  
+        self.color_tokens = build_tag_color_tokens(color)
         self._setup_ui()  
     
     def _setup_ui(self):  
-        # 计算背景色和边框色  
-        bg_color = self.color.name()  
-        darker_color = QColor(self.color)  
-        darker_color.setHsv(self.color.hue(), self.color.saturation(), int(self.color.value() * 0.7))  
-        border_color = darker_color.name()  
-        lighter_bg = self.color.lighter(110).name()  
+        base_styles, hover_styles = build_colored_label_color_styles(self.color_tokens)
         
         # 设置标签样式  
         self.setStyleSheet(f"""  
             QLabel {{  
-                background-color: {bg_color};  
-                color: #333333;  
-                border: 1px solid {border_color};  
+                {''.join(base_styles)}
                 padding: px 0px;
                 font: 14px;  
             }}  
             QLabel:hover {{  
-                background-color: {lighter_bg};  
-                border-color: #c0c0c0;  
+                {''.join(hover_styles)}
             }}  
         """)  
         self.setCursor(Qt.PointingHandCursor) 

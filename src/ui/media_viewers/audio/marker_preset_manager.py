@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QColor
 
 from src.ui.components.flow_layout import QFlowLayout
-from src.ui.components.style_utils import create_colored_label
+from src.ui.components.style_utils import apply_color_preview_button_style, create_colored_label
 
 
 class PresetEditDialog(QDialog):
@@ -119,16 +119,7 @@ class PresetEditDialog(QDialog):
 
     def update_color_button(self):
         """更新颜色按钮显示"""
-        self.color_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {self.selected_color};
-                border: 2px solid #2c3e50;
-                border-radius: 5px;
-            }}
-            QPushButton:hover {{
-                opacity: 0.8;
-            }}
-        """)
+        apply_color_preview_button_style(self.color_btn, self.selected_color)
 
     def choose_color(self):
         """打开颜色选择器"""

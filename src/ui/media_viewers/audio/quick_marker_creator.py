@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.ui.components.preset_selector_dialog import PresetSelectorDialog
+from src.ui.components.style_utils import apply_color_preview_button_style
 from src.ui.components.time_input import TimeInput
 
 from .marker_store import MarkerStore
@@ -147,16 +148,7 @@ class QuickMarkerCreator(QWidget):
         main_layout.addLayout(control_layout)
 
     def update_color_button(self):
-        self.color_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {self.current_color};
-                border: 1px solid #7f8c8d;
-                border-radius: 3px;
-            }}
-            QPushButton:hover {{
-                border: 2px solid #2c3e50;
-            }}
-        """)
+        apply_color_preview_button_style(self.color_btn, self.current_color)
 
     def set_audio_file_path(self, path, duration_ms=None):
         self.audio_file_path = path

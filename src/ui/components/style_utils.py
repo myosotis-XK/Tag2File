@@ -87,6 +87,30 @@ def build_colored_label_color_styles(color, hover_effect=True):
     return base_styles, hover_styles
 
 
+def apply_color_preview_button_style(
+    button,
+    color,
+    border_width=1,
+    border_radius=4,
+    hover_border_width=None,
+):
+    """
+    给颜色预览按钮应用统一样式：常态显示当前颜色，悬停时只强调边框。
+    """
+    tokens = build_tag_color_tokens(color)
+    hover_border_width = 2 if hover_border_width is None else hover_border_width
+    button.setStyleSheet(f"""
+        QPushButton {{
+            background-color: {tokens['bg_normal'].name()};
+            border: {border_width}px solid {tokens['border_normal'].name()};
+            border-radius: {border_radius}px;
+        }}
+        QPushButton:hover {{
+            border: {hover_border_width}px solid {tokens['border_hover'].name()};
+        }}
+    """)
+
+
 def create_colored_label(text, color, parent=None, hover_effect=True):
     """
     创建带颜色样式的标签

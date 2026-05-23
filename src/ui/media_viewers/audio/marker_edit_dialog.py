@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
+from src.ui.components.style_utils import apply_color_preview_button_style
 from src.ui.components.time_input import TimeInput
 
 
@@ -164,7 +165,7 @@ class MarkerEditDialog(QDialog):
         layout.addLayout(button_layout)
 
     def _update_color_button(self):
-        self.color_btn.setStyleSheet(f"background-color: {self.current_color}; border: 1px solid #555;")
+        apply_color_preview_button_style(self.color_btn, self.current_color)
         self.color_label.setText(self.current_color)
 
     def on_preset_selected(self, color, preset_id):
