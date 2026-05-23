@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from PyQt5.QtCore import QPoint, QRect, QSize, Qt
-from PyQt5.QtGui import QColor, QFont, QPixmap
+from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.core.DictManage import DictManage
+from src.ui.components.style_utils import create_colored_label
 from src.ui.media_viewers import ImageViewer
 
 from .FileShowArea import TagFileShowArea
@@ -156,32 +157,11 @@ class SingleFileTagView(QScrollArea):
         file_tags = self.DictManage.query("file", self.current_file_path, "tag")
         for item in self.DictManage.query_category():
             category = item[0]
-            color = QColor(item[1])
+            color = item[1]
             tags = self.DictManage.query("category", category, "tag")
-            bg_color = color.name()
-            darker_color = QColor(color)
-            darker_color.setHsv(color.hue(), color.saturation(), int(color.value() * 0.7))
-            border_color = darker_color.name()
             for tag in tags:
                 if tag in file_tags:
-                    label = QLabel(tag, self)
-                    label.setStyleSheet(
-                        f"""
-                        QLabel {{
-                            background-color: {bg_color};
-                            color: #333333;
-                            border: 1px solid {border_color};
-                            border-radius: 10px;
-                            padding: 5px 10px;
-                            margin: 3px;
-                            font: 14px;
-                        }}
-                        QLabel:hover {{
-                            background-color: {color.lighter(110).name()};
-                            border-color: #c0c0c0;
-                        }}
-                    """
-                    )
+                    label = create_colored_label(tag, color, self)
                     label.setCursor(Qt.PointingHandCursor)
                     label.mousePressEvent = (
                         lambda event, tag=tag: self.delete_tag_current_file(tag)
