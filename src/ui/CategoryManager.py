@@ -1,10 +1,12 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
                              QPushButton, QInputDialog, QMessageBox, QColorDialog,
                              QSplitter, QWidget, QLabel, QDesktopWidget, QMenu,
+                             QFrame,
                              QLineEdit, QDialogButtonBox, QCompleter)
 from PyQt5.QtCore import Qt, QStringListModel
+from PyQt5.QtGui import QColor
 from src.core.DictManage import *  
-from src.ui.components.style_utils import create_context_menu
+from src.ui.components.style_utils import build_tag_color_tokens, create_context_menu
 
 class CategoryManager(QDialog):  
     def __init__(self):
@@ -266,9 +268,138 @@ class CategoryManager(QDialog):
         currentItem = self.categoryList.currentItem()  
         if currentItem:  
             category = currentItem.text()  
-            color = QColorDialog.getColor()  
+            current_color = self.DictManage.query_category(category)[0][1]
+            color = self._get_category_color_with_preview(category, current_color)
             if color.isValid():  
                 self.DictManage.set_category_color(category, color.name())
+
+    def _get_category_color_with_preview(self, category, initial_color):
+        dialog = QColorDialog(QColor(initial_color), self)
+        dialog.setWindowTitle(f"设置类别颜色 - {category}")
+        dialog.setOption(QColorDialog.DontUseNativeDialog, True)
+
+        preview_panel = self._create_color_preview_panel(category)
+        layout = dialog.layout()
+        if isinstance(layout, QVBoxLayout):
+            original_items = []
+            while layout.count():
+                original_items.append(layout.takeAt(0))
+
+            left_container = QWidget(dialog)
+            left_layout = QVBoxLayout(left_container)
+            left_layout.setContentsMargins(0, 0, 0, 0)
+            left_layout.setSpacing(layout.spacing())
+
+            for item in original_items:
+                if item.widget():
+                    left_layout.addWidget(item.widget())
+                elif item.layout():
+                    left_layout.addLayout(item.layout())
+                elif item.spacerItem():
+                    left_layout.addItem(item.spacerItem())
+
+            content_row = QHBoxLayout()
+            content_row.setContentsMargins(0, 0, 0, 0)
+            content_row.setSpacing(14)
+            content_row.addWidget(left_container, 1)
+            content_row.addWidget(preview_panel)
+            layout.addLayout(content_row)
+        else:
+            layout.addWidget(preview_panel, 0, layout.columnCount(), layout.rowCount(), 1)
+
+        dialog.currentColorChanged.connect(lambda color: self._update_color_preview(color, category))
+        self._update_color_preview(QColor(initial_color), category)
+
+        if dialog.exec_() == QDialog.Accepted:
+            return dialog.currentColor()
+        return QColor()
+
+    def _create_color_preview_panel(self, category):
+        panel = QFrame(self)
+        panel.setFixedWidth(180)
+        panel.setStyleSheet("""
+            QFrame {
+                background-color: transparent;
+                border: none;
+                border-radius: 0px;
+            }
+            QLabel {
+                background-color: transparent;
+                border: none;
+            }
+        """)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        title = QLabel("颜色预览", panel)
+        title.setStyleSheet("font-weight: bold; color: #2f2f2f;")
+        layout.addWidget(title)
+
+        self.category_preview_chip = QLabel(category, panel)
+        self.category_preview_hover_chip = QLabel(f"{category} hover", panel)
+        self.category_preview_text = QLabel(category, panel)
+        self.category_preview_text_hover = QLabel(f"{category} hover", panel)
+
+        for chip in [self.category_preview_chip, self.category_preview_hover_chip]:
+            chip.setAlignment(Qt.AlignCenter)
+            chip.setMinimumHeight(32)
+        for text_label in [self.category_preview_text, self.category_preview_text_hover]:
+            text_label.setMinimumHeight(26)
+
+        layout.addWidget(self.category_preview_chip)
+        layout.addWidget(self.category_preview_hover_chip)
+        layout.addWidget(self.category_preview_text)
+        layout.addWidget(self.category_preview_text_hover)
+        layout.addStretch()
+
+        return panel
+
+    def _update_color_preview(self, color, category):
+        tokens = build_tag_color_tokens(color)
+
+        self.category_preview_chip.setText(category)
+        self.category_preview_chip.setStyleSheet(f"""
+            QLabel {{
+                background-color: {tokens['bg_normal'].name()};
+                color: {tokens['text_on_bg_normal'].name()};
+                border: 1px solid {tokens['border_normal'].name()};
+                border-radius: 10px;
+                padding: 5px 10px;
+                font: 14px;
+            }}
+        """)
+
+        self.category_preview_hover_chip.setText(f"{category} hover")
+        self.category_preview_hover_chip.setStyleSheet(f"""
+            QLabel {{
+                background-color: {tokens['bg_hover'].name()};
+                color: {tokens['text_on_bg_hover'].name()};
+                border: 1px solid {tokens['border_hover'].name()};
+                border-radius: 10px;
+                padding: 5px 10px;
+                font: 14px;
+            }}
+        """)
+
+        self.category_preview_text.setText(category)
+        self.category_preview_text.setStyleSheet(f"""
+            QLabel {{
+                color: {tokens['text_normal'].name()};
+                font: 14px;
+                padding: 2px 0px;
+            }}
+        """)
+
+        self.category_preview_text_hover.setText(f"{category} hover")
+        self.category_preview_text_hover.setStyleSheet(f"""
+            QLabel {{
+                color: {tokens['text_hover'].name()};
+                font: 14px;
+                padding: 2px 0px;
+            }}
+        """)
 
     def changeSpecialCategory(self):
         currentItem = self.categoryList.currentItem()
