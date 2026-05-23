@@ -117,15 +117,15 @@ def apply_button_style(button, variant="default", size="default"):
     """
     styles = {
         "default": {
-            "bg": "#f7f9fc",
+            "bg": "#f8fbff",
             "text": "#243447",
-            "border": "#c7d0d9",
-            "hover_bg": "#e7f0fb",
-            "hover_border": "#8fb7e3",
-            "pressed_bg": "#d5e6f8",
-            "disabled_bg": "#f3f5f7",
+            "border": "#bfd0e0",
+            "hover_bg": "#e7f1fb",
+            "hover_border": "#7ea8d6",
+            "pressed_bg": "#d8e8f8",
+            "disabled_bg": "#f3f6f9",
             "disabled_text": "#9aa5b1",
-            "disabled_border": "#d6dde5",
+            "disabled_border": "#d3dde7",
         },
         "primary": {
             "bg": "#3498db",
@@ -161,15 +161,15 @@ def apply_button_style(button, variant="default", size="default"):
             "disabled_border": "#9bd4b3",
         },
         "operator": {
-            "bg": "#edf3f8",
-            "text": "#546372",
-            "border": "#c8d5e2",
-            "hover_bg": "#e1ecf7",
-            "hover_border": "#8fb7e3",
-            "pressed_bg": "#d5e6f8",
-            "disabled_bg": "#f4f7fa",
+            "bg": "#eaf1f7",
+            "text": "#4f6273",
+            "border": "#c1d0df",
+            "hover_bg": "#dce8f3",
+            "hover_border": "#7ea8d6",
+            "pressed_bg": "#cfdeee",
+            "disabled_bg": "#f3f6f9",
             "disabled_text": "#9aa5b1",
-            "disabled_border": "#d9e1e8",
+            "disabled_border": "#d6e0e9",
         },
     }
 

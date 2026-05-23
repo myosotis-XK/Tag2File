@@ -125,6 +125,12 @@ class Tag2File(QMainWindow):
         self.tray_icon.activated.connect(self.on_tray_activated)
 
         central_widget = QWidget(self)
+        central_widget.setObjectName("main_central_widget")
+        central_widget.setStyleSheet("""
+            QWidget#main_central_widget {
+                background-color: #f4f7fb;
+            }
+        """)
         self.setCentralWidget(central_widget)
         self.layout = QVBoxLayout(central_widget)
 
@@ -161,10 +167,10 @@ class Tag2File(QMainWindow):
         switch_layout.addWidget(category_button)
         # 创建搜索框布局
         search_layout = QVBoxLayout()
-        search_button = create_button("查询", self)
+        search_button = create_button("查询", self, variant="primary")
         search_button.clicked.connect(lambda: self.changeFile())  # 绑定切换函数
         # 创建清空输入框的按钮  
-        clear_button = create_button("清空", self)
+        clear_button = create_button("清空", self, variant="default")
         clear_button.clicked.connect(self.clearInput)  # 绑定清空函数
         
         search_layout2 = QHBoxLayout()
@@ -188,23 +194,35 @@ class Tag2File(QMainWindow):
 
 
         menu_widget = QWidget()
+        menu_widget.setObjectName("left_menu_panel")
         menu_widget.setLayout(self.menu_layout)
         menu_widget.setFixedWidth(250)
+        menu_widget.setStyleSheet("""
+            QWidget#left_menu_panel {
+                background-color: #eef3f9;
+                border-right: 1px solid #d7e1ec;
+            }
+        """)
 
         self.folder_nav_bar = QWidget()
         self.folder_nav_bar.setObjectName("folder_nav_bar")
         self.folder_nav_bar.setFixedHeight(36)
         self.folder_nav_bar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        self.folder_nav_bar.setStyleSheet("QWidget#folder_nav_bar { background-color: white; }")
+        self.folder_nav_bar.setStyleSheet("""
+            QWidget#folder_nav_bar {
+                background-color: #f8fbff;
+                border-bottom: 1px solid #d9e4ef;
+            }
+        """)
         folder_nav_layout = QHBoxLayout(self.folder_nav_bar)
         folder_nav_layout.setContentsMargins(8, 0, 0, 0)
         folder_nav_layout.setSpacing(8)
 
-        self.restore_search_button = create_button("返回搜索结果")
+        self.restore_search_button = create_button("返回搜索结果", variant="default", size="control")
         self.restore_search_button.clicked.connect(self.restore_search_snapshot)
         folder_nav_layout.addWidget(self.restore_search_button)
 
-        self.go_parent_button = create_button("上一级")
+        self.go_parent_button = create_button("上一级", variant="default", size="control")
         self.go_parent_button.clicked.connect(self.go_parent_or_restore)
         folder_nav_layout.addWidget(self.go_parent_button)
 
@@ -212,12 +230,22 @@ class Tag2File(QMainWindow):
         self.current_path_label.setMinimumWidth(0)
         self.current_path_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         self.current_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.current_path_label.setStyleSheet("background-color: white; padding-left: 8px;")
+        self.current_path_label.setStyleSheet("""
+            background-color: transparent;
+            color: #435466;
+            padding-left: 8px;
+        """)
         folder_nav_layout.addWidget(self.current_path_label, 1)
         self._full_current_path = ""
 
         self.right_panel = QWidget()
+        self.right_panel.setObjectName("right_content_panel")
         self.right_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.right_panel.setStyleSheet("""
+            QWidget#right_content_panel {
+                background-color: #ffffff;
+            }
+        """)
         self.right_layout = QVBoxLayout(self.right_panel)
         self.right_layout.setContentsMargins(0, 0, 0, 0)
         self.right_layout.setSpacing(0)

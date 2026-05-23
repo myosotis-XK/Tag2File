@@ -149,8 +149,8 @@ class TagInputWidget(QWidget):
         self.input_container = QFrame()  
         self.input_container.setStyleSheet("""  
             QFrame {  
-                background-color: #ffffff;  
-                border: 1px solid #cfd8e3;
+                background-color: #fbfdff;  
+                border: 1px solid #b9c8d8;
                 padding: 0px;  
             }  
         """)
