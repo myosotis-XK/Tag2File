@@ -373,12 +373,13 @@ class Tag2File(QMainWindow):
 
     # 获取tag对应文件路径
     def get_tag_files(self, tag_expression: str) -> list[tuple[str, int, float]]:
-        file_paths = get_tag_files(tag_expression, self.DictManage)
-        if file_paths is False:
+        try:
+            file_paths = get_tag_files(tag_expression, self.DictManage)
+        except ValueError as e:
             message_box = QMessageBox(self)
             message_box.setIcon(QMessageBox.Information)
             message_box.setWindowTitle("错误！")
-            message_box.setText(f"错误的表达式：{tag_expression}")
+            message_box.setText(f"错误的表达式：{tag_expression}\n\n具体原因：{e}")
             message_box.exec_()
             return False
 

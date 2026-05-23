@@ -282,9 +282,9 @@ class InputTagLabel(QLabel):
         self.parent().wheelEvent(event)
 
 class Tag:
-    def __init__(self, tag):
+    def __init__(self, tag, complement=False):
         self.tag = tag # 保存集合名字符串
-        self.Complement = False
+        self.Complement = complement
     # 重载集合交操作
     def __and__(self, other):
         if self.Complement == True and other.Complement == True: # A'∩B' = A'-B = (A∪B)'
@@ -338,113 +338,113 @@ class Tag:
         return self.__str__()
     
     def Change_Complement(self):
-        self.Complement = not self.Complement
-        return self
+        return Tag(self.tag, not self.Complement)
 
 
 def parse_set_expression(expression) -> Tag:
-    # 定义运算符模式，包括补集
-    operators = r'[∩∪\(\)\']'
-    
-    # 用于存储Tag实例的字典
-    tag_dict = {}
-    
-    # 分割表达式
-    tokens = re.split(f'({operators})', expression)
-    # 清理和处理标记
-    cleaned_tokens = []
-    for token in tokens:
-        token = token.strip()
-        if token:
-            if token not in ['∩', '∪', '(', ')', "'"]:
-                # 处理集合名
-                if token not in tag_dict:
-                    tag_dict[token] = Tag(token)
-                cleaned_tokens.append(f"tag_dict['{token}']")
-            elif token == "'":
-                # 处理补集
-                cleaned_tokens.append(".Change_Complement()")
+    """
+    将集合表达式解析为 Tag 对象，支持 ∩、∪、-、' 和括号。
+    标签名可以包含空格或中文，只要不包含运算符字符本身。
+    """
+    precedence = {"∪": 1, "∩": 2, "-": 2}
+    operators = {"∪", "∩", "(", ")", "'"}
+
+    def tokenize(expr):
+        tokens = []
+        current = []
+        for char in expr:
+            if char in operators:
+                tag = "".join(current).strip()
+                if tag:
+                    tokens.append(tag)
+                current = []
+                tokens.append(char)
             else:
-                cleaned_tokens.append('&' if token == '∩' else '|' if token == '∪' else token)
-    # 重建表达式
-    final_expression = ''.join(cleaned_tokens)
-    try:
-        result = eval(final_expression)
+                current.append(char)
 
-    except Exception as e:
-        print(f"表达式解析错误: {e}")
-        result = False
-    return result
+        tag = "".join(current).strip()
+        if tag:
+            tokens.append(tag)
+        return tokens
 
-# 自定义表达式解析，不使用eval
-# def parse_set_expression_stack(expression):
-#     """
-#     将集合表达式解析为 Tag 对象，支持 ∩ ∪ - ' () 
-#     """
-#     # 定义运算符优先级
-#     precedence = {'-': 3, '∩': 2, '∪': 1, '(': 0}
-    
-#     # token化
-#     token_pattern = r"[∩∪\-\(\)']|[A-Za-z_][A-Za-z0-9_]*"
-#     tokens = re.findall(token_pattern, expression)
-    
-#     # 字典缓存 Tag 对象
-#     tag_dict = {}
-    
-#     # 栈
-#     op_stack = []
-#     value_stack = []
-    
-#     def apply_operator(op):
-#         """弹出 value_stack 顶两个元素，应用运算符，再压回栈"""
-#         if op == "'":  # 补集
-#             val = value_stack.pop()
-#             value_stack.append(val.Change_Complement())
-#         else:
-#             right = value_stack.pop()
-#             left = value_stack.pop()
-#             if op == '∩':
-#                 value_stack.append(left & right)
-#             elif op == '∪':
-#                 value_stack.append(left | right)
-#             elif op == '-':
-#                 value_stack.append(left - right)
-    
-#     for token in tokens:
-#         if re.match(r"[A-Za-z_][A-Za-z0-9_]*", token):  # 集合名
-#             if token not in tag_dict:
-#                 tag_dict[token] = Tag(token)
-#             value_stack.append(tag_dict[token])
-#         elif token == '(':
-#             op_stack.append(token)
-#         elif token == ')':
-#             while op_stack and op_stack[-1] != '(':
-#                 apply_operator(op_stack.pop())
-#             op_stack.pop()  # 弹出 '('
-#         elif token == "'":  # 补集，优先级最高
-#             apply_operator(token)
-#         elif token in precedence:
-#             while op_stack and precedence[op_stack[-1]] >= precedence[token]:
-#                 apply_operator(op_stack.pop())
-#             op_stack.append(token)
-#         else:
-#             raise ValueError(f"未知 token: {token}")
-    
-#     # 处理剩余操作符
-#     while op_stack:
-#         apply_operator(op_stack.pop())
-    
-#     if len(value_stack) != 1:
-#         raise ValueError("表达式解析错误")
-    
-#     return value_stack[0]
+    tokens = tokenize(expression)
+    if not tokens:
+        raise ValueError("表达式为空")
+
+    op_stack: list[str] = []
+    value_stack: list[Tag] = []
+    expect_operand = True
+
+    def apply_operator(op):
+        if op == "'":
+            if not value_stack:
+                raise ValueError("补集运算符前缺少标签或子表达式")
+            value_stack.append(value_stack.pop().Change_Complement())
+            return
+
+        if len(value_stack) < 2:
+            raise ValueError(f"运算符 {op} 缺少操作数")
+
+        right = value_stack.pop()
+        left = value_stack.pop()
+
+        if op == "∩":
+            value_stack.append(left & right)
+        elif op == "∪":
+            value_stack.append(left | right)
+        else:
+            raise ValueError(f"未知运算符: {op}")
+
+    for token in tokens:
+        if token == "(":
+            if not expect_operand:
+                raise ValueError("左括号前缺少运算符")
+            op_stack.append(token)
+        elif token == ")":
+            if expect_operand:
+                raise ValueError("右括号前缺少标签或子表达式")
+            while op_stack and op_stack[-1] != "(":
+                apply_operator(op_stack.pop())
+            if not op_stack:
+                raise ValueError("括号不匹配")
+            op_stack.pop()
+            expect_operand = False
+        elif token == "'":
+            if expect_operand:
+                raise ValueError("补集运算符前缺少标签或子表达式")
+            apply_operator(token)
+            expect_operand = False
+        elif token in precedence:
+            if expect_operand:
+                raise ValueError(f"运算符 {token} 前缺少标签或子表达式")
+            while op_stack and op_stack[-1] in precedence and precedence[op_stack[-1]] >= precedence[token]:
+                apply_operator(op_stack.pop())
+            op_stack.append(token)
+            expect_operand = True
+        else:
+            if not expect_operand:
+                raise ValueError("标签前缺少运算符")
+            value_stack.append(Tag(token))
+            expect_operand = False
+
+    if expect_operand:
+        raise ValueError("表达式不能以运算符结尾")
+
+    while op_stack:
+        op = op_stack.pop()
+        if op == "(":
+            raise ValueError("括号不匹配")
+        apply_operator(op)
+
+    if len(value_stack) != 1:
+        raise ValueError("表达式解析错误")
+
+    return value_stack[0]
 
 
 # 获取tag对应文件路径
 def get_tag_files(tag_expression: str, DictManage, special_tags_status: list[tuple[str, int]]=None) -> list[tuple[str, int, float]]:
     result_tag = parse_set_expression(tag_expression)
-    if not result_tag:
-        return False
     result_files: set[tuple[str, int, float]] = eval(str(result_tag))
     if result_tag.Complement: # 如果结果是补集，则取所有文件的补集
         all_files: set[tuple[str, int, float]] = DictManage.get_all_files()
