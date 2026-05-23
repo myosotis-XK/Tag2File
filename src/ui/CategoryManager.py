@@ -1,7 +1,8 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,   
-                             QPushButton, QInputDialog, QMessageBox, QColorDialog, 
-                             QSplitter, QWidget, QLabel, QDesktopWidget, QMenu) 
-from PyQt5.QtCore import Qt  
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
+                             QPushButton, QInputDialog, QMessageBox, QColorDialog,
+                             QSplitter, QWidget, QLabel, QDesktopWidget, QMenu,
+                             QLineEdit, QDialogButtonBox, QCompleter)
+from PyQt5.QtCore import Qt, QStringListModel
 from src.core.DictManage import *  
 from src.ui.components.style_utils import create_context_menu
 
@@ -274,13 +275,41 @@ class CategoryManager(QDialog):
                 return False
         return True
 
+    def _prompt_tag_name(self, existing_tags):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("添加标签")
+
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("选择或输入新标签名称:", dialog))
+
+        line_edit = QLineEdit(dialog)
+        line_edit.setText("")
+        completer_model = QStringListModel(list(existing_tags), line_edit)
+        completer = QCompleter(completer_model, line_edit)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        line_edit.setCompleter(completer)
+        layout.addWidget(line_edit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        line_edit.setFocus()
+
+        if dialog.exec_() != QDialog.Accepted:
+            return "", False
+
+        return line_edit.text().strip(), True
+
     def addTag(self):  
         currentCategory = self.categoryList.currentItem()  
         if currentCategory:  
             category = currentCategory.text()  
             existing_tags = self.DictManage.get_all_tags()
-            
-            tag, ok = QInputDialog.getItem(self, "添加标签", "选择或输入新标签名称:", existing_tags, 0, True)  
+
+            tag, ok = self._prompt_tag_name(existing_tags)
             if ok and tag:  
                 if tag not in existing_tags:
                     if not self.cherk_tag(tag):
