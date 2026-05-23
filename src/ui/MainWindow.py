@@ -200,7 +200,7 @@ class Tag2File(QMainWindow):
         menu_widget.setStyleSheet("""
             QWidget#left_menu_panel {
                 background-color: #eef3f9;
-                border-right: 1px solid #d7e1ec;
+                border-right: none;
             }
         """)
 

@@ -12,6 +12,12 @@ class CategoryTreeWidget(QTreeWidget):
         self.setIndentation(15)
         self.setAnimated(True)
         self.setStyleSheet("""
+            QTreeWidget {
+                background-color: #f8fbff;
+                border: 1px solid #d6e1ec;
+                border-radius: 8px;
+                padding: 4px 0px;
+            }
             QTreeWidget::item {
                 border: none;
                 padding: 2px;
