@@ -151,7 +151,6 @@ class TagInputWidget(QWidget):
             QFrame {  
                 background-color: #ffffff;  
                 border: 1px solid #cfd8e3;
-                border-radius: 6px;
                 padding: 0px;  
             }  
         """)
