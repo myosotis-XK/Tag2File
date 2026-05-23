@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QEvent, QStringListModel
 from src.models.TagClass import InputTagLabel
 from src.core.DictManage import *
+from src.ui.components.style_utils import apply_button_style
 
 class HScrollArea(QScrollArea):
     def __init__(self):
@@ -16,44 +17,15 @@ class OperatorButton(QPushButton):
     """表示操作符的按钮"""  
     def __init__(self, text):  
         super().__init__(text)  
-        
-        # 为括号类符号设置特殊样式（更窄）  
-        if text in ['(', ')']:  
-            self.setStyleSheet("""  
-                QPushButton {  
-                    background-color: #95a5a6;  
-                    color: white;  
-                    border-radius: 15px;  
-                    padding: 2px 5px;  
-                    margin: 2px;  
-                    font-size: 16px;  
-                    font-weight: bold;  
-                    min-width: 20px;  
-                    max-width: 25px;  
-                }  
-                QPushButton:hover {  
-                    background-color: #7f8c8d;  
-                }  
-            """)  
-            self.setFixedHeight(30)  
-            self.setFixedWidth(25)  
+        apply_button_style(self, "operator", size="operator")
+        self.setFixedHeight(30)
+        self.setCursor(Qt.PointingHandCursor)
+
+        # 为括号类符号设置更紧凑的宽度
+        if text in ["(", ")", "'"]:  
+            self.setFixedWidth(34)
         else:  
-            self.setStyleSheet("""  
-                QPushButton {  
-                    background-color: #95a5a6;  
-                    color: white;  
-                    border-radius: 15px;  
-                    padding: 5px 10px;  
-                    margin: 2px;  
-                    font-size: 16px;  
-                    font-weight: bold;  
-                }  
-                QPushButton:hover {  
-                    background-color: #7f8c8d;  
-                }  
-            """)  
-            self.setFixedHeight(30)  
-            self.setMinimumWidth(40)  
+            self.setMinimumWidth(42)
 
 class CollapsibleLineEdit(QLineEdit):  
     """可收缩的输入框，当内容为空时显示为最小宽度"""
@@ -171,13 +143,15 @@ class TagInputWidget(QWidget):
         self.setFixedHeight(80)
         self.layout = QVBoxLayout(self)  
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(6)
         
         # 创建输入区域容器  
         self.input_container = QFrame()  
         self.input_container.setStyleSheet("""  
             QFrame {  
-                background-color: white;  
-                border: 1px solid #ddd;
+                background-color: #ffffff;  
+                border: 1px solid #cfd8e3;
+                border-radius: 6px;
                 padding: 0px;  
             }  
         """)
@@ -231,6 +205,8 @@ class TagInputWidget(QWidget):
         
         # 操作符按钮  
         self.operator_layout = QHBoxLayout()  
+        self.operator_layout.setContentsMargins(0, 0, 0, 0)
+        self.operator_layout.setSpacing(6)
         for op in self.operators:  
             op_text = op.strip()  # 去除空格  
             btn = OperatorButton(op_text)  

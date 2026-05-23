@@ -160,6 +160,17 @@ def apply_button_style(button, variant="default", size="default"):
             "disabled_text": "#f7fcf9",
             "disabled_border": "#9bd4b3",
         },
+        "operator": {
+            "bg": "#edf3f8",
+            "text": "#546372",
+            "border": "#c8d5e2",
+            "hover_bg": "#e1ecf7",
+            "hover_border": "#8fb7e3",
+            "pressed_bg": "#d5e6f8",
+            "disabled_bg": "#f4f7fa",
+            "disabled_text": "#9aa5b1",
+            "disabled_border": "#d9e1e8",
+        },
     }
 
     size_styles = {
@@ -174,6 +185,12 @@ def apply_button_style(button, variant="default", size="default"):
             "padding_v": 2,
             "padding_h": 10,
             "font_size": 13,
+        },
+        "operator": {
+            "radius": 8,
+            "padding_v": 2,
+            "padding_h": 10,
+            "font_size": 15,
         },
     }
 
