@@ -106,14 +106,23 @@ class CategoryManager(QDialog):
         
         # 创建菜单
         menu = create_context_menu(self)
+        category = item.text()
+        
+
         editAction = menu.addAction("重命名")
         deleteAction = menu.addAction("删除")
         colorAction = menu.addAction("设置颜色")
-        
+
+
+
         # 根据特殊类别状态动态设置文本
-        category = item.text()
         specialText = "设为普通类别" if self.DictManage.query_category(category)[0][2] else "设为筛选类别"
         specialAction = menu.addAction(specialText)
+
+        if category == "文件类型":
+            editAction.setEnabled(False)
+            deleteAction.setEnabled(False)
+            specialAction.setEnabled(False)
         
         # 获取用户点击的操作
         action = menu.exec_(self.categoryList.mapToGlobal(position))
@@ -223,6 +232,9 @@ class CategoryManager(QDialog):
         currentItem = self.categoryList.currentItem()  
         if currentItem:  
             oldCategory = currentItem.text()  
+            if oldCategory == "文件类型":
+                QMessageBox.warning(self, "警告", "“文件类型” 类别不允许重命名！")
+                return
             newCategory, ok = QInputDialog.getText(self, "编辑类别", "输入新类别名称:", text=oldCategory)  
             if ok and newCategory:  
                 rows = self.DictManage.query_category()
@@ -242,6 +254,9 @@ class CategoryManager(QDialog):
         currentItem = self.categoryList.currentItem()  
         if currentItem:  
             category = currentItem.text()  
+            if category == "文件类型":
+                QMessageBox.warning(self, "警告", "“文件类型” 类别不允许删除！")
+                return
             reply = QMessageBox.question(self, "确认删除", f"确定要删除类别 '{category}' 吗？",  
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)  
             if reply == QMessageBox.Yes:  
