@@ -5,7 +5,7 @@ from typing import Optional
 
 from natsort import natsort_keygen
 from PyQt5.QtCore import QPoint, QRect, QSize, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QColor, QCursor, QFont, QIcon, QMouseEvent, QPainter, QPalette, QPixmap
+from PyQt5.QtGui import QColor, QCursor, QFont, QMouseEvent, QPalette
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (
 
 from src.core.DictManage import DictManage
 from src.models import Background, Border, FileItem
+from src.ui.components.style_utils import create_context_menu
 from src.utils import config, format_file_size, init_config_section, save_config
 
 from .FileSelectionComponent import FileSelectionComponent
@@ -681,7 +682,7 @@ class FileShowArea(QWidget):
         self._refresh_item_styles(previous)
         self._emit_selection_changed()
 
-        context_menu = QMenu(self)
+        context_menu = create_context_menu(self)
         self.addViewMenu(context_menu)
         self.addSortMenu(context_menu)
         select_all_action = QAction("全选", self)
@@ -695,19 +696,22 @@ class FileShowArea(QWidget):
         view_menu = context_menu.addMenu("查看")
 
         small_action = QAction("小图标", self)
+        small_action.setCheckable(True)
         small_action.triggered.connect(lambda: self.set_thumbnail_level("small"))
         if self.current_image_size == "small":
-            small_action.setIcon(QIcon(self.create_black_dot(6)))
+            small_action.setChecked(True)
 
         medium_action = QAction("中等图标", self)
+        medium_action.setCheckable(True)
         medium_action.triggered.connect(lambda: self.set_thumbnail_level("mid"))
         if self.current_image_size == "mid":
-            medium_action.setIcon(QIcon(self.create_black_dot(6)))
+            medium_action.setChecked(True)
 
         large_action = QAction("大图标", self)
+        large_action.setCheckable(True)
         large_action.triggered.connect(lambda: self.set_thumbnail_level("large"))
         if self.current_image_size == "large":
-            large_action.setIcon(QIcon(self.create_black_dot(6)))
+            large_action.setChecked(True)
 
         view_menu.addAction(small_action)
         view_menu.addAction(medium_action)
@@ -723,21 +727,24 @@ class FileShowArea(QWidget):
             ("random", "随机排序"),
         ]:
             action = QAction(text, self)
+            action.setCheckable(True)
             action.triggered.connect(lambda _, sort_key=key: self.set_sort(sort_key, self.current_sort_order))
             if self.current_sort_key == key:
-                action.setIcon(QIcon(self.create_black_dot(6)))
+                action.setChecked(True)
             sort_menu.addAction(action)
 
         sort_menu.addSeparator()
         asc_action = QAction("升序", self)
+        asc_action.setCheckable(True)
         asc_action.triggered.connect(lambda: self.set_sort(self.current_sort_key, "asc"))
         if self.current_sort_order == "asc":
-            asc_action.setIcon(QIcon(self.create_black_dot(6)))
+            asc_action.setChecked(True)
 
         desc_action = QAction("降序", self)
+        desc_action.setCheckable(True)
         desc_action.triggered.connect(lambda: self.set_sort(self.current_sort_key, "desc"))
         if self.current_sort_order == "desc":
-            desc_action.setIcon(QIcon(self.create_black_dot(6)))
+            desc_action.setChecked(True)
 
         sort_menu.addAction(asc_action)
         sort_menu.addAction(desc_action)
@@ -836,7 +843,7 @@ class FileShowArea(QWidget):
 
         # 右键菜单的“选中项”语义和左键保持一致：
         # 如果当前项不在选区内，先把它提升为当前选中项，再弹出菜单。
-        context_menu = QMenu(self)
+        context_menu = create_context_menu(self)
         properties_action = QAction("属性", self)
         properties_action.triggered.connect(lambda: self.displayImageProperties(file_path))
         context_menu.addAction(properties_action)
@@ -1044,16 +1051,6 @@ class FileShowArea(QWidget):
         file_item.release(icon_label)
         label.hide()
         self._label_pool.append(label)
-
-    def create_black_dot(self, size: int):
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setBrush(Qt.black)
-        painter.drawEllipse(0, 0, size, size)
-        painter.end()
-        return pixmap
 
     def isMouseOnThumbnail(self, mouse_pos: QPoint, label: QLabel):
         icon_label = label.findChild(QLabel, "icon_label")

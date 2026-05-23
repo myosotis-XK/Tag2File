@@ -1,6 +1,7 @@
 from PyQt5.QtCore import QPoint, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QMouseEvent, QPainter
 from PyQt5.QtWidgets import QLabel, QMenu, QWidget
+from src.ui.components.style_utils import create_context_menu
 
 from .audio_utils import marker_jump_position, marker_tooltip_text
 
@@ -116,7 +117,7 @@ class MarkerDisplayWidget(QWidget):
         if not marker:
             return
 
-        menu = QMenu(self)
+        menu = create_context_menu(self)
         edit_action = menu.addAction("编辑标记")
         delete_action = menu.addAction("删除标记")
         action = menu.exec_(event.globalPos())

@@ -1,6 +1,7 @@
 from PyQt5.QtCore import QPoint, Qt
 from PyQt5.QtGui import QMouseEvent
 from PyQt5.QtWidgets import QMenu, QLabel, QSlider, QStyle, QStyleOptionSlider
+from src.ui.components.style_utils import create_context_menu
 
 from .audio_utils import format_time
 
@@ -69,7 +70,7 @@ class PlaybackSlider(QSlider):
         if not self.quick_marker_creator:
             return
 
-        menu = QMenu(self)
+        menu = create_context_menu(self)
         set_start_action = menu.addAction("设为开始时间")
         set_end_action = menu.addAction("设为结束时间")
         action = menu.exec_(event.globalPos())

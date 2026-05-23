@@ -3,6 +3,7 @@ import os
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QMenu
+from src.ui.components.style_utils import create_context_menu
 
 
 class PlaylistPanel(QListWidget):
@@ -67,7 +68,7 @@ class PlaylistPanel(QListWidget):
         if not item:
             return
 
-        menu = QMenu(self)
+        menu = create_context_menu(self)
         play_action = menu.addAction("播放")
         remove_action = menu.addAction("从列表移除")
         action = menu.exec_(self.mapToGlobal(position))

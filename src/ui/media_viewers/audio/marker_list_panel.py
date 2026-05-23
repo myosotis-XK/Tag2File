@@ -1,6 +1,7 @@
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QMenu
+from src.ui.components.style_utils import create_context_menu
 
 from .audio_utils import marker_display_text, sort_markers
 
@@ -62,7 +63,7 @@ class MarkerListPanel(QListWidget):
         if not marker:
             return
 
-        menu = QMenu(self)
+        menu = create_context_menu(self)
         edit_action = menu.addAction("编辑")
         delete_action = menu.addAction("删除")
         action = menu.exec_(self.mapToGlobal(position))

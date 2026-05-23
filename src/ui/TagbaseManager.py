@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget, QTr
 from PyQt5.QtCore import Qt
 from src.utils import *
 from src.core.DictManage import DictManage
+from src.ui.components.style_utils import create_context_menu
 
 class TagbaseManager(QDialog):
     def __init__(self, father=None):
@@ -79,7 +80,7 @@ class TagbaseManager(QDialog):
         self.tagbase_list.setCurrentItem(item)
         
         # 创建菜单
-        context_menu = QMenu(self)
+        context_menu = create_context_menu(self)
         
         # 添加菜单项
         edit_action = context_menu.addAction("编辑")

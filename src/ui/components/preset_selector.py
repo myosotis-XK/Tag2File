@@ -10,9 +10,6 @@ class PresetSelector(QWidget):
 
     # 信号：当预设被选中时发出 (preset_id, color, name)
     preset_selected = pyqtSignal(int, str, str)
-    # 信号：当取消选中时发出
-    selection_cleared = pyqtSignal()
-
     def __init__(self, title="预设类型", parent=None):
         """
         初始化预设选择器
@@ -90,6 +87,4 @@ class PresetSelector(QWidget):
 
     def _on_label_clicked(self, label):
         """预设标签点击回调"""
-        # 选中当前标签
-        self.selected_label = label
         self.preset_selected.emit(label.preset_id, label.preset_color, label.preset_name)

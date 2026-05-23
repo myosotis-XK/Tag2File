@@ -1,5 +1,5 @@
 # src/ui/components/style_utils.py
-from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLabel, QMenu
 from PyQt5.QtGui import QColor
 from PyQt5.QtCore import Qt
 
@@ -109,6 +109,57 @@ def apply_color_preview_button_style(
             border: {hover_border_width}px solid {tokens['border_hover'].name()};
         }}
     """)
+
+
+def create_context_menu(parent=None):
+    """
+    创建统一样式的上下文菜单，方便全局集中美化。
+    """
+    menu = QMenu(parent)
+    menu.setStyleSheet("""
+        QMenu {
+            background-color: #ffffff;
+            color: #2f2f2f;
+            border: 1px solid #c7d0d9;
+            padding: 2px 0px;
+        }
+        QMenu::item {
+            padding: 5px 18px 5px 14px;
+            margin: 0px 4px;
+            color: #2f2f2f;
+            background-color: transparent;
+        }
+        QMenu::item:selected {
+            color: #1f2d3d;
+            background-color: #d8ebff;
+            border-radius: 2px;
+        }
+        QMenu::indicator {
+            width: 8px;
+            height: 8px;
+            margin-left: 2px;
+            margin-right: 4px;
+        }
+        QMenu::right-arrow {
+            margin-right: 2px;
+        }
+        QMenu::indicator:checked {
+            background-color: #1f1f1f;
+            border-radius: 4px;
+        }
+        QMenu::indicator:unchecked {
+            background-color: transparent;
+        }
+        QMenu::separator {
+            height: 1px;
+            margin: 4px 8px;
+            background-color: #e2e8f0;
+        }
+        QMenu::item:disabled {
+            color: #9aa5b1;
+        }
+    """)
+    return menu
 
 
 def create_colored_label(text, color, parent=None, hover_effect=True):

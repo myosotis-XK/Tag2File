@@ -1,18 +1,18 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
-    QButtonGroup,
     QColorDialog,
     QDialog,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QMessageBox,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
+    QGroupBox
 )
 
+from src.ui.components.preset_selector import PresetSelector
 from src.ui.components.style_utils import apply_color_preview_button_style
 from src.ui.components.time_input import TimeInput
 
@@ -35,44 +35,10 @@ class MarkerEditDialog(QDialog):
         layout.setSpacing(15)
 
         if self.presets:
-            preset_group = QGroupBox("预设类型")
-            preset_layout = QHBoxLayout()
-            preset_layout.setSpacing(10)
-            self.preset_button_group = QButtonGroup(self)
-            self.preset_buttons = []
-
-            for preset_id, name, color, _order_index in self.presets:
-                button = QPushButton(name)
-                button.setCheckable(True)
-                button.setMinimumHeight(35)
-                button.setStyleSheet(f"""
-                    QPushButton {{
-                        background-color: {color};
-                        color: white;
-                        border: 2px solid transparent;
-                        border-radius: 5px;
-                        font-weight: bold;
-                        padding: 5px 10px;
-                    }}
-                    QPushButton:checked {{
-                        border: 2px solid #2c3e50;
-                    }}
-                """)
-                button.clicked.connect(
-                    lambda checked, preset_color=color, preset_id=preset_id: self.on_preset_selected(
-                        preset_color,
-                        preset_id,
-                    )
-                )
-                preset_layout.addWidget(button)
-                self.preset_button_group.addButton(button)
-                self.preset_buttons.append(button)
-
-                if self.selected_preset_id == preset_id:
-                    button.setChecked(True)
-
-            preset_group.setLayout(preset_layout)
-            layout.addWidget(preset_group)
+            self.preset_selector = PresetSelector(title="预设类型", parent=self)
+            self.preset_selector.load_presets(self.presets)
+            self.preset_selector.preset_selected.connect(self.on_preset_selected)
+            layout.addWidget(self.preset_selector)
 
         color_layout = QHBoxLayout()
         color_layout.addWidget(QLabel("颜色:"))
@@ -168,25 +134,17 @@ class MarkerEditDialog(QDialog):
         apply_color_preview_button_style(self.color_btn, self.current_color)
         self.color_label.setText(self.current_color)
 
-    def on_preset_selected(self, color, preset_id):
+    def on_preset_selected(self, preset_id, color, name):
         self.current_color = color
         self.selected_preset_id = preset_id
         self._update_color_button()
-
-        for row_preset_id, name, _preset_color, _order_index in self.presets:
-            if row_preset_id == preset_id:
-                self.text_edit.setPlainText(name)
-                break
+        self.text_edit.setPlainText(name)
 
     def choose_color(self):
         color = QColorDialog.getColor(QColor(self.current_color), self, "选择标记颜色")
         if color.isValid():
             self.current_color = color.name()
             self._update_color_button()
-            if hasattr(self, 'preset_button_group'):
-                checked_button = self.preset_button_group.checkedButton()
-                if checked_button:
-                    checked_button.setChecked(False)
             self.selected_preset_id = None
 
     def accept(self):

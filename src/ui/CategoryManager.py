@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
                              QSplitter, QWidget, QLabel, QDesktopWidget, QMenu) 
 from PyQt5.QtCore import Qt  
 from src.core.DictManage import *  
+from src.ui.components.style_utils import create_context_menu
 
 class CategoryManager(QDialog):  
     def __init__(self):
@@ -103,7 +104,7 @@ class CategoryManager(QDialog):
         self.categoryList.setCurrentItem(item)
         
         # 创建菜单
-        menu = QMenu()
+        menu = create_context_menu(self)
         editAction = menu.addAction("重命名")
         deleteAction = menu.addAction("删除")
         colorAction = menu.addAction("设置颜色")
@@ -136,7 +137,7 @@ class CategoryManager(QDialog):
         self.tagList.setCurrentItem(item)
         
         # 创建菜单
-        menu = QMenu()
+        menu = create_context_menu(self)
         removeAction = menu.addAction("移除标签")
         
         # 显示菜单并获取用户选择

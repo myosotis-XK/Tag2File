@@ -6,7 +6,11 @@ from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QColor
 
 from src.ui.components.flow_layout import QFlowLayout
-from src.ui.components.style_utils import apply_color_preview_button_style, create_colored_label
+from src.ui.components.style_utils import (
+    apply_color_preview_button_style,
+    create_colored_label,
+    create_context_menu,
+)
 
 
 class PresetEditDialog(QDialog):
@@ -178,7 +182,7 @@ class PresetListItemWidget(QWidget):
 
     def show_context_menu(self, pos):
         """显示右键菜单"""
-        menu = QMenu(self)
+        menu = create_context_menu(self)
         
         # 编辑动作
         edit_action = QAction("编辑", self)

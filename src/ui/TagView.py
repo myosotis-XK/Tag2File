@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
 
 from src.core.DictManage import DictManage
 from src.utils import config, init_config_section, save_config
-from src.ui.components.style_utils import create_colored_label
+from src.ui.components.style_utils import create_colored_label, create_context_menu
 
 from .FileShowArea import TagFileShowArea
 from .SingleFileTagView import QFlowLayout, SingleFileTagView
@@ -188,7 +188,7 @@ class TagView(QMainWindow):
             self.DictManage.add_tag(tag, [file_path])
 
     def show_tag_context_menu(self, pos, label):
-        context_menu = QMenu(self)
+        context_menu = create_context_menu(self)
 
         delete_action = QAction("删除", self)
         delete_action.triggered.connect(lambda: self.delete_tag_action(label))

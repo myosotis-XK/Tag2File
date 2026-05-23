@@ -3,8 +3,9 @@ import sys
 from io import BytesIO
 from dataclasses import dataclass
 from typing import Optional
-from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QPushButton, QTreeWidgetItem, QApplication, QSystemTrayIcon, QSizePolicy
-from PyQt5.QtGui import QColor, QFontMetrics
+from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QPushButton, \
+    QTreeWidgetItem, QApplication, QSystemTrayIcon, QSizePolicy
+from PyQt5.QtGui import QColor, QFontMetrics, QIcon, QPixmap
 import socket
 import qrcode
 from src.utils import *
@@ -15,6 +16,7 @@ from .TagView import *
 from .TagInput import TagInputWidget
 from .TagbaseManager import *
 from .CategoryManager import *
+from .components.style_utils import create_context_menu
 
 
 @dataclass
@@ -109,7 +111,7 @@ class Tag2File(QMainWindow):
         self.tray_icon.setToolTip("Tag2File")     
 
         # 托盘菜单
-        tray_menu = QMenu()
+        tray_menu = create_context_menu()
         show_action = QAction("显示窗口", self)
         quit_action = QAction("退出", self)
         tray_menu.addAction(show_action)
