@@ -1,5 +1,5 @@
 # src/ui/components/style_utils.py
-from PyQt5.QtWidgets import QLabel, QMenu
+from PyQt5.QtWidgets import QLabel, QMenu, QPushButton
 from PyQt5.QtGui import QColor
 from PyQt5.QtCore import Qt
 
@@ -109,6 +109,109 @@ def apply_color_preview_button_style(
             border: {hover_border_width}px solid {tokens['border_hover'].name()};
         }}
     """)
+
+
+def apply_button_style(button, variant="default", size="default"):
+    """
+    给常规文本按钮应用统一样式，适合管理/查询/清空这类标准操作按钮。
+    """
+    styles = {
+        "default": {
+            "bg": "#f7f9fc",
+            "text": "#243447",
+            "border": "#c7d0d9",
+            "hover_bg": "#e7f0fb",
+            "hover_border": "#8fb7e3",
+            "pressed_bg": "#d5e6f8",
+            "disabled_bg": "#f3f5f7",
+            "disabled_text": "#9aa5b1",
+            "disabled_border": "#d6dde5",
+        },
+        "primary": {
+            "bg": "#3498db",
+            "text": "#ffffff",
+            "border": "#3498db",
+            "hover_bg": "#2980b9",
+            "hover_border": "#2980b9",
+            "pressed_bg": "#21618c",
+            "disabled_bg": "#a8d0ef",
+            "disabled_text": "#f7fbff",
+            "disabled_border": "#a8d0ef",
+        },
+        "secondary": {
+            "bg": "#95a5a6",
+            "text": "#ffffff",
+            "border": "#95a5a6",
+            "hover_bg": "#7f8c8d",
+            "hover_border": "#7f8c8d",
+            "pressed_bg": "#6c7a7b",
+            "disabled_bg": "#c7d0d1",
+            "disabled_text": "#f6f8f8",
+            "disabled_border": "#c7d0d1",
+        },
+        "success": {
+            "bg": "#27ae60",
+            "text": "#ffffff",
+            "border": "#27ae60",
+            "hover_bg": "#229954",
+            "hover_border": "#229954",
+            "pressed_bg": "#1e8449",
+            "disabled_bg": "#9bd4b3",
+            "disabled_text": "#f7fcf9",
+            "disabled_border": "#9bd4b3",
+        },
+    }
+
+    size_styles = {
+        "default": {
+            "radius": 6,
+            "padding_v": 5,
+            "padding_h": 14,
+            "font_size": 14,
+        },
+        "control": {
+            "radius": 4,
+            "padding_v": 2,
+            "padding_h": 10,
+            "font_size": 13,
+        },
+    }
+
+    palette = styles.get(variant, styles["default"])
+    metrics = size_styles.get(size, size_styles["default"])
+    button.setCursor(Qt.PointingHandCursor)
+    button.setStyleSheet(f"""
+        QPushButton {{
+            background-color: {palette['bg']};
+            color: {palette['text']};
+            border: 1px solid {palette['border']};
+            border-radius: {metrics['radius']}px;
+            padding: {metrics['padding_v']}px {metrics['padding_h']}px;
+            font-size: {metrics['font_size']}px;
+        }}
+        QPushButton:hover {{
+            background-color: {palette['hover_bg']};
+            border-color: {palette['hover_border']};
+        }}
+        QPushButton:pressed {{
+            background-color: {palette['pressed_bg']};
+        }}
+        QPushButton:disabled {{
+            background-color: {palette['disabled_bg']};
+            color: {palette['disabled_text']};
+            border-color: {palette['disabled_border']};
+        }}
+    """)
+    return button
+
+
+def create_button(text, parent=None, variant="default", fixed_height=30, size="default"):
+    """
+    创建统一样式的常规文本按钮。
+    """
+    button = QPushButton(text, parent)
+    button.setFixedHeight(fixed_height)
+    return apply_button_style(button, variant, size=size)
 
 
 def create_context_menu(parent=None):

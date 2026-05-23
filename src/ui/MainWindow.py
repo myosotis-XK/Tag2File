@@ -3,7 +3,7 @@ import sys
 from io import BytesIO
 from dataclasses import dataclass
 from typing import Optional
-from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QPushButton, \
+from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, \
     QTreeWidgetItem, QApplication, QSystemTrayIcon, QSizePolicy
 from PyQt5.QtGui import QColor, QFontMetrics, QIcon, QPixmap
 import socket
@@ -16,7 +16,7 @@ from .TagView import *
 from .TagInput import TagInputWidget
 from .TagbaseManager import *
 from .CategoryManager import *
-from .components.style_utils import create_context_menu
+from .components.style_utils import create_button, create_context_menu
 
 
 @dataclass
@@ -152,27 +152,19 @@ class Tag2File(QMainWindow):
     def initFileView(self):
         # 创建切换按钮布局
         switch_layout = QHBoxLayout()
-        tag_button = QPushButton("管理标签")
-        tag_button.setFixedHeight(30)
-        tag_button.setStyleSheet("font-size: 14px;")
+        tag_button = create_button("管理标签")
         tag_button.clicked.connect(self.showTagView)
         switch_layout.addWidget(tag_button)
 
-        category_button = QPushButton("管理类别")
-        category_button.setFixedHeight(30)
-        category_button.setStyleSheet("font-size: 14px;")
+        category_button = create_button("管理类别")
         category_button.clicked.connect(self.showCategoryManager)
         switch_layout.addWidget(category_button)
         # 创建搜索框布局
         search_layout = QVBoxLayout()
-        search_button = QPushButton("查询", self)
-        search_button.setFixedHeight(30)
-        search_button.setStyleSheet("font-size: 14px;")
+        search_button = create_button("查询", self)
         search_button.clicked.connect(lambda: self.changeFile())  # 绑定切换函数
         # 创建清空输入框的按钮  
-        clear_button = QPushButton("清空", self)
-        clear_button.setFixedHeight(30)
-        clear_button.setStyleSheet("font-size: 14px;")
+        clear_button = create_button("清空", self)
         clear_button.clicked.connect(self.clearInput)  # 绑定清空函数
         
         search_layout2 = QHBoxLayout()
@@ -208,15 +200,11 @@ class Tag2File(QMainWindow):
         folder_nav_layout.setContentsMargins(8, 0, 0, 0)
         folder_nav_layout.setSpacing(8)
 
-        self.restore_search_button = QPushButton("返回搜索结果")
-        self.restore_search_button.setFixedHeight(30)
-        self.restore_search_button.setStyleSheet("font-size: 14px;")
+        self.restore_search_button = create_button("返回搜索结果")
         self.restore_search_button.clicked.connect(self.restore_search_snapshot)
         folder_nav_layout.addWidget(self.restore_search_button)
 
-        self.go_parent_button = QPushButton("上一级")
-        self.go_parent_button.setFixedHeight(30)
-        self.go_parent_button.setStyleSheet("font-size: 14px;")
+        self.go_parent_button = create_button("上一级")
         self.go_parent_button.clicked.connect(self.go_parent_or_restore)
         folder_nav_layout.addWidget(self.go_parent_button)
 

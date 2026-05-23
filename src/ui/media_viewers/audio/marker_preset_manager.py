@@ -8,6 +8,7 @@ from PyQt5.QtGui import QColor
 from src.ui.components.flow_layout import QFlowLayout
 from src.ui.components.style_utils import (
     apply_color_preview_button_style,
+    create_button,
     create_colored_label,
     create_context_menu,
 )
@@ -84,38 +85,14 @@ class PresetEditDialog(QDialog):
         btn_layout.addStretch()
 
         # 取消按钮
-        cancel_btn = QPushButton("取消")
+        cancel_btn = create_button("取消", variant="secondary")
         cancel_btn.setMinimumSize(100, 35)
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                font-weight: bold;
-                border-radius: 5px;
-                padding: 5px 15px;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-        """)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
 
         # 确认按钮
-        confirm_btn = QPushButton("确定")
+        confirm_btn = create_button("确定", variant="success")
         confirm_btn.setMinimumSize(100, 35)
-        confirm_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                font-weight: bold;
-                border-radius: 5px;
-                padding: 5px 15px;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-        """)
         confirm_btn.clicked.connect(self.accept_data)
         btn_layout.addWidget(confirm_btn)
 
@@ -264,40 +241,16 @@ class MarkerPresetManager(QDialog):
         # 按钮区域
         btn_layout = QHBoxLayout()
 
-        self.add_btn = QPushButton("➕ 添加预设")
+        self.add_btn = create_button("➕ 添加预设", variant="success")
         self.add_btn.setMinimumHeight(35)
-        self.add_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                font-weight: bold;
-                border-radius: 5px;
-                padding: 5px 15px;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-        """)
         self.add_btn.clicked.connect(self.add_preset)
         btn_layout.addWidget(self.add_btn)
 
         btn_layout.addStretch()
 
-        close_btn = QPushButton("关闭")
+        close_btn = create_button("关闭", variant="secondary")
         close_btn.setMinimumHeight(35)
         close_btn.setMinimumWidth(100)
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                font-weight: bold;
-                border-radius: 5px;
-                padding: 5px 15px;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-        """)
         close_btn.clicked.connect(self.accept)
         btn_layout.addWidget(close_btn)
 

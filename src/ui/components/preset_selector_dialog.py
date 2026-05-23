@@ -1,6 +1,7 @@
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QPushButton
+from PyQt5.QtWidgets import QDialog, QVBoxLayout
 from PyQt5.QtCore import Qt
 from .preset_selector import PresetSelector
+from .style_utils import create_button
 
 
 class PresetSelectorDialog(QDialog):
@@ -67,23 +68,7 @@ class PresetSelectorDialog(QDialog):
         layout.addWidget(self.preset_selector)
 
         # 添加"管理预设"按钮
-        self.manage_presets_btn = QPushButton("⚙️ 管理预设")
-        self.manage_presets_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 8px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-            QPushButton:pressed {
-                background-color: #6c7a7b;
-            }
-        """)
+        self.manage_presets_btn = create_button("⚙️ 管理预设", variant="secondary")
         self.manage_presets_btn.clicked.connect(self._on_manage_presets_clicked)
         layout.addWidget(self.manage_presets_btn)
 

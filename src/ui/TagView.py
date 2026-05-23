@@ -8,7 +8,6 @@ from PyQt5.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QSplitter,
     QHBoxLayout,
@@ -19,7 +18,7 @@ from PyQt5.QtWidgets import (
 
 from src.core.DictManage import DictManage
 from src.utils import config, init_config_section, save_config
-from src.ui.components.style_utils import create_colored_label, create_context_menu
+from src.ui.components.style_utils import create_button, create_colored_label, create_context_menu
 
 from .FileShowArea import TagFileShowArea
 from .SingleFileTagView import QFlowLayout, SingleFileTagView
@@ -64,41 +63,31 @@ class TagView(QMainWindow):
         self.SingleFileTagView = SingleFileTagView(self.file_paths, self.TagFileShowArea)
         self.SingleFileTagView.hide()
 
-        self.floder_button = QPushButton("不接受文件夹", self)
+        self.floder_button = create_button("不接受文件夹", self)
         if self.TagFileShowArea.accepts_folder():
             self.floder_button.setText("接受文件夹")
         self.floder_button.clicked.connect(self.change_floder_model)
-        self.floder_button.setFixedHeight(30)
-        self.floder_button.setStyleSheet("font-size: 14px;")
 
-        self.model_button = QPushButton("普通模式", self)
+        self.model_button = create_button("普通模式", self)
         if self.quickly_model:
             self.model_button.setText("快速模式")
         self.model_button.clicked.connect(self.change_quickly_model)
-        self.model_button.setFixedHeight(30)
-        self.model_button.setStyleSheet("font-size: 14px;")
 
         self.tag_input = QLineEdit(self)
         self.tag_input.setPlaceholderText("输入标签...")
         self.tag_input.setFixedHeight(30)
         self.tag_input.setStyleSheet("font-size: 14px;")
 
-        add_button = QPushButton("添加", self)
+        add_button = create_button("添加", self)
         add_button.clicked.connect(self.addTag)
-        add_button.setFixedHeight(30)
-        add_button.setStyleSheet("font-size: 14px;")
 
-        delete_button = QPushButton("删除", self)
+        delete_button = create_button("删除", self)
         delete_button.clicked.connect(self.deleteTag)
-        delete_button.setFixedHeight(30)
-        delete_button.setStyleSheet("font-size: 14px;")
 
-        clear_button = QPushButton("清空", self)
+        clear_button = create_button("清空", self)
         clear_button.clicked.connect(self.clearFile)
-        clear_button.setFixedHeight(30)
-        clear_button.setStyleSheet("font-size: 14px;")
 
-        self.switch_view_button = QPushButton("切换视图")
+        self.switch_view_button = create_button("切换视图")
         self.switch_view_button.clicked.connect(self.toggle_view)
 
         button_layout = QHBoxLayout()

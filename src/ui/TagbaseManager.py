@@ -1,11 +1,11 @@
 import os
 import re
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QLabel, 
-                            QPushButton, QInputDialog, QFileDialog, QMessageBox, QLineEdit, QMenu)
+                            QInputDialog, QFileDialog, QMessageBox, QLineEdit, QMenu)
 from PyQt5.QtCore import Qt
 from src.utils import *
 from src.core.DictManage import DictManage
-from src.ui.components.style_utils import create_context_menu
+from src.ui.components.style_utils import create_button, create_context_menu
 
 class TagbaseManager(QDialog):
     def __init__(self, father=None):
@@ -49,13 +49,13 @@ class TagbaseManager(QDialog):
         # 按钮区域
         button_layout = QHBoxLayout()
         
-        self.switch_btn = QPushButton("切换")
+        self.switch_btn = create_button("切换")
         self.switch_btn.clicked.connect(self.switch_tagbase)
         
-        self.create_btn = QPushButton("创建")
+        self.create_btn = create_button("创建")
         self.create_btn.clicked.connect(self.create_tagbase)
         
-        self.add_btn = QPushButton("从文件添加标签库")
+        self.add_btn = create_button("从文件添加标签库")
         self.add_btn.clicked.connect(self.add_existing_tagbase)
         
         button_layout.addWidget(self.switch_btn)
@@ -239,7 +239,7 @@ class TagbaseManager(QDialog):
         path_input.setReadOnly(True)  # 路径通过浏览按钮选择
         path_layout.addWidget(path_input)
         
-        browse_btn = QPushButton("浏览...")
+        browse_btn = create_button("浏览...")
 
         def browse_path():
             path = QFileDialog.getExistingDirectory(edit_dialog, "选择目录", path_input.text())
@@ -253,8 +253,8 @@ class TagbaseManager(QDialog):
         
         # 按钮区域
         btn_layout = QHBoxLayout()
-        ok_btn = QPushButton("确认")
-        cancel_btn = QPushButton("取消")
+        ok_btn = create_button("确认")
+        cancel_btn = create_button("取消")
         btn_layout.addWidget(ok_btn)
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)

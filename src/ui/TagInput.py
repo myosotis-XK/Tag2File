@@ -233,20 +233,8 @@ class TagInputWidget(QWidget):
         self.operator_layout = QHBoxLayout()  
         for op in self.operators:  
             op_text = op.strip()  # 去除空格  
-            btn = QPushButton(op_text)  
+            btn = OperatorButton(op_text)  
             btn.clicked.connect(lambda _, o=op: self.add_element(o))  
-            btn.setStyleSheet("""  
-                QPushButton {  
-                    background-color: #95a5a6;  
-                    color: white;  
-                    border-radius: 12px;  
-                    padding: 5px 10px;  
-                    font-weight: bold;  
-                }  
-                QPushButton:hover {  
-                    background-color: #7f8c8d;  
-                }  
-            """)  
             self.operator_layout.addWidget(btn)  
         
         # 输入框初始布局（默认在末尾）

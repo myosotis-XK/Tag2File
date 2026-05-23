@@ -14,7 +14,6 @@ from PyQt5.QtWidgets import (
     QLabel,
     QMenu,
     QMessageBox,
-    QPushButton,
     QRubberBand,
     QScrollBar,
     QStyleOptionSlider,
@@ -25,7 +24,7 @@ from PyQt5.QtWidgets import (
 
 from src.core.DictManage import DictManage
 from src.models import Background, Border, FileItem
-from src.ui.components.style_utils import create_context_menu
+from src.ui.components.style_utils import create_button, create_context_menu
 from src.utils import config, format_file_size, init_config_section, save_config
 
 from .FileSelectionComponent import FileSelectionComponent
@@ -1019,7 +1018,7 @@ class FileShowArea(QWidget):
         )
         text_edit.setHtml(message)
 
-        ok_button = QPushButton("确定", widget)
+        ok_button = create_button("确定", widget)
         ok_button.clicked.connect(widget.close)
 
         layout = QVBoxLayout(widget)

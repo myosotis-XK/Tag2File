@@ -1,10 +1,11 @@
 import os
 import time
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QScrollArea, QWidget, 
-                             QLabel, QPushButton, QRadioButton, QCheckBox, QMessageBox, QButtonGroup)
+                             QLabel, QRadioButton, QCheckBox, QMessageBox, QButtonGroup)
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt, pyqtSignal
 from src.utils import format_file_size
+from src.ui.components.style_utils import create_button
 from .media_viewers import MultiImageViewer
 
 class ClickableLabel(QLabel):
@@ -65,8 +66,8 @@ class FileSelectionComponent(QDialog):
         main_layout.addWidget(scroll_area)
 
         button_layout = QHBoxLayout()
-        confirm_button = QPushButton("确认")
-        cancel_button = QPushButton("取消")
+        confirm_button = create_button("确认")
+        cancel_button = create_button("取消")
         button_layout.addWidget(confirm_button)
         button_layout.addWidget(cancel_button)
         main_layout.addLayout(button_layout)

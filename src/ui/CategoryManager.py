@@ -1,12 +1,12 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
-                             QPushButton, QInputDialog, QMessageBox, QColorDialog,
+                             QInputDialog, QMessageBox, QColorDialog,
                              QSplitter, QWidget, QLabel, QDesktopWidget, QMenu,
                              QFrame,
                              QLineEdit, QDialogButtonBox, QCompleter)
 from PyQt5.QtCore import Qt, QStringListModel
 from PyQt5.QtGui import QColor
 from src.core.DictManage import *  
-from src.ui.components.style_utils import build_tag_color_tokens, create_context_menu
+from src.ui.components.style_utils import build_tag_color_tokens, create_button, create_context_menu
 
 class CategoryManager(QDialog):  
     def __init__(self):
@@ -44,9 +44,9 @@ class CategoryManager(QDialog):
 
         # 类别操作按钮：添加/上移/下移
         buttonLayout = QHBoxLayout()  
-        self.addButton = QPushButton("添加类别")
-        self.upCategoryButton = QPushButton("上移")  
-        self.downCategoryButton = QPushButton("下移")
+        self.addButton = create_button("添加类别")
+        self.upCategoryButton = create_button("上移")  
+        self.downCategoryButton = create_button("下移")
         buttonLayout.addWidget(self.addButton)
         buttonLayout.addWidget(self.upCategoryButton)  
         buttonLayout.addWidget(self.downCategoryButton)
@@ -71,9 +71,9 @@ class CategoryManager(QDialog):
 
         # 标签操作按钮：添加/上移/下移
         tagButtonLayout = QHBoxLayout()  
-        self.addTagButton = QPushButton("添加标签")
-        self.upTagButton = QPushButton("上移")  
-        self.downTagButton = QPushButton("下移")
+        self.addTagButton = create_button("添加标签")
+        self.upTagButton = create_button("上移")  
+        self.downTagButton = create_button("下移")
         tagButtonLayout.addWidget(self.addTagButton)
         tagButtonLayout.addWidget(self.upTagButton)  
         tagButtonLayout.addWidget(self.downTagButton)

@@ -6,7 +6,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QTextEdit,
@@ -15,7 +14,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.core.DictManage import DictManage
-from src.ui.components.style_utils import create_colored_label
+from src.ui.components.style_utils import create_button, create_colored_label
 from src.ui.media_viewers import ImageViewer
 
 from .FileShowArea import TagFileShowArea
@@ -71,12 +70,10 @@ class SingleFileTagView(QScrollArea):
         right_layout.setStretchFactor(tag_area, 2)
 
         button_layout = QHBoxLayout()
-        self.prev_button = QPushButton("上一张")
-        self.prev_button.setFixedHeight(30)
+        self.prev_button = create_button("上一张")
         self.prev_button.setMaximumWidth(120)
         self.prev_button.clicked.connect(self.show_previous)
-        self.next_button = QPushButton("下一张")
-        self.next_button.setFixedHeight(30)
+        self.next_button = create_button("下一张")
         self.next_button.setMaximumWidth(120)
         self.next_button.clicked.connect(self.show_next)
         button_layout.addWidget(self.prev_button)

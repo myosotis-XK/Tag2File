@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.ui.components.preset_selector import PresetSelector
-from src.ui.components.style_utils import apply_color_preview_button_style
+from src.ui.components.style_utils import apply_color_preview_button_style, create_button
 from src.ui.components.time_input import TimeInput
 
 
@@ -107,25 +107,13 @@ class MarkerEditDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        cancel_btn = QPushButton("取消")
+        cancel_btn = create_button("取消")
         cancel_btn.setMinimumWidth(80)
         cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(cancel_btn)
 
-        save_btn = QPushButton("保存")
+        save_btn = create_button("保存", variant="primary")
         save_btn.setMinimumWidth(80)
-        save_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                font-weight: bold;
-                border-radius: 3px;
-                padding: 5px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
         save_btn.clicked.connect(self.accept)
         button_layout.addWidget(save_btn)
         layout.addLayout(button_layout)
