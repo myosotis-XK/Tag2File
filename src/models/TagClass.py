@@ -259,6 +259,7 @@ class InputTagLabel(QLabel):
         super().__init__(text, parent)  
         self.text = text  
         self.color_tokens = build_tag_color_tokens(color)
+        self.color = self.color_tokens["bg_normal"]
         self._setup_ui()  
     
     def _setup_ui(self):  
