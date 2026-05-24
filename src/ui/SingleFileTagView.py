@@ -103,7 +103,7 @@ class SingleFileTagView(QScrollArea):
         right_layout.setStretchFactor(tag_area, 2)
 
         button_layout = QHBoxLayout()
-        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setContentsMargins(0, 0, 0, 4)
         button_layout.setSpacing(6)
         self.prev_button = create_button("上一张")
         self.prev_button.setMaximumWidth(120)

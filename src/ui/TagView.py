@@ -140,7 +140,7 @@ class TagView(QMainWindow):
         """)
         tag_menu_layout = QVBoxLayout(tag_menu_widget)
         tag_menu_layout.setContentsMargins(0, 0, 0, 0)
-        tag_menu_layout.setSpacing(10)
+        tag_menu_layout.setSpacing(6)
         tag_menu_layout.addWidget(toolbar_widget)
         tag_menu_layout.addWidget(self.tag_scroll_area)
 
