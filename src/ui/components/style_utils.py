@@ -1,5 +1,5 @@
 # src/ui/components/style_utils.py
-from PyQt5.QtWidgets import QLabel, QMenu, QPushButton
+from PyQt5.QtWidgets import QFrame, QLabel, QLineEdit, QMenu, QPushButton, QScrollArea, QWidget
 from PyQt5.QtGui import QColor
 from PyQt5.QtCore import Qt
 
@@ -280,6 +280,84 @@ def create_context_menu(parent=None):
         }
     """)
     return menu
+
+
+def apply_line_edit_style(line_edit, compact=False):
+    """
+    给普通输入框应用统一的浅色样式。
+    """
+    radius = 6 if compact else 8
+    padding_v = 4 if compact else 5
+    padding_h = 8 if compact else 10
+    line_edit.setStyleSheet(f"""
+        QLineEdit {{
+            background-color: #fbfdff;
+            color: #243447;
+            border: 1px solid #bfd0e0;
+            border-radius: {radius}px;
+            padding: {padding_v}px {padding_h}px;
+            selection-background-color: #d8ebff;
+            font-size: 14px;
+        }}
+        QLineEdit:focus {{
+            border: 1px solid #7ea8d6;
+            background-color: #ffffff;
+        }}
+        QLineEdit:disabled {{
+            background-color: #f3f6f9;
+            color: #9aa5b1;
+            border-color: #d3dde7;
+        }}
+    """)
+    return line_edit
+
+
+def apply_panel_style(widget, tone="default", padding=0):
+    """
+    给容器应用统一的轻量面板样式。
+    """
+    tones = {
+        "default": ("#ffffff", "#d6e1ec"),
+        "soft": ("#f8fbff", "#d6e1ec"),
+        "muted": ("#f3f7fb", "#d6e1ec"),
+    }
+    background, border = tones.get(tone, tones["default"])
+    if not widget.objectName():
+        widget.setObjectName(f"panel_{id(widget)}")
+    widget.setStyleSheet(f"""
+        QWidget#{widget.objectName()} {{
+            background-color: {background};
+            border: 1px solid {border};
+            border-radius: 10px;
+            padding: {padding}px;
+        }}
+    """)
+    return widget
+
+
+def apply_scroll_area_style(scroll_area, tone="soft", border_radius=10):
+    """
+    给滚动容器应用统一的浅色面板样式。
+    """
+    tones = {
+        "default": ("#ffffff", "#d6e1ec", "#ffffff"),
+        "soft": ("#f8fbff", "#d6e1ec", "#f8fbff"),
+        "muted": ("#f3f7fb", "#d6e1ec", "#f3f7fb"),
+    }
+    background, border, viewport = tones.get(tone, tones["soft"])
+    scroll_area.setFrameShape(QFrame.NoFrame)
+    scroll_area.setStyleSheet(f"""
+        QScrollArea {{
+            background-color: {background};
+            border: 1px solid {border};
+            border-radius: {border_radius}px;
+        }}
+        QScrollArea > QWidget > QWidget {{
+            background-color: {viewport};
+            border: none;
+        }}
+    """)
+    return scroll_area
 
 
 def create_colored_label(text, color, parent=None, hover_effect=True):

@@ -18,7 +18,13 @@ from PyQt5.QtWidgets import (
 
 from src.core.DictManage import DictManage
 from src.utils import config, init_config_section, save_config
-from src.ui.components.style_utils import create_button, create_colored_label, create_context_menu
+from src.ui.components.style_utils import (
+    apply_line_edit_style,
+    apply_scroll_area_style,
+    create_button,
+    create_colored_label,
+    create_context_menu,
+)
 
 from .FileShowArea import TagFileShowArea
 from .SingleFileTagView import QFlowLayout, SingleFileTagView
@@ -50,6 +56,12 @@ class TagView(QMainWindow):
         self.quickly_model = config.getboolean("TagView", "quickly_model", fallback=False)
 
         self.central_widget = QWidget()
+        self.central_widget.setObjectName("tag_view_central_widget")
+        self.central_widget.setStyleSheet("""
+            QWidget#tag_view_central_widget {
+                background-color: #f4f7fb;
+            }
+        """)
         self.setCentralWidget(self.central_widget)
         self.setup_ui()
         self.show()
@@ -68,7 +80,7 @@ class TagView(QMainWindow):
             self.floder_button.setText("接受文件夹")
         self.floder_button.clicked.connect(self.change_floder_model)
 
-        self.model_button = create_button("普通模式", self)
+        self.model_button = create_button("普通模式", self, variant="default")
         if self.quickly_model:
             self.model_button.setText("快速模式")
         self.model_button.clicked.connect(self.change_quickly_model)
@@ -76,9 +88,9 @@ class TagView(QMainWindow):
         self.tag_input = QLineEdit(self)
         self.tag_input.setPlaceholderText("输入标签...")
         self.tag_input.setFixedHeight(30)
-        self.tag_input.setStyleSheet("font-size: 14px;")
+        apply_line_edit_style(self.tag_input)
 
-        add_button = create_button("添加", self)
+        add_button = create_button("添加", self, variant="primary")
         add_button.clicked.connect(self.addTag)
 
         delete_button = create_button("删除", self)
@@ -87,10 +99,21 @@ class TagView(QMainWindow):
         clear_button = create_button("清空", self)
         clear_button.clicked.connect(self.clearFile)
 
-        self.switch_view_button = create_button("切换视图")
+        self.switch_view_button = create_button("切换视图", variant="default")
         self.switch_view_button.clicked.connect(self.toggle_view)
 
+        toolbar_widget = QWidget()
+        toolbar_widget.setObjectName("tag_view_toolbar")
+        toolbar_widget.setStyleSheet("""
+            QWidget#tag_view_toolbar {
+                background-color: #f8fbff;
+                border: 1px solid #d6e1ec;
+                border-radius: 10px;
+            }
+        """)
         button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(12, 10, 12, 10)
+        button_layout.setSpacing(8)
         button_layout.addStretch()
         button_layout.addWidget(self.floder_button)
         button_layout.addWidget(self.model_button)
@@ -100,21 +123,39 @@ class TagView(QMainWindow):
         button_layout.addWidget(clear_button)
         button_layout.addWidget(self.switch_view_button)
         button_layout.addStretch()
+        toolbar_widget.setLayout(button_layout)
 
         self.tag_scroll_area = QScrollArea(self)
         self.tag_scroll_area.setWidgetResizable(True)
+        apply_scroll_area_style(self.tag_scroll_area, tone="soft")
         self.tag_scroll_area.setWidget(self.create_tag_widget())
 
         tag_menu_widget = QWidget()
+        tag_menu_widget.setObjectName("tag_view_tag_panel")
+        tag_menu_widget.setStyleSheet("""
+            QWidget#tag_view_tag_panel {
+                background-color: transparent;
+                border: none;
+            }
+        """)
         tag_menu_layout = QVBoxLayout(tag_menu_widget)
-        tag_menu_layout.addLayout(button_layout)
+        tag_menu_layout.setContentsMargins(0, 0, 0, 0)
+        tag_menu_layout.setSpacing(10)
+        tag_menu_layout.addWidget(toolbar_widget)
         tag_menu_layout.addWidget(self.tag_scroll_area)
 
         self.splitter = QSplitter(Qt.Vertical)
+        self.splitter.setStyleSheet("""
+            QSplitter::handle {
+                background-color: #e5edf6;
+                height: 6px;
+            }
+        """)
         self.splitter.addWidget(self.TagFileShowArea)
         self.splitter.addWidget(tag_menu_widget)
 
         main_layout = QVBoxLayout(self.central_widget)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.addWidget(self.splitter)
         self.splitter.setSizes([350, 200])
 
@@ -137,7 +178,7 @@ class TagView(QMainWindow):
 
     def create_tag_widget(self):
         # 标签列表直接从 DictManage 重建，避免在 UI 层缓存一份容易过期的树结构。
-        tag_layout = QFlowLayout()
+        tag_layout = QFlowLayout(margin=10, spacing=6)
         for item in self.DictManage.query_category():
             category = item[0]
             if category == "文件类型":
@@ -155,6 +196,13 @@ class TagView(QMainWindow):
                 )
                 tag_layout.addWidget(label)
         tag_widget = QWidget()
+        tag_widget.setObjectName("tag_pool_widget")
+        tag_widget.setStyleSheet("""
+            QWidget#tag_pool_widget {
+                background-color: #f8fbff;
+                border: none;
+            }
+        """)
         tag_widget.setLayout(tag_layout)
         return tag_widget
 

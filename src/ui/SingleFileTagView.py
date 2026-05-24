@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.core.DictManage import DictManage
-from src.ui.components.style_utils import create_button, create_colored_label
+from src.ui.components.style_utils import apply_panel_style, apply_scroll_area_style, create_button, create_colored_label
 from src.ui.media_viewers import ImageViewer
 
 from .FileShowArea import TagFileShowArea
@@ -38,38 +38,73 @@ class SingleFileTagView(QScrollArea):
     def initUI(self):
         # 左侧专注预览当前文件，右侧显示当前文件的元数据和标签，
         # 让单文件模式更适合顺序标注和快速浏览。
+        self.setStyleSheet("""
+            QScrollArea {
+                background-color: #f4f7fb;
+                border: none;
+            }
+        """)
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.image_label.setMinimumSize(200, 200)
 
         right_layout = QVBoxLayout()
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(10)
+
+        self.fileinfo_card = QWidget()
+        apply_panel_style(self.fileinfo_card, tone="soft")
+        fileinfo_card_layout = QVBoxLayout(self.fileinfo_card)
+        fileinfo_card_layout.setContentsMargins(10, 10, 10, 10)
 
         fileinfo_area = QScrollArea()
         fileinfo_area.setWidgetResizable(True)
+        apply_scroll_area_style(fileinfo_area, tone="soft")
         fileinfo_widget = QWidget()
+        fileinfo_widget.setStyleSheet("background-color: #f8fbff;")
         self.text_edit = QTextEdit(fileinfo_widget)
         self.text_edit.setReadOnly(True)
         self.text_edit.setFont(QFont("Arial", 12))
+        self.text_edit.setStyleSheet("""
+            QTextEdit {
+                background-color: transparent;
+                border: none;
+                color: #314456;
+                padding: 2px;
+            }
+        """)
         layout = QVBoxLayout(fileinfo_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.text_edit)
         fileinfo_area.setWidget(fileinfo_widget)
         fileinfo_area.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         fileinfo_area.setMaximumWidth(250)
-        right_layout.addWidget(fileinfo_area)
+        fileinfo_card_layout.addWidget(fileinfo_area)
+        right_layout.addWidget(self.fileinfo_card)
+
+        self.tag_card = QWidget()
+        apply_panel_style(self.tag_card, tone="soft")
+        tag_card_layout = QVBoxLayout(self.tag_card)
+        tag_card_layout.setContentsMargins(10, 10, 10, 10)
 
         tag_area = QScrollArea()
         tag_area.setWidgetResizable(True)
+        apply_scroll_area_style(tag_area, tone="soft")
         tag_widget = QWidget()
-        self.tag_layout = QFlowLayout(tag_widget)
+        tag_widget.setStyleSheet("background-color: #f8fbff;")
+        self.tag_layout = QFlowLayout(tag_widget, margin=4, spacing=6)
         tag_area.setWidget(tag_widget)
         tag_area.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         tag_area.setMaximumWidth(250)
-        right_layout.addWidget(tag_area)
+        tag_card_layout.addWidget(tag_area)
+        right_layout.addWidget(self.tag_card)
         right_layout.setStretchFactor(fileinfo_area, 1)
         right_layout.setStretchFactor(tag_area, 2)
 
         button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(8)
         self.prev_button = create_button("上一张")
         self.prev_button.setMaximumWidth(120)
         self.prev_button.clicked.connect(self.show_previous)
@@ -81,9 +116,17 @@ class SingleFileTagView(QScrollArea):
         right_layout.addLayout(button_layout)
 
         container = QWidget()
+        container.setStyleSheet("background-color: #f4f7fb;")
         layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+        self.preview_card = QWidget()
+        apply_panel_style(self.preview_card, tone="default")
+        preview_layout = QVBoxLayout(self.preview_card)
+        preview_layout.setContentsMargins(10, 10, 10, 10)
         self.image_viewer = ImageViewer(self)
-        layout.addWidget(self.image_viewer, 3)
+        preview_layout.addWidget(self.image_viewer)
+        layout.addWidget(self.preview_card, 3)
         layout.addLayout(right_layout, 1)
 
         self.setWidget(container)
@@ -131,10 +174,12 @@ class SingleFileTagView(QScrollArea):
             if self.pixmap.isNull() and view.icon_source is not None:
                 self.pixmap = view.icon_source.source
             message = (
-                f"<b>{view.file_name}</b><br><br>"
-                f"<b>文件路径: </b>&nbsp; {view.file_path}<br><br>"
-                f"<b>文件大小: </b>&nbsp; {view.formatted_size}<br><br>"
-                f"<b>修改时间: </b>&nbsp; {datetime.fromtimestamp(view.file_date).strftime('%Y年%m月%d日，%H:%M:%S')}<br><br>"
+                "<div style='color:#314456; line-height:1.6;'>"
+                f"<div style='font-size:18px; font-weight:600; color:#1f2d3d; margin-bottom:10px;'>{view.file_name}</div>"
+                f"<div><span style='color:#6b7b8c;'>文件路径</span><br>{view.file_path}</div>"
+                f"<div style='margin-top:10px;'><span style='color:#6b7b8c;'>文件大小</span><br>{view.formatted_size}</div>"
+                f"<div style='margin-top:10px;'><span style='color:#6b7b8c;'>修改时间</span><br>{datetime.fromtimestamp(view.file_date).strftime('%Y年%m月%d日，%H:%M:%S')}</div>"
+                "</div>"
             )
             self.text_edit.setHtml(message)
         self.image_viewer.load_image(self.pixmap)
