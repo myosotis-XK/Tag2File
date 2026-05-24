@@ -51,12 +51,12 @@ class SingleFileTagView(QScrollArea):
 
         right_layout = QVBoxLayout()
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(10)
+        right_layout.setSpacing(6)
 
         self.fileinfo_card = QWidget()
         apply_panel_style(self.fileinfo_card, tone="soft")
         fileinfo_card_layout = QVBoxLayout(self.fileinfo_card)
-        fileinfo_card_layout.setContentsMargins(10, 10, 10, 10)
+        fileinfo_card_layout.setContentsMargins(8, 8, 8, 8)
 
         fileinfo_area = QScrollArea()
         fileinfo_area.setWidgetResizable(True)
@@ -86,7 +86,7 @@ class SingleFileTagView(QScrollArea):
         self.tag_card = QWidget()
         apply_panel_style(self.tag_card, tone="soft")
         tag_card_layout = QVBoxLayout(self.tag_card)
-        tag_card_layout.setContentsMargins(10, 10, 10, 10)
+        tag_card_layout.setContentsMargins(8, 8, 8, 8)
 
         tag_area = QScrollArea()
         tag_area.setWidgetResizable(True)
@@ -104,7 +104,7 @@ class SingleFileTagView(QScrollArea):
 
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 0, 0, 0)
-        button_layout.setSpacing(8)
+        button_layout.setSpacing(6)
         self.prev_button = create_button("上一张")
         self.prev_button.setMaximumWidth(120)
         self.prev_button.clicked.connect(self.show_previous)
@@ -119,11 +119,11 @@ class SingleFileTagView(QScrollArea):
         container.setStyleSheet("background-color: #f4f7fb;")
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(6)
         self.preview_card = QWidget()
         apply_panel_style(self.preview_card, tone="default")
         preview_layout = QVBoxLayout(self.preview_card)
-        preview_layout.setContentsMargins(10, 10, 10, 10)
+        preview_layout.setContentsMargins(8, 8, 8, 8)
         self.image_viewer = ImageViewer(self)
         preview_layout.addWidget(self.image_viewer)
         layout.addWidget(self.preview_card, 3)

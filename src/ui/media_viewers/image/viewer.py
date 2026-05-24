@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene
+from PyQt5.QtWidgets import QFrame, QGraphicsView, QGraphicsScene
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor,  QBrush
 from PyQt5.QtCore import Qt, QRectF
 
@@ -26,6 +26,9 @@ class ImageViewer(QGraphicsView):
         # 隐藏水平和垂直滚动条
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setStyleSheet("background: #ffffff; border: none;")
+        self.setBackgroundBrush(QBrush(QColor("#ffffff")))
         
         # 缩放级别列表（仅用于手动缩放）  
         self.zoom_levels = [1, 5, 7, 10, 15, 20, 25, 30, 36, 43, 50, 57, 66, 76, 87, 100,   
