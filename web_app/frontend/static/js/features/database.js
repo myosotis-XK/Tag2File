@@ -13,7 +13,7 @@ export function loadDatabaseList() {
     dbListMenu.innerHTML = '<li class="dropdown-item text-muted">加载中...</li>';
 
     // 1. 调用 /get_init 路由
-    apiGetInit()
+    return apiGetInit()
     .then(response => {
         const dbList = response.data.database_list;
         const activeDbPath = response.data.database_path;

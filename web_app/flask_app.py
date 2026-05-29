@@ -864,7 +864,11 @@ class RouteFilter(logging.Filter):
 
 # 添加过滤器到werkzeug日志
 werkzeug_logger = logging.getLogger('werkzeug')
-route_filter = RouteFilter(['/static/', '/open_file?', '/get_thumb?', '/audio/player?', '/api/audio/lyric?'])
+route_filter = RouteFilter([
+    '/static/', '/open_file?', '/get_thumb?', 
+    '/get_folder_contents', '/is_folder',
+    '/audio/player?', '/api/audio/lyric?'
+])
 werkzeug_logger.addFilter(route_filter)
 
 if __name__ == '__main__':

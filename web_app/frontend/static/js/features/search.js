@@ -2,7 +2,7 @@
 
 import { apiSearchFiles } from '../api.js';
 import { buildVirtualFile, clearBrowseState, globalState } from '../state.js';
-import { renderBrowseNav, setupVirtualGrid } from './virtualGrid.js';
+import { persistMainViewState, renderBrowseNav, setupVirtualGrid } from './virtualGrid.js';
 
 // 搜索文件
 export function searchFiles(pageOrEvent) {
@@ -23,6 +23,7 @@ export function searchFiles(pageOrEvent) {
         clearBrowseState();
         renderBrowseNav();
         showEmptyResults();
+        persistMainViewState();
         return;
     }
     
@@ -49,6 +50,7 @@ export function searchFiles(pageOrEvent) {
         
         // 显示分页结果
         displayResults(response.data.file_paths);
+        persistMainViewState();
     })
     .catch(error => {
         console.error('Search failed:', error);
@@ -72,6 +74,7 @@ export function clearSearch() {
 
     // 重置结果显示
     showEmptyResults();
+    persistMainViewState();
 }
 
 // 显示加载状态

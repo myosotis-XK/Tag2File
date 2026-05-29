@@ -1,4 +1,4 @@
-import { buildVirtualFile, clearBrowseState, globalState, saveUISettings } from '../state.js';
+import { buildVirtualFile, clearBrowseState, globalState, loadMainViewState, saveMainViewState, saveUISettings } from '../state.js';
 import { apiGetFolderContents, apiGetThumbnail, apiOpenFile, apiSearchFiles } from '../api.js';
 import { throttle } from '../utils.js';
 import { saveAudioPlayerContext } from './audioPlayerContext.js';
@@ -76,6 +76,68 @@ function captureSearchSnapshot() {
     };
 }
 
+function captureMainViewState() {
+    const container = document.getElementById('virtual-container');
+    return {
+        query: getSearchQuery(),
+        browseMode: globalState.browseMode,
+        browseRoot: globalState.browseRoot,
+        currentFolder: globalState.currentFolder,
+        currentDatabasePath: globalState.currentDatabasePath,
+        pendingScrollTop: container ? container.scrollTop : (globalState.pendingScrollTop ?? 0),
+        pagination: { ...globalState.pagination },
+        virtualFiles: globalState.virtualFiles.map(file => ({ ...file })),
+        searchSnapshot: globalState.searchSnapshot
+            ? {
+                query: globalState.searchSnapshot.query || '',
+                pagination: { ...globalState.searchSnapshot.pagination },
+                scrollTop: globalState.searchSnapshot.scrollTop || 0,
+                virtualFiles: globalState.searchSnapshot.virtualFiles.map(file => ({ ...file })),
+            }
+            : null,
+    };
+}
+
+export function persistMainViewState() {
+    saveMainViewState(captureMainViewState());
+}
+
+export function restorePersistedMainViewState() {
+    const storedState = loadMainViewState();
+    if (!storedState) {
+        return false;
+    }
+    if (
+        storedState.currentDatabasePath
+        && globalState.currentDatabasePath
+        && storedState.currentDatabasePath !== globalState.currentDatabasePath
+    ) {
+        return false;
+    }
+
+    globalState.virtualFiles = storedState.virtualFiles.map(file => ({ ...file }));
+    globalState.pagination = { ...storedState.pagination };
+    globalState.browseMode = storedState.browseMode;
+    globalState.browseRoot = storedState.browseRoot;
+    globalState.currentFolder = storedState.currentFolder;
+    globalState.searchSnapshot = storedState.searchSnapshot
+        ? {
+            query: storedState.searchSnapshot.query,
+            pagination: { ...storedState.searchSnapshot.pagination },
+            scrollTop: storedState.searchSnapshot.scrollTop,
+            virtualFiles: storedState.searchSnapshot.virtualFiles.map(file => ({ ...file })),
+        }
+        : null;
+    globalState.pendingScrollTop = storedState.pendingScrollTop;
+
+    document.getElementById('search-input').value = storedState.query || '';
+    renderBrowseNav();
+    if (globalState.virtualFiles.length > 0) {
+        setupVirtualGrid();
+    }
+    return true;
+}
+
 function updateFolderBrowseState(folderPath) {
     const normalizedPath = folderPath.replace(/\\/g, '/');
     if (!isBrowsingFolder()) {
@@ -86,6 +148,7 @@ function updateFolderBrowseState(folderPath) {
     globalState.currentFolder = normalizedPath;
     globalState.pendingScrollTop = 0;
     renderBrowseNav();
+    persistMainViewState();
 }
 
 export function renderBrowseNav() {
@@ -132,6 +195,7 @@ export async function loadFolderContents(folderPath, options = {}) {
         globalState.pagination.totalPages = 1;
         globalState.pagination.totalItems = files.length;
         setupVirtualGrid();
+        persistMainViewState();
     } catch (error) {
         console.error('加载文件夹内容失败:', error);
         getResultsContainer().innerHTML = `
@@ -153,6 +217,7 @@ export function restoreSearchSnapshot() {
         globalState.pagination.totalPages = 1;
         globalState.pagination.totalItems = 0;
         setupVirtualGrid();
+        persistMainViewState();
         return;
     }
 
@@ -163,6 +228,7 @@ export function restoreSearchSnapshot() {
     document.getElementById('search-input').value = snapshot.query || '';
     renderBrowseNav();
     setupVirtualGrid();
+    persistMainViewState();
 }
 
 export async function goParentOrRestore() {
@@ -234,6 +300,7 @@ export function setupVirtualGrid() {
 
             // 绑定事件
             container.addEventListener('scroll', container._throttledRender);
+            container.addEventListener('scroll', throttle(persistMainViewState, SCROLL_THROTTLE_LIMIT));
         }
     }
     
@@ -285,6 +352,7 @@ export function setupVirtualGrid() {
         container.scrollTop = globalState.pendingScrollTop;
         globalState.pendingScrollTop = null;
     }
+    persistMainViewState();
 }
 
 // 添加分页控件
@@ -381,6 +449,7 @@ function addPaginationControls(resultsContainer) {
                 globalState.pagination.pageSize = response.data.pagination.page_size;
                 globalState.virtualFiles = response.data.file_paths.map(filePath => buildVirtualFile(filePath));
                 setupVirtualGrid();
+                persistMainViewState();
             } catch (error) {
                 console.error('更改每页数量失败:', error);
                 resultsContainer.innerHTML = `
@@ -430,6 +499,7 @@ function addPaginationControls(resultsContainer) {
                         globalState.pagination.pageSize = response.data.pagination.page_size;
                         globalState.virtualFiles = response.data.file_paths.map(filePath => buildVirtualFile(filePath));
                         setupVirtualGrid();
+                        persistMainViewState();
                     } catch (error) {
                         console.error('获取分页数据失败:', error);
                         resultsContainer.innerHTML = `
@@ -524,6 +594,7 @@ function renderVisibleItems(forceRefresh = false) {
                                 playlist: audioFiles,
                                 currentIndex
                             });
+                            persistMainViewState();
                             window.location.href = '/audio/player';
                         } else {
                             // 非音频文件，使用原有逻辑直接打开

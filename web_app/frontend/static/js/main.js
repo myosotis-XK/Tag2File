@@ -1,7 +1,7 @@
 import { globalState, initializeState, saveUISettings } from './state.js';
 import { insertAtCursor, debounce } from './utils.js';
 import { searchFiles, clearSearch } from './features/search.js';
-import { goParentOrRestore, loadFolderContents, renderBrowseNav, restoreSearchSnapshot, setupVirtualGrid } from './features/virtualGrid.js';
+import { goParentOrRestore, loadFolderContents, persistMainViewState, renderBrowseNav, restorePersistedMainViewState, restoreSearchSnapshot, setupVirtualGrid } from './features/virtualGrid.js';
 import { loadDatabaseList } from './features/database.js';
 
 // 更新按钮样式以反映当前设置
@@ -150,7 +150,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.documentElement.style.setProperty('--thumb-size', globalState.sizeMap[globalState.currentIconSize] + 'px');
     
     initEventListeners();
-    loadDatabaseList();
+    await loadDatabaseList();
+    restorePersistedMainViewState();
     renderBrowseNav();
 
     // 阻止点击特定区域时关闭父级下拉菜单的逻辑
@@ -169,6 +170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             setupVirtualGrid();
         }
     }, 150)); // 150ms 防抖
+    window.addEventListener('beforeunload', persistMainViewState);
 });
 
 // 初始化事件监听
