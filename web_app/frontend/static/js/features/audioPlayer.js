@@ -47,6 +47,9 @@ export class AudioPlayerController {
     this.isShowingLyric = false;
     this.isLyricUserSeeking = false;
     this.hasLyricScrollPreview = false;
+    this.isLyricPointerActive = false;
+    this.lyricPointerId = null;
+    this.lyricPointerType = '';
     this.lyricPointerStartScrollTop = 0;
     this.lyricPointerStartY = 0;
     this.lyricSeekPreviewIndex = -1;
@@ -142,9 +145,10 @@ export class AudioPlayerController {
     this.lyricContainer.addEventListener('pointermove', event => this.onLyricPointerMove(event));
     this.lyricContainer.addEventListener('pointerup', event => this.onLyricPointerUp(event));
     this.lyricContainer.addEventListener('pointercancel', event => this.onLyricPointerUp(event));
+    this.lyricContainer.addEventListener('click', event => this.onLyricContainerClick(event), true);
     this.lyricContainer.addEventListener('pointerleave', event => {
       if (event.buttons) {
-        this.onLyricPointerUp();
+        this.onLyricPointerUp(event);
       }
     });
     this.lyricContainer.addEventListener('scroll', () => this.onLyricScroll(), { passive: true });
@@ -541,10 +545,8 @@ export class AudioPlayerController {
   }
 
   onTimeUpdate() {
-    if (!this.isLyricUserSeeking) {
-      this.progressSlider.value = this.audio.currentTime;
-      this.currentTimeLabel.textContent = this.formatTime(this.audio.currentTime * 1000);
-    }
+    this.progressSlider.value = this.audio.currentTime;
+    this.currentTimeLabel.textContent = this.formatTime(this.audio.currentTime * 1000);
     this.updateLyricHighlight();
   }
 
@@ -572,6 +574,9 @@ export class AudioPlayerController {
       return;
     }
 
+    this.isLyricPointerActive = true;
+    this.lyricPointerId = event.pointerId;
+    this.lyricPointerType = event.pointerType;
     this.lyricPointerStartScrollTop = this.lyricContainer.scrollTop;
     this.lyricPointerStartY = event.clientY;
     this.lyricContainer.setPointerCapture?.(event.pointerId);
@@ -582,12 +587,23 @@ export class AudioPlayerController {
       return;
     }
 
+    if (!this.isLyricPointerActive || event.pointerId !== this.lyricPointerId) {
+      return;
+    }
+
+    if (this.lyricPointerType === 'mouse' && (event.buttons & 1) === 0) {
+      this.onLyricPointerUp(event);
+      return;
+    }
+
     const offsetY = event.clientY - this.lyricPointerStartY;
     if (!this.isLyricUserSeeking) {
-      if (Math.abs(offsetY) < 8) {
+      const dragThreshold = this.lyricPointerType === 'mouse' ? 18 : 8;
+      if (Math.abs(offsetY) < dragThreshold) {
         return;
       }
       this.startLyricScrollSeek();
+      this.hasLyricScrollPreview = true;
       this.suppressNextDisplayToggle = true;
       clearTimeout(this.suppressDisplayToggleTimer);
       this.suppressDisplayToggleTimer = setTimeout(() => {
@@ -597,12 +613,22 @@ export class AudioPlayerController {
 
     event.preventDefault();
     this.lyricContainer.scrollTop = this.lyricPointerStartScrollTop - offsetY;
+    this.previewCenteredLyricSeek();
   }
 
   onLyricPointerUp(event) {
-    if (event?.pointerId !== undefined) {
-      this.lyricContainer.releasePointerCapture?.(event.pointerId);
+    if (!this.isLyricPointerActive) {
+      return;
     }
+
+    const pointerId = event?.pointerId ?? this.lyricPointerId;
+    if (pointerId !== null && pointerId !== undefined) {
+      this.lyricContainer.releasePointerCapture?.(pointerId);
+    }
+
+    this.isLyricPointerActive = false;
+    this.lyricPointerId = null;
+    this.lyricPointerType = '';
     if (this.isLyricUserSeeking) {
       this.scheduleLyricScrollSeekEnd();
     }
@@ -663,9 +689,6 @@ export class AudioPlayerController {
     this.lyricContainer.querySelectorAll('.lyric-line').forEach((line, index) => {
       line.classList.toggle('preview', index === previewIndex);
     });
-
-    this.progressSlider.value = previewTime;
-    this.currentTimeLabel.textContent = this.formatTime(previewTime * 1000);
   }
 
   endLyricScrollSeek() {
@@ -681,18 +704,31 @@ export class AudioPlayerController {
     this.lyricScrollCommitTimer = setTimeout(() => this.endLyricScrollSeek(), delay);
   }
 
-  onDisplayAreaClick(event) {
+  onLyricContainerClick(event) {
+    if (!this.isLyricUserSeeking) {
+      return;
+    }
+
     const clickedLyricLine = event.target.closest('.lyric-line');
+    if (!clickedLyricLine?.classList.contains('preview')) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.seekToLyricLine(clickedLyricLine);
+  }
+
+  onDisplayAreaClick(event) {
+    if (this.isLyricUserSeeking) {
+      event.preventDefault();
+      return;
+    }
+
     if (this.suppressNextDisplayToggle) {
       event.preventDefault();
       this.suppressNextDisplayToggle = false;
       clearTimeout(this.suppressDisplayToggleTimer);
-      return;
-    }
-
-    if (this.isLyricUserSeeking && this.hasLyricScrollPreview && clickedLyricLine) {
-      event.preventDefault();
-      this.seekToLyricLine(clickedLyricLine);
       return;
     }
 
@@ -723,6 +759,9 @@ export class AudioPlayerController {
     clearTimeout(this.lyricResumeAutoScrollTimer);
     this.isLyricUserSeeking = false;
     this.hasLyricScrollPreview = false;
+    this.isLyricPointerActive = false;
+    this.lyricPointerId = null;
+    this.lyricPointerType = '';
     this.lyricSeekPreviewIndex = -1;
     this.lyricContainer.classList.remove('seeking');
     this.lyricView.classList.remove('lyric-seeking');
