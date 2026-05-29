@@ -25,7 +25,7 @@ export function parseLyricContent(lrcContent) {
     .sort((a, b) => a.time - b.time);
 }
 
-export function renderLyricLines({ lyricData, lyricContainer, emptyHTML, onSeek }) {
+export function renderLyricLines({ lyricData, lyricContainer, emptyHTML }) {
   if (lyricData.length === 0) {
     lyricContainer.innerHTML = emptyHTML;
     return;
@@ -36,13 +36,6 @@ export function renderLyricLines({ lyricData, lyricContainer, emptyHTML, onSeek 
       ${line.text}
     </div>
   `).join('');
-
-  lyricContainer.querySelectorAll('.lyric-line').forEach(element => {
-    element.addEventListener('click', event => {
-      event.stopPropagation();
-      onSeek(Number.parseFloat(element.dataset.time));
-    });
-  });
 }
 
 export function updateLyricActiveLine({
