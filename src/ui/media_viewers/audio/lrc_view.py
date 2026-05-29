@@ -4,6 +4,14 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QSizePoli
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QCursor
 
+from .audio_theme import (
+    LYRIC_CURRENT_STYLE,
+    LYRIC_HOVER_STYLE,
+    LYRIC_SCROLL_STYLE,
+    LYRIC_STYLE,
+)
+
+
 class ClickableLabel(QLabel):
     """可点击的歌词标签"""
     clicked = pyqtSignal(int)  # 发送时间戳(ms)
@@ -15,7 +23,8 @@ class ClickableLabel(QLabel):
         self.setCursor(QCursor(Qt.PointingHandCursor))
         self.is_current = False  # 是否为当前播放的歌词
         self.setWordWrap(True)
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        self.setAlignment(Qt.AlignCenter)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -25,13 +34,13 @@ class ClickableLabel(QLabel):
     def enterEvent(self, event):
         """鼠标悬停效果"""
         if not self.is_current:
-            self.setStyleSheet("color: #2980b9; font-size: 18px; background-color: rgba(52, 152, 219, 0.1);")
+            self.setStyleSheet(LYRIC_HOVER_STYLE)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         """鼠标离开效果"""
         if not self.is_current:
-            self.setStyleSheet("color: gray; font-size: 18px;")
+            self.setStyleSheet(LYRIC_STYLE)
         super().leaveEvent(event)
 
 class LrcView(QScrollArea):
@@ -39,10 +48,15 @@ class LrcView(QScrollArea):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setStyleSheet(LYRIC_SCROLL_STYLE)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setWidgetResizable(True)
         self.container = QWidget()
+        self.container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
         self.layout = QVBoxLayout(self.container)
-        self.layout.setAlignment(Qt.AlignCenter)
+        self.layout.setAlignment(Qt.AlignTop)
+        self.layout.setContentsMargins(18, 18, 18, 18)
+        self.layout.setSpacing(8)
         self.setWidget(self.container)
         self.labels, self.lyrics_data, self.current_index = [], [], -1
 
@@ -96,12 +110,12 @@ class LrcView(QScrollArea):
 
                     if matched and text.strip():
                         lbl = ClickableLabel(text.strip(), total_ms)
-                        lbl.setAlignment(Qt.AlignCenter)
-                        lbl.setStyleSheet("color: gray; font-size: 18px;")
+                        self._apply_label_style(lbl, LYRIC_STYLE)
                         lbl.clicked.connect(self._on_lyric_clicked)
                         self.layout.addWidget(lbl)
                         self.labels.append(lbl)
                         self.lyrics_data.append((total_ms, text.strip()))
+            self._refresh_label_widths()
         except (UnicodeDecodeError, IOError) as e:
             print(f"歌词加载失败: {e}")
         except Exception as e:
@@ -117,19 +131,50 @@ class LrcView(QScrollArea):
             # 恢复上一句歌词的样式
             if self.current_index != -1 and self.current_index < len(self.labels):
                 self.labels[self.current_index].is_current = False
-                self.labels[self.current_index].setStyleSheet("color: gray; font-size: 18px;")
-                self.labels[self.current_index].adjustSize()  # 调整大小以适应新字体
+                self._apply_label_style(self.labels[self.current_index], LYRIC_STYLE)
             # 高亮当前歌词
             if idx != -1 and idx < len(self.labels):
                 self.labels[idx].is_current = True
-                self.labels[idx].setStyleSheet("color: #3498db; font-weight: bold; font-size: 18px;")
-                self.labels[idx].adjustSize()  # 调整大小以适应新字体
+                self._apply_label_style(self.labels[idx], LYRIC_CURRENT_STYLE)
                 # 仅在启用自动滚动时才滚动
                 if self.auto_scroll_enabled:
                     self.is_auto_scrolling = True
                     self._scroll_to_center(self.labels[idx])
                     QTimer.singleShot(100, self._reset_auto_scroll_flag)  # 延迟重置标志
             self.current_index = idx
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._refresh_label_widths()
+
+    def _apply_label_style(self, label, style):
+        label.setStyleSheet(style)
+        self._refresh_label_geometry(label)
+        label.updateGeometry()
+
+    def _refresh_label_widths(self):
+        viewport_width = self.viewport().width()
+        margins = self.layout.contentsMargins()
+        label_width = max(80, viewport_width - margins.left() - margins.right() - 8)
+        for label in self.labels:
+            self._refresh_label_geometry(label, label_width)
+        self.container.updateGeometry()
+
+    def _refresh_label_geometry(self, label, width=None):
+        if width is None:
+            viewport_width = self.viewport().width()
+            margins = self.layout.contentsMargins()
+            width = max(80, viewport_width - margins.left() - margins.right() - 8)
+
+        label.setFixedWidth(width)
+        label.setMinimumHeight(0)
+        label.setMaximumHeight(16777215)
+
+        content_height = label.heightForWidth(width)
+        if content_height < 0:
+            content_height = label.sizeHint().height()
+        label.setMinimumHeight(content_height)
+        label.updateGeometry()
 
     def _scroll_to_center(self, widget):
         """将指定的widget滚动到视口中心位置"""

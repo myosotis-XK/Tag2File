@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QLabel, QMenu, QWidget
 from src.ui.components.style_utils import create_context_menu
 
 from .audio_utils import marker_jump_position, marker_tooltip_text
+from .audio_theme import BORDER, PANEL_BACKGROUND, TOOLTIP_STYLE
 
 
 class MarkerDisplayWidget(QWidget):
@@ -20,24 +21,17 @@ class MarkerDisplayWidget(QWidget):
         self.snap_threshold = 15
         self.duration_ms = 0
         self.setFixedHeight(30)
-        self.setStyleSheet("""
-            MarkerDisplayWidget {
-                background-color: #f5f5f5;
-                border: 1px solid #ddd;
-                border-radius: 3px;
-            }
+        self.setStyleSheet(f"""
+            MarkerDisplayWidget {{
+                background-color: {PANEL_BACKGROUND};
+                border: 1px solid {BORDER};
+                border-radius: 8px;
+            }}
         """)
 
         self.floating_label = QLabel(self, Qt.ToolTip)
         self.floating_label.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint)
-        self.floating_label.setStyleSheet("""
-            background-color: #34495e;
-            color: #ecf0f1;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-family: 'Segoe UI', 'Microsoft YaHei';
-            font-size: 11px;
-        """)
+        self.floating_label.setStyleSheet(TOOLTIP_STYLE)
         self.floating_label.hide()
 
     def set_duration(self, duration_ms):
@@ -143,9 +137,9 @@ class MarkerDisplayWidget(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor("#f5f5f5"))
-        painter.setPen(QColor("#ddd"))
-        painter.drawRoundedRect(0, 0, self.width() - 1, self.height() - 1, 3, 3)
+        painter.fillRect(self.rect(), QColor(PANEL_BACKGROUND))
+        painter.setPen(QColor(BORDER))
+        painter.drawRoundedRect(0, 0, self.width() - 1, self.height() - 1, 8, 8)
 
         if not self.duration_ms or not self.markers:
             painter.end()
@@ -165,6 +159,6 @@ class MarkerDisplayWidget(QWidget):
                 rect_color.setAlpha(100)
                 painter.setBrush(rect_color)
                 painter.setPen(color)
-                painter.drawRect(start_x, 8, end_x - start_x, self.height() - 16)
+                painter.drawRoundedRect(start_x, 8, end_x - start_x, self.height() - 16, 4, 4)
 
         painter.end()

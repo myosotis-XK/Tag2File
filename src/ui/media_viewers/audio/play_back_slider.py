@@ -4,24 +4,20 @@ from PyQt5.QtWidgets import QMenu, QLabel, QSlider, QStyle, QStyleOptionSlider
 from src.ui.components.style_utils import create_context_menu
 
 from .audio_utils import format_time
+from .audio_theme import SLIDER_STYLE, TOOLTIP_STYLE
 
 
 class PlaybackSlider(QSlider):
     def __init__(self, orientation, parent=None):
         super().__init__(orientation, parent)
         self.setMouseTracking(True)
+        self.setFixedHeight(24)
+        self.setStyleSheet(SLIDER_STYLE)
         self.quick_marker_creator = None
 
         self.floating_label = QLabel(self, Qt.ToolTip)
         self.floating_label.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint)
-        self.floating_label.setStyleSheet("""
-            background-color: #34495e;
-            color: #ecf0f1;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-family: 'Segoe UI', 'Microsoft YaHei';
-            font-size: 11px;
-        """)
+        self.floating_label.setStyleSheet(TOOLTIP_STYLE)
         self.floating_label.hide()
 
     def set_quick_marker_creator(self, creator):

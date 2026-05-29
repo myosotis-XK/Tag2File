@@ -16,6 +16,14 @@ from PyQt5.QtWidgets import (
 )
 
 from .audio_utils import format_time, marker_jump_position, normalize_audio_path
+from .audio_theme import (
+    ICON_BUTTON_STYLE,
+    PLAY_BUTTON_STYLE,
+    PLAYER_STYLE,
+    SLIDER_STYLE,
+    TAB_BUTTON_STYLE,
+    VOLUME_POPUP_STYLE,
+)
 from .dual_slider import DualSliderWidget
 from .lrc_view import LrcView
 from .marker_edit_dialog import MarkerEditDialog
@@ -29,35 +37,6 @@ from .quick_marker_creator import QuickMarkerCreator
 
 WINDOW_TITLE = "高级音频播放器"
 
-ICON_BUTTON_STYLE = """
-    QPushButton {
-        font-size: 22px;
-        border: none;
-        border-radius: 20px;
-        background-color: transparent;
-    }
-    QPushButton:hover {
-        background-color: rgba(0, 0, 0, 0.1);
-    }
-"""
-
-TAB_BUTTON_STYLE = """
-    QPushButton {
-        padding: 8px;
-        border: none;
-        background-color: transparent;
-        font-size: 14px;
-    }
-    QPushButton:hover {
-        background-color: rgba(0, 0, 0, 0.05);
-    }
-    QPushButton:checked {
-        background-color: rgba(52, 152, 219, 0.1);
-        border-bottom: 2px solid #3498db;
-        font-weight: bold;
-    }
-"""
-
 
 class AudioPlayer(QWidget):
     def __init__(self, path, audio_files=None):
@@ -70,8 +49,9 @@ class AudioPlayer(QWidget):
         self.player = QMediaPlayer()
         self.current_audio_path = None
 
+        self.setObjectName("audio_player_root")
         self.setWindowTitle(self.window_title_prefix)
-        self.resize(500, 600)
+        self.resize(760, 620)
         self.init_ui()
         self.setup_shortcuts()
         self._connect_signals()
@@ -82,45 +62,48 @@ class AudioPlayer(QWidget):
             self.player.play()
 
     def init_ui(self):
+        self.setStyleSheet(PLAYER_STYLE)
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(0)
 
         splitter = QSplitter(Qt.Horizontal)
-        splitter.setHandleWidth(1)
-        splitter.setStyleSheet("""
-            QSplitter::handle {
-                background-color: #ddd;
-            }
-        """)
+        splitter.setHandleWidth(10)
 
         left_container = QWidget()
+        left_container.setObjectName("audio_player_left_card")
         left_container.setMinimumWidth(400)
         left_layout = QVBoxLayout(left_container)
-        left_layout.setContentsMargins(10, 10, 10, 10)
+        left_layout.setContentsMargins(12, 12, 12, 12)
+        left_layout.setSpacing(10)
 
         self.lrc_view = LrcView()
-        left_layout.addWidget(self.lrc_view)
+        left_layout.addWidget(self.lrc_view, 1)
 
         self.slider = DualSliderWidget()
-        left_layout.addWidget(self.slider)
+        left_layout.addWidget(self.slider, 0)
 
         self.time_label = QLabel("00:00 / 00:00")
+        self.time_label.setObjectName("audio_time_label")
         self.time_label.setAlignment(Qt.AlignCenter)
-        self.time_label.setStyleSheet("font-size: 12px; color: #555;")
-        left_layout.addWidget(self.time_label)
+        left_layout.addWidget(self.time_label, 0)
 
         left_layout.addLayout(self._build_controls())
         splitter.addWidget(left_container)
 
         right_panel = QWidget()
+        right_panel.setObjectName("audio_player_right_card")
         right_panel.setMinimumWidth(280)
         right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(0)
+        right_layout.setContentsMargins(10, 10, 10, 10)
+        right_layout.setSpacing(8)
 
+        switch_widget = QWidget()
+        switch_widget.setObjectName("audio_player_tab_bar")
         switch_layout = QHBoxLayout()
-        switch_layout.setContentsMargins(0, 0, 0, 0)
-        switch_layout.setSpacing(0)
+        switch_layout.setContentsMargins(3, 3, 3, 3)
+        switch_layout.setSpacing(4)
+        switch_widget.setLayout(switch_layout)
 
         self.btn_show_markers = QPushButton("📋 标记")
         self.btn_show_markers.setCheckable(True)
@@ -134,7 +117,7 @@ class AudioPlayer(QWidget):
         self.btn_show_playlist.setStyleSheet(TAB_BUTTON_STYLE)
         self.btn_show_playlist.clicked.connect(lambda: self.switch_right_panel(1))
         switch_layout.addWidget(self.btn_show_playlist)
-        right_layout.addLayout(switch_layout)
+        right_layout.addWidget(switch_widget)
 
         self.quick_marker_creator = QuickMarkerCreator()
         self.marker_list_panel = MarkerListPanel()
@@ -151,17 +134,11 @@ class AudioPlayer(QWidget):
         main_layout.addWidget(splitter)
 
         self.volume_popup = QWidget(self, Qt.Popup | Qt.FramelessWindowHint)
-        self.volume_popup.setStyleSheet("""
-            QWidget {
-                background-color: rgba(52, 62, 78, 0.95);
-                border-radius: 8px;
-                padding: 6px 10px 6px 10px;
-            }
-        """)
+        self.volume_popup.setStyleSheet(VOLUME_POPUP_STYLE)
 
         volume_layout = QVBoxLayout(self.volume_popup)
-        volume_layout.setContentsMargins(0, 0, 0, 0)
-        volume_layout.setSpacing(2)
+        volume_layout.setContentsMargins(10, 10, 10, 10)
+        volume_layout.setSpacing(6)
 
         self.volume_value_label = QLabel("100")
         self.volume_value_label.setAlignment(Qt.AlignCenter)
@@ -172,10 +149,10 @@ class AudioPlayer(QWidget):
         self.volume_slider_vertical.setRange(0, 100)
         self.volume_slider_vertical.setValue(100)
         self.volume_slider_vertical.setFixedHeight(110)
+        self.volume_slider_vertical.setStyleSheet(SLIDER_STYLE)
         volume_layout.addWidget(self.volume_slider_vertical, 0, Qt.AlignCenter)
-        volume_layout.addSpacing(15)
 
-        self.volume_popup.setFixedSize(65, 165)
+        self.volume_popup.setFixedSize(72, 170)
         self.volume_popup.hide()
         self.player.setVolume(100)
 
@@ -185,13 +162,14 @@ class AudioPlayer(QWidget):
         control_layout.addStretch()
 
         center_layout = QHBoxLayout()
-        center_layout.setSpacing(5)
+        center_layout.setSpacing(8)
 
         self.btn_mode = self._create_icon_button("🔁", "顺序播放", self.toggle_play_mode)
         self.btn_previous = self._create_icon_button("⏮", "上一首", self.play_previous)
         self.btn_play = self._create_icon_button("▶️", "播放", self.toggle_play)
         self.btn_next = self._create_icon_button("⏭", "下一首", self.play_next)
         self.btn_volume = self._create_icon_button("🔊", "音量", self.toggle_volume_slider)
+        self._set_play_button_style()
 
         for button in (
             self.btn_mode,
@@ -213,6 +191,10 @@ class AudioPlayer(QWidget):
         button.setStyleSheet(ICON_BUTTON_STYLE)
         button.clicked.connect(callback)
         return button
+
+    def _set_play_button_style(self):
+        self.btn_play.setFixedSize(46, 46)
+        self.btn_play.setStyleSheet(PLAY_BUTTON_STYLE)
 
     def _connect_signals(self):
         self.player.positionChanged.connect(self.on_position_changed)

@@ -12,7 +12,7 @@ class DualSliderWidget(QWidget):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
+        layout.setSpacing(7)
 
         self.marker_display = MarkerDisplayWidget()
         layout.addWidget(self.marker_display)

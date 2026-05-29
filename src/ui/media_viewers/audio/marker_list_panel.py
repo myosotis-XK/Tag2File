@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QMenu
 from src.ui.components.style_utils import create_context_menu
 
 from .audio_utils import marker_display_text, sort_markers
+from .audio_theme import LIST_PANEL_STYLE
 
 
 class MarkerListPanel(QListWidget):
@@ -14,25 +15,7 @@ class MarkerListPanel(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.markers_data = []
-        self.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #bdc3c7;
-                border-radius: 5px;
-                background-color: white;
-            }
-            QListWidget::item {
-                padding: 8px;
-                border-radius: 3px;
-                margin: 2px;
-            }
-            QListWidget::item:hover {
-                background-color: #ecf0f1;
-            }
-            QListWidget::item:selected {
-                background-color: #3498db;
-                color: white;
-            }
-        """)
+        self.setStyleSheet(LIST_PANEL_STYLE)
         self.itemDoubleClicked.connect(self.on_marker_double_clicked)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)

@@ -16,6 +16,12 @@ from src.ui.components.preset_selector_dialog import PresetSelectorDialog
 from src.ui.components.style_utils import apply_color_preview_button_style
 from src.ui.components.time_input import TimeInput
 
+from .audio_theme import (
+    MARKER_LINE_EDIT_STYLE,
+    PRIMARY_BUTTON_STYLE,
+    QUICK_MARKER_STYLE,
+    SECONDARY_BUTTON_STYLE,
+)
 from .marker_store import MarkerStore
 
 
@@ -31,15 +37,11 @@ class QuickMarkerCreator(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        self.setObjectName("quick_marker_creator")
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(5)
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #f5f6fa;
-                border-radius: 5px;
-            }
-        """)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(8)
+        self.setStyleSheet(QUICK_MARKER_STYLE)
 
         time_layout = QHBoxLayout()
         time_layout.setSpacing(8)
@@ -62,22 +64,8 @@ class QuickMarkerCreator(QWidget):
         time_layout.addStretch()
 
         self.create_btn = QPushButton("创建")
-        self.create_btn.setFixedWidth(50)
-        self.create_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
-        """)
+        self.create_btn.setFixedWidth(54)
+        self.create_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
         self.create_btn.clicked.connect(self.validate_and_create)
         time_layout.addWidget(self.create_btn)
         main_layout.addLayout(time_layout)
@@ -86,22 +74,8 @@ class QuickMarkerCreator(QWidget):
         control_layout.setSpacing(5)
 
         self.preset_btn = QPushButton("预设")
-        self.preset_btn.setFixedWidth(35)
-        self.preset_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 5px;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-            QPushButton:pressed {
-                background-color: #6c7a7b;
-            }
-        """)
+        self.preset_btn.setFixedWidth(44)
+        self.preset_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
         self.preset_btn.clicked.connect(self.show_preset_menu)
         control_layout.addWidget(self.preset_btn)
 
@@ -113,36 +87,12 @@ class QuickMarkerCreator(QWidget):
 
         self.label_input = QLineEdit()
         self.label_input.setPlaceholderText("标记备注")
-        self.label_input.setStyleSheet("""
-            QLineEdit {
-                border: 1px solid #bdc3c7;
-                border-radius: 3px;
-                padding: 4px;
-                background-color: white;
-            }
-            QLineEdit:focus {
-                border: 1px solid #3498db;
-            }
-        """)
+        self.label_input.setStyleSheet(MARKER_LINE_EDIT_STYLE)
         control_layout.addWidget(self.label_input)
 
         self.clear_btn = QPushButton("清空")
         self.clear_btn.setFixedWidth(50)
-        self.clear_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 5px;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-            QPushButton:pressed {
-                background-color: #6c7a7b;
-            }
-        """)
+        self.clear_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
         self.clear_btn.clicked.connect(self.clear_all)
         control_layout.addWidget(self.clear_btn)
         main_layout.addLayout(control_layout)

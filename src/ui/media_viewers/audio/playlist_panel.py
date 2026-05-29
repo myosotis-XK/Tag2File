@@ -1,9 +1,11 @@
 import os
 
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QMenu
 from src.ui.components.style_utils import create_context_menu
+
+from .audio_theme import LIST_PANEL_STYLE
 
 
 class PlaylistPanel(QListWidget):
@@ -15,25 +17,9 @@ class PlaylistPanel(QListWidget):
         self.audio_files = []
         self.current_index = -1
         self.setWindowTitle("播放列表")
-        self.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                background-color: white;
-                outline: none;
-            }
-            QListWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #eee;
-            }
-            QListWidget::item:hover {
-                background-color: rgba(52, 152, 219, 0.1);
-            }
-            QListWidget::item:selected {
-                background-color: rgba(52, 152, 219, 0.3);
-                color: black;
-            }
-        """)
+        self.setAlternatingRowColors(False)
+        self.setUniformItemSizes(False)
+        self.setStyleSheet(LIST_PANEL_STYLE)
         self.itemDoubleClicked.connect(self.on_item_double_clicked)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
@@ -54,6 +40,8 @@ class PlaylistPanel(QListWidget):
                 font = QFont()
                 font.setBold(True)
                 item.setFont(font)
+                item.setForeground(QColor("#1f2d3d"))
+                item.setBackground(QColor("#d8ebff"))
             self.addItem(item)
 
     def update_current_index(self, index):
