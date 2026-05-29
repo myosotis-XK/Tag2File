@@ -1,6 +1,6 @@
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QMenu
+from PyQt5.QtCore import QSize, Qt, pyqtSignal
+from PyQt5.QtGui import QColor, QIcon, QPainter, QPixmap
+from PyQt5.QtWidgets import QAbstractItemView, QListWidget, QListWidgetItem, QMenu
 from src.ui.components.style_utils import create_context_menu
 
 from .audio_utils import marker_display_text, sort_markers
@@ -15,7 +15,8 @@ class MarkerListPanel(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.markers_data = []
-        self.setFocusPolicy(Qt.StrongFocus)
+        self.setIconSize(QSize(12, 32))
+        self.setSelectionMode(QAbstractItemView.NoSelection)
         self.setStyleSheet(LIST_PANEL_STYLE)
         self.itemDoubleClicked.connect(self.on_marker_double_clicked)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -27,27 +28,27 @@ class MarkerListPanel(QListWidget):
 
         for marker in self.markers_data:
             item = QListWidgetItem(marker_display_text(marker))
-            color = QColor(marker['color'])
-            color.setAlpha(50)
-            item.setBackground(color)
+            item.setIcon(self._create_marker_color_icon(marker.get('color', '#3498db')))
             item.setData(Qt.UserRole, marker)
             self.addItem(item)
+
+    def _create_marker_color_icon(self, color):
+        pixmap = QPixmap(12, 32)
+        pixmap.fill(Qt.transparent)
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(color))
+        painter.drawRoundedRect(3, 3, 5, 26, 2, 2)
+        painter.end()
+
+        return QIcon(pixmap)
 
     def on_marker_double_clicked(self, item):
         marker = item.data(Qt.UserRole)
         if marker:
             self.marker_clicked.emit(marker['id'])
-
-    def mousePressEvent(self, event):
-        if not self.itemAt(event.pos()):
-            self.clearSelection()
-            self.setCurrentItem(None)
-        super().mousePressEvent(event)
-
-    def focusOutEvent(self, event):
-        self.clearSelection()
-        self.setCurrentItem(None)
-        super().focusOutEvent(event)
 
     def show_context_menu(self, position):
         item = self.itemAt(position)

@@ -2,7 +2,7 @@ import os
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QFont
-from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QMenu
+from PyQt5.QtWidgets import QAbstractItemView, QListWidget, QListWidgetItem, QMenu
 from src.ui.components.style_utils import create_context_menu
 
 from .audio_theme import LIST_PANEL_STYLE
@@ -19,6 +19,7 @@ class PlaylistPanel(QListWidget):
         self.setWindowTitle("播放列表")
         self.setAlternatingRowColors(False)
         self.setUniformItemSizes(False)
+        self.setSelectionMode(QAbstractItemView.NoSelection)
         self.setStyleSheet(LIST_PANEL_STYLE)
         self.itemDoubleClicked.connect(self.on_item_double_clicked)
         self.setContextMenuPolicy(Qt.CustomContextMenu)

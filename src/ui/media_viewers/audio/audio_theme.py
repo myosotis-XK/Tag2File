@@ -226,9 +226,9 @@ LIST_PANEL_STYLE = f"""
         border-color: #d6e8f8;
     }}
     QListWidget::item:selected {{
-        background-color: {PRIMARY_SOFT};
-        border-color: #9dc8ea;
-        color: #1f2d3d;
+        background-color: transparent;
+        border-color: transparent;
+        color: {TEXT};
     }}
     {SCROLLBAR_STYLE}
 """
