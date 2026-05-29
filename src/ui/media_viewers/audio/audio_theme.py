@@ -213,6 +213,8 @@ LIST_PANEL_STYLE = f"""
         outline: none;
         padding: 6px;
         color: {TEXT};
+        font-family: "Microsoft YaHei", "Segoe UI";
+        font-size: 16px;
         selection-background-color: {PRIMARY_SOFT};
     }}
     QListWidget::item {{
