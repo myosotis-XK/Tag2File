@@ -101,6 +101,25 @@ body {
 
 .lyric-view {
     z-index: 1;
+    overflow: hidden;
+}
+
+.lyric-view::before {
+    content: "";
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    top: 50%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.55);
+    opacity: 0;
+    transform: translateY(-50%);
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.lyric-view.lyric-seeking::before {
+    opacity: 1;
 }
 
 /* 封面视图 */
@@ -142,10 +161,18 @@ body {
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 24px;
+    padding: 42% 24px;
     color: white;
     text-align: center;
     -webkit-overflow-scrolling: touch; /* iOS 平滑滚动 */
+    cursor: grab;
+    scroll-padding-block: 42%;
+    touch-action: pan-y;
+    user-select: none;
+}
+
+.lyric-container.seeking {
+    cursor: grabbing;
 }
 
 /* 隐藏歌词滚动条 */
@@ -161,6 +188,7 @@ body {
 .lyric-container p,
 .lyric-container .lyric-line {
     margin: 8px 0;
+    padding: 2px 8px;
     font-size: 16px;
     line-height: 1.8;
     transition: all 0.3s;
@@ -173,6 +201,21 @@ body {
     font-weight: 600;
     color: #ffd700;
     transform: scale(1.1);
+}
+
+.lyric-container .lyric-line.preview {
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 700;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+    transform: scale(1.08);
+}
+
+.lyric-container.seeking .lyric-line.active:not(.preview) {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 16px;
+    font-weight: 400;
+    transform: none;
 }
 
 /* ========== 进度条 ========== */

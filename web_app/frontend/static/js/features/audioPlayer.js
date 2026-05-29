@@ -14,6 +14,7 @@ import {
   updateAudioPlayerIndex,
 } from './audioPlayerContext.js';
 import {
+  findCenteredLyricLine,
   parseLyricContent,
   renderLyricLines,
   updateLyricActiveLine,
@@ -44,6 +45,13 @@ export class AudioPlayerController {
     this.inPoint = null;
     this.outPoint = null;
     this.isShowingLyric = false;
+    this.isLyricUserSeeking = false;
+    this.hasLyricScrollPreview = false;
+    this.lyricPointerStartScrollTop = 0;
+    this.lyricSeekPreviewIndex = -1;
+    this.lyricScrollCommitTimer = null;
+    this.lyricResumeAutoScrollTimer = null;
+    this.lyricAutoScrollIgnoreUntil = 0;
 
     this.initDOMElements();
     this.cacheInitialUIState();
@@ -127,6 +135,17 @@ export class AudioPlayerController {
     this.progressSlider.addEventListener('input', event => this.onProgressChange(event));
     this.volumeSlider.addEventListener('input', event => this.onVolumeChange(event));
     this.displayArea.addEventListener('click', () => this.toggleDisplayView());
+    this.lyricView.addEventListener('click', event => event.stopPropagation());
+    this.lyricContainer.addEventListener('pointerdown', () => this.startLyricScrollSeek());
+    this.lyricContainer.addEventListener('pointerup', () => this.scheduleLyricScrollSeekEnd());
+    this.lyricContainer.addEventListener('pointercancel', () => this.scheduleLyricScrollSeekEnd());
+    this.lyricContainer.addEventListener('pointerleave', event => {
+      if (event.buttons) {
+        this.scheduleLyricScrollSeekEnd();
+      }
+    });
+    this.lyricContainer.addEventListener('wheel', () => this.startLyricScrollSeek(), { passive: true });
+    this.lyricContainer.addEventListener('scroll', () => this.onLyricScroll(), { passive: true });
 
     this.btnSidebarToggle.addEventListener('click', () => this.openSidebar());
     this.btnSidebarClose.addEventListener('click', () => this.closeSidebar());
@@ -408,12 +427,14 @@ export class AudioPlayerController {
   }
 
   renderLyric() {
+    this.currentLyricIndex = -1;
+    this.cancelLyricScrollSeek();
     renderLyricLines({
       lyricData: this.lyricData,
       lyricContainer: this.lyricContainer,
       emptyHTML: this.defaultLyricHTML,
       onSeek: time => {
-        this.audio.currentTime = time;
+        this.confirmLyricScrollSeek(time);
       },
     });
   }
@@ -521,8 +542,10 @@ export class AudioPlayerController {
   }
 
   onTimeUpdate() {
-    this.progressSlider.value = this.audio.currentTime;
-    this.currentTimeLabel.textContent = this.formatTime(this.audio.currentTime * 1000);
+    if (!this.isLyricUserSeeking) {
+      this.progressSlider.value = this.audio.currentTime;
+      this.currentTimeLabel.textContent = this.formatTime(this.audio.currentTime * 1000);
+    }
     this.updateLyricHighlight();
   }
 
@@ -531,11 +554,109 @@ export class AudioPlayerController {
   }
 
   updateLyricHighlight() {
+    const shouldAutoScroll = !this.isLyricUserSeeking;
+    if (shouldAutoScroll) {
+      this.lyricAutoScrollIgnoreUntil = Date.now() + 500;
+    }
+
     this.currentLyricIndex = updateLyricActiveLine({
       lyricData: this.lyricData,
       lyricContainer: this.lyricContainer,
       currentTime: this.audio.currentTime,
       currentLyricIndex: this.currentLyricIndex,
+      shouldAutoScroll,
+    });
+  }
+
+  startLyricScrollSeek() {
+    if (this.lyricData.length === 0) {
+      return;
+    }
+
+    this.isLyricUserSeeking = true;
+    this.hasLyricScrollPreview = false;
+    this.lyricPointerStartScrollTop = this.lyricContainer.scrollTop;
+    this.lyricContainer.classList.add('seeking');
+    this.lyricView.classList.add('lyric-seeking');
+    clearTimeout(this.lyricResumeAutoScrollTimer);
+  }
+
+  onLyricScroll() {
+    if (this.lyricData.length === 0) {
+      return;
+    }
+
+    if (!this.isLyricUserSeeking && Date.now() < this.lyricAutoScrollIgnoreUntil) {
+      return;
+    }
+
+    if (!this.isLyricUserSeeking) {
+      this.startLyricScrollSeek();
+      this.hasLyricScrollPreview = true;
+    }
+
+    if (Math.abs(this.lyricContainer.scrollTop - this.lyricPointerStartScrollTop) > 2) {
+      this.hasLyricScrollPreview = true;
+    }
+
+    this.previewCenteredLyricSeek();
+    this.scheduleLyricScrollSeekEnd();
+  }
+
+  previewCenteredLyricSeek() {
+    const centeredLine = findCenteredLyricLine(this.lyricContainer);
+    if (!centeredLine) {
+      return;
+    }
+
+    const previewIndex = Number.parseInt(centeredLine.dataset.lyricIndex, 10);
+    const previewTime = Number.parseFloat(centeredLine.dataset.time);
+    if (!Number.isFinite(previewIndex) || !Number.isFinite(previewTime)) {
+      return;
+    }
+
+    this.lyricSeekPreviewIndex = previewIndex;
+    this.lyricContainer.querySelectorAll('.lyric-line').forEach((line, index) => {
+      line.classList.toggle('preview', index === previewIndex);
+    });
+
+    this.progressSlider.value = previewTime;
+    this.currentTimeLabel.textContent = this.formatTime(previewTime * 1000);
+  }
+
+  endLyricScrollSeek() {
+    clearTimeout(this.lyricScrollCommitTimer);
+
+    this.cancelLyricScrollSeek();
+    this.currentLyricIndex = -1;
+    this.updateLyricHighlight();
+  }
+
+  scheduleLyricScrollSeekEnd(delay = 3000) {
+    clearTimeout(this.lyricScrollCommitTimer);
+    this.lyricScrollCommitTimer = setTimeout(() => this.endLyricScrollSeek(), delay);
+  }
+
+  confirmLyricScrollSeek(time) {
+    if (!Number.isFinite(time)) {
+      return;
+    }
+
+    this.audio.currentTime = time;
+    this.cancelLyricScrollSeek();
+    this.updateLyricHighlight();
+  }
+
+  cancelLyricScrollSeek() {
+    clearTimeout(this.lyricScrollCommitTimer);
+    clearTimeout(this.lyricResumeAutoScrollTimer);
+    this.isLyricUserSeeking = false;
+    this.hasLyricScrollPreview = false;
+    this.lyricSeekPreviewIndex = -1;
+    this.lyricContainer.classList.remove('seeking');
+    this.lyricView.classList.remove('lyric-seeking');
+    this.lyricContainer.querySelectorAll('.lyric-line.preview').forEach(line => {
+      line.classList.remove('preview');
     });
   }
 
@@ -577,7 +698,9 @@ export class AudioPlayerController {
     if (this.isShowingLyric) {
       this.coverView.style.opacity = '0';
       this.coverView.style.transform = 'scale(0.9)';
+      this.coverView.style.pointerEvents = 'none';
       this.lyricView.style.display = 'flex';
+      this.lyricView.style.pointerEvents = 'auto';
       setTimeout(() => {
         this.lyricView.style.opacity = '1';
         this.lyricView.style.transform = 'scale(1)';
@@ -585,8 +708,10 @@ export class AudioPlayerController {
     } else {
       this.lyricView.style.opacity = '0';
       this.lyricView.style.transform = 'scale(0.9)';
+      this.lyricView.style.pointerEvents = 'none';
       setTimeout(() => {
         this.lyricView.style.display = 'none';
+        this.coverView.style.pointerEvents = 'auto';
         this.coverView.style.opacity = '1';
         this.coverView.style.transform = 'scale(1)';
       }, 300);
