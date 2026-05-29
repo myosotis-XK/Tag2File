@@ -15,6 +15,7 @@ class MarkerListPanel(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.markers_data = []
+        self.setFocusPolicy(Qt.StrongFocus)
         self.setStyleSheet(LIST_PANEL_STYLE)
         self.itemDoubleClicked.connect(self.on_marker_double_clicked)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -36,6 +37,17 @@ class MarkerListPanel(QListWidget):
         marker = item.data(Qt.UserRole)
         if marker:
             self.marker_clicked.emit(marker['id'])
+
+    def mousePressEvent(self, event):
+        if not self.itemAt(event.pos()):
+            self.clearSelection()
+            self.setCurrentItem(None)
+        super().mousePressEvent(event)
+
+    def focusOutEvent(self, event):
+        self.clearSelection()
+        self.setCurrentItem(None)
+        super().focusOutEvent(event)
 
     def show_context_menu(self, position):
         item = self.itemAt(position)

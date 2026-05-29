@@ -93,7 +93,7 @@ class AudioPlayer(QWidget):
 
         right_panel = QWidget()
         right_panel.setObjectName("audio_player_right_card")
-        right_panel.setMinimumWidth(280)
+        right_panel.setMinimumWidth(300)
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(10, 10, 10, 10)
         right_layout.setSpacing(8)
