@@ -57,6 +57,7 @@ export class AudioPlayerController {
     this.lyricResumeAutoScrollTimer = null;
     this.lyricAutoScrollIgnoreUntil = 0;
     this.suppressNextDisplayToggle = false;
+    this.suppressDisplayToggleUntil = 0;
     this.suppressDisplayToggleTimer = null;
 
     this.initDOMElements();
@@ -621,6 +622,11 @@ export class AudioPlayerController {
       return;
     }
 
+    const releaseTarget = document.elementFromPoint(event.clientX, event.clientY);
+    const clickedLyricLine = releaseTarget?.closest?.('.lyric-line');
+    const shouldConfirmPreview = this.isLyricUserSeeking
+      && clickedLyricLine?.classList.contains('preview');
+
     const pointerId = event?.pointerId ?? this.lyricPointerId;
     if (pointerId !== null && pointerId !== undefined) {
       this.lyricContainer.releasePointerCapture?.(pointerId);
@@ -629,6 +635,19 @@ export class AudioPlayerController {
     this.isLyricPointerActive = false;
     this.lyricPointerId = null;
     this.lyricPointerType = '';
+
+    if (shouldConfirmPreview) {
+      event.preventDefault();
+      this.suppressNextDisplayToggle = true;
+      this.suppressDisplayToggleUntil = Date.now() + 700;
+      clearTimeout(this.suppressDisplayToggleTimer);
+      this.suppressDisplayToggleTimer = setTimeout(() => {
+        this.suppressNextDisplayToggle = false;
+      }, 600);
+      this.seekToLyricLine(clickedLyricLine);
+      return;
+    }
+
     if (this.isLyricUserSeeking) {
       this.scheduleLyricScrollSeekEnd();
     }
@@ -720,14 +739,10 @@ export class AudioPlayerController {
   }
 
   onDisplayAreaClick(event) {
-    if (this.isLyricUserSeeking) {
-      event.preventDefault();
-      return;
-    }
-
-    if (this.suppressNextDisplayToggle) {
+    if (this.suppressNextDisplayToggle || Date.now() < this.suppressDisplayToggleUntil) {
       event.preventDefault();
       this.suppressNextDisplayToggle = false;
+      this.suppressDisplayToggleUntil = 0;
       clearTimeout(this.suppressDisplayToggleTimer);
       return;
     }
@@ -747,8 +762,8 @@ export class AudioPlayerController {
     }
 
     this.audio.currentTime = time;
-    this.suppressNextDisplayToggle = false;
-    clearTimeout(this.suppressDisplayToggleTimer);
+    this.suppressNextDisplayToggle = true;
+    this.suppressDisplayToggleUntil = Date.now() + 700;
     this.cancelLyricScrollSeek();
     this.currentLyricIndex = -1;
     this.updateLyricHighlight();
