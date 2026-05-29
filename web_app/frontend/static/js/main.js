@@ -1,7 +1,7 @@
 import { globalState, initializeState, saveUISettings } from './state.js';
 import { insertAtCursor, debounce } from './utils.js';
 import { searchFiles, clearSearch } from './features/search.js';
-import { setupVirtualGrid } from './features/virtualGrid.js';
+import { goParentOrRestore, loadFolderContents, renderBrowseNav, restoreSearchSnapshot, setupVirtualGrid } from './features/virtualGrid.js';
 import { loadDatabaseList } from './features/database.js';
 
 // 更新按钮样式以反映当前设置
@@ -107,8 +107,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 this.classList.remove('btn-outline-secondary');
                 this.classList.add('btn-outline-primary', 'active');
                 
-                // 4. 重新搜索文件以应用新的排序
-                if (document.getElementById('search-input').value.trim() !== '') {
+                // 4. 搜索模式重新搜索，文件夹浏览模式重新加载当前目录。
+                if (globalState.browseMode === 'folder_browse' && globalState.currentFolder) {
+                    await loadFolderContents(globalState.currentFolder, { preserveRoot: true });
+                } else if (document.getElementById('search-input').value.trim() !== '') {
                     searchFiles();
                 }
             }
@@ -134,8 +136,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 this.classList.remove('btn-outline-secondary');
                 this.classList.add('btn-outline-primary', 'active');
                 
-                // 4. 重新搜索文件以应用新的排序
-                if (document.getElementById('search-input').value.trim() !== '') {
+                // 4. 搜索模式重新搜索，文件夹浏览模式重新加载当前目录。
+                if (globalState.browseMode === 'folder_browse' && globalState.currentFolder) {
+                    await loadFolderContents(globalState.currentFolder, { preserveRoot: true });
+                } else if (document.getElementById('search-input').value.trim() !== '') {
                     searchFiles();
                 }
             }
@@ -147,6 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     initEventListeners();
     loadDatabaseList();
+    renderBrowseNav();
 
     // 阻止点击特定区域时关闭父级下拉菜单的逻辑
     const keepOpenElements = document.querySelectorAll('.keep-open-on-click');
@@ -170,6 +175,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 function initEventListeners() {
     // 搜索按钮点击事件
     document.getElementById('search-btn').addEventListener('click', searchFiles);
+    document.getElementById('restore-search-btn').addEventListener('click', restoreSearchSnapshot);
+    document.getElementById('go-parent-btn').addEventListener('click', goParentOrRestore);
     
     // 搜索输入框回车事件
     document.getElementById('search-input').addEventListener('keypress', function(e) {

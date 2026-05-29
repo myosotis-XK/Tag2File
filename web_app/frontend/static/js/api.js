@@ -123,6 +123,15 @@ export function apiOpenFile(path) {
   return `/open_file?path=${encodeURIComponent(path)}`;
 }
 
+// 获取文件夹内容
+export function apiGetFolderContents({ folderPath, sort_key, sort_order }) {
+  return api.post('/get_folder_contents', {
+    folder_path: folderPath,
+    sort_key,
+    sort_order,
+  });
+}
+
 /**
  * ======================
  * 音频播放器相关

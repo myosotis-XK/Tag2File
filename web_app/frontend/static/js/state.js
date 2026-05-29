@@ -15,7 +15,33 @@ export const globalState = {
         totalItems: 0,
         pageSize: 100, // 每页显示数量
     },
+    browseMode: 'search',
+    searchSnapshot: null,
+    browseRoot: null,
+    currentFolder: null,
+    pendingScrollTop: null,
 };
+
+export function buildVirtualFile(filePath, extra = {}) {
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    const fileName = normalizedPath.split('/').pop() || normalizedPath;
+    return {
+        filePath: normalizedPath,
+        fileName,
+        isDirectory: false,
+        fileSize: 0,
+        fileDate: 0,
+        ...extra,
+    };
+}
+
+export function clearBrowseState() {
+    globalState.browseMode = 'search';
+    globalState.searchSnapshot = null;
+    globalState.browseRoot = null;
+    globalState.currentFolder = null;
+    globalState.pendingScrollTop = null;
+}
 
 import { apiGetUISettings, apiUpdateUISettings } from './api.js';
 // 初始化状态函数

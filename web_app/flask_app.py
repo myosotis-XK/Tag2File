@@ -725,9 +725,13 @@ def get_folder_contents():
     """获取文件夹内容"""
     data = request.json
     folder_path = data.get('folder_path')
+    sort_key = data.get('sort_key', 'name')
+    sort_order = data.get('sort_order', 'desc')
     
     if not folder_path:
         return jsonify({'error': '缺少文件夹路径参数'}), 400
+    if sort_key not in ["name", "size", "date", "random"]:
+        return jsonify({"error": f"错误的排序类型：{sort_key}"}), 400
     
     # 规范化路径
     folder_path = folder_path.rstrip('/').rstrip('\\')
@@ -736,22 +740,41 @@ def get_folder_contents():
         return jsonify({'error': '文件夹不存在或路径无效'}), 404
     
     try:
-        # 获取文件夹中的所有文件和子文件夹
-        files = []
-        for item in os.listdir(folder_path):
-            item_path = os.path.join(folder_path, item)
-            
-            # 只包含文件和文件夹，排除隐藏文件和系统文件
-            if not item.startswith('.'):
-                files.append(item_path)
-        
-        # 按名称排序
-        files.sort()
+        # 与桌面端 MainWindow.show_folder 保持一致：
+        # 同时列出子文件夹和文件，并补齐大小/时间元数据后再按当前排序规则排序。
+        file_items: list[tuple[str, int, float]] = []
+        file_entries: list[dict] = []
+        with os.scandir(folder_path) as entries:
+            for entry in entries:
+                if entry.name.startswith('.'):
+                    continue
+                try:
+                    stat_info = entry.stat()
+                    is_dir = entry.is_dir()
+                except OSError:
+                    continue
+
+                normalized_path = entry.path.replace("\\", "/")
+                file_size = 0 if is_dir else stat_info.st_size
+                file_date = stat_info.st_mtime
+                file_items.append((normalized_path, file_size, file_date))
+                file_entries.append({
+                    'file_path': normalized_path,
+                    'file_name': entry.name,
+                    'file_size': file_size,
+                    'file_date': file_date,
+                    'is_dir': is_dir,
+                })
+
+        _sort_files(file_items, sort_key, sort_order)
+        entry_map = {entry['file_path']: entry for entry in file_entries}
+        sorted_entries = [entry_map[item[0]] for item in file_items if item[0] in entry_map]
         
         return jsonify({
-            'files': files,
+            'files': sorted_entries,
             'folder_name': os.path.basename(folder_path),
-            'total_count': len(files)
+            'folder_path': folder_path.replace("\\", "/"),
+            'total_count': len(sorted_entries)
         })
         
     except Exception as e:

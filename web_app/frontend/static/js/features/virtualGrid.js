@@ -1,5 +1,5 @@
-import { globalState, saveUISettings } from '../state.js';
-import { apiGetThumbnail, apiOpenFile, apiSearchFiles } from '../api.js';
+import { buildVirtualFile, clearBrowseState, globalState, saveUISettings } from '../state.js';
+import { apiGetFolderContents, apiGetThumbnail, apiOpenFile, apiSearchFiles } from '../api.js';
 import { throttle } from '../utils.js';
 import { saveAudioPlayerContext } from './audioPlayerContext.js';
 
@@ -35,28 +35,159 @@ async function isDirectory(filePath) {
     }
 }
 
-// 获取文件夹内容
-async function getFolderContents(folderPath) {
-    try {
-        const response = await fetch('/get_folder_contents', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ folder_path: folderPath })
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            return data.files || [];
-        } else {
-            console.error('获取文件夹内容失败:', response.statusText);
-            return [];
-        }
-    } catch (error) {
-        console.error('获取文件夹内容错误:', error);
-        return [];
+function normalizeFolderItems(items = []) {
+    return items.map(item => buildVirtualFile(item.file_path, {
+        fileName: item.file_name,
+        isDirectory: item.is_dir === true,
+        fileSize: item.file_size || 0,
+        fileDate: item.file_date || 0,
+    }));
+}
+
+function isBrowsingFolder() {
+    return globalState.browseMode === 'folder_browse';
+}
+
+function getResultsContainer() {
+    return document.getElementById('results-container');
+}
+
+function getSearchQuery() {
+    return document.getElementById('search-input').value.trim();
+}
+
+function showLoadingMessage(message) {
+    const resultsContainer = getResultsContainer();
+    resultsContainer.innerHTML = `
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>${message}</p>
+        </div>
+    `;
+}
+
+function captureSearchSnapshot() {
+    const container = document.getElementById('virtual-container');
+    return {
+        query: getSearchQuery(),
+        virtualFiles: globalState.virtualFiles.map(file => ({ ...file })),
+        pagination: { ...globalState.pagination },
+        scrollTop: container ? container.scrollTop : 0,
+    };
+}
+
+function updateFolderBrowseState(folderPath) {
+    const normalizedPath = folderPath.replace(/\\/g, '/');
+    if (!isBrowsingFolder()) {
+        globalState.searchSnapshot = captureSearchSnapshot();
+        globalState.browseRoot = normalizedPath;
     }
+    globalState.browseMode = 'folder_browse';
+    globalState.currentFolder = normalizedPath;
+    globalState.pendingScrollTop = 0;
+    renderBrowseNav();
+}
+
+export function renderBrowseNav() {
+    const navBar = document.getElementById('folder-browse-nav');
+    const restoreButton = document.getElementById('restore-search-btn');
+    const parentButton = document.getElementById('go-parent-btn');
+    const currentPathLabel = document.getElementById('current-folder-path');
+
+    if (!navBar || !restoreButton || !parentButton || !currentPathLabel) {
+        return;
+    }
+
+    const inBrowseMode = isBrowsingFolder();
+    navBar.classList.toggle('d-none', !inBrowseMode);
+    restoreButton.disabled = !inBrowseMode || !globalState.searchSnapshot;
+    parentButton.disabled = !inBrowseMode;
+    currentPathLabel.textContent = globalState.currentFolder || '';
+    currentPathLabel.title = globalState.currentFolder || '';
+}
+
+export async function loadFolderContents(folderPath, options = {}) {
+    const { preserveRoot = false } = options;
+    showLoadingMessage('加载文件夹内容...');
+
+    try {
+        const response = await apiGetFolderContents({
+            folderPath,
+            sort_key: globalState.currentSortKey,
+            sort_order: globalState.currentSortOrder,
+        });
+        const files = normalizeFolderItems(response.data.files || []);
+
+        if (!preserveRoot || !globalState.browseRoot) {
+            updateFolderBrowseState(folderPath);
+        } else {
+            globalState.browseMode = 'folder_browse';
+            globalState.currentFolder = folderPath.replace(/\\/g, '/');
+            globalState.pendingScrollTop = 0;
+            renderBrowseNav();
+        }
+
+        globalState.virtualFiles = files;
+        globalState.pagination.currentPage = 1;
+        globalState.pagination.totalPages = 1;
+        globalState.pagination.totalItems = files.length;
+        setupVirtualGrid();
+    } catch (error) {
+        console.error('加载文件夹内容失败:', error);
+        getResultsContainer().innerHTML = `
+            <div class="text-center text-danger py-5">
+                <i class="fa fa-exclamation-circle fa-3x mb-3"></i>
+                <p>加载文件夹内容失败</p>
+            </div>
+        `;
+    }
+}
+
+export function restoreSearchSnapshot() {
+    const snapshot = globalState.searchSnapshot;
+    if (!snapshot) {
+        clearBrowseState();
+        renderBrowseNav();
+        globalState.virtualFiles = [];
+        globalState.pagination.currentPage = 1;
+        globalState.pagination.totalPages = 1;
+        globalState.pagination.totalItems = 0;
+        setupVirtualGrid();
+        return;
+    }
+
+    globalState.virtualFiles = snapshot.virtualFiles.map(file => ({ ...file }));
+    globalState.pagination = { ...snapshot.pagination };
+    clearBrowseState();
+    globalState.pendingScrollTop = snapshot.scrollTop || 0;
+    document.getElementById('search-input').value = snapshot.query || '';
+    renderBrowseNav();
+    setupVirtualGrid();
+}
+
+export async function goParentOrRestore() {
+    if (!isBrowsingFolder() || !globalState.currentFolder || !globalState.browseRoot) {
+        restoreSearchSnapshot();
+        return;
+    }
+
+    const currentFolder = globalState.currentFolder.replace(/\\/g, '/');
+    const browseRoot = globalState.browseRoot.replace(/\\/g, '/');
+    const parentFolder = currentFolder.includes('/') ? currentFolder.slice(0, currentFolder.lastIndexOf('/')) : '';
+
+    if (!parentFolder || parentFolder === currentFolder) {
+        restoreSearchSnapshot();
+        return;
+    }
+
+    const normalizedRoot = browseRoot.endsWith('/') ? browseRoot : `${browseRoot}/`;
+    const withinRoot = parentFolder === browseRoot || parentFolder.startsWith(normalizedRoot);
+    if (!withinRoot) {
+        restoreSearchSnapshot();
+        return;
+    }
+
+    await loadFolderContents(parentFolder, { preserveRoot: true });
 }
 
 // 核心渲染函数：设置和渲染虚拟网格
@@ -70,7 +201,7 @@ export function setupVirtualGrid() {
         resultsContainer.innerHTML = `
             <div class="text-center text-muted py-5">
                 <i class="fa fa-folder-open-o fa-3x mb-3"></i>
-                <p>未找到匹配的文件</p>
+                <p>${isBrowsingFolder() ? '文件夹为空' : '未找到匹配的文件'}</p>
             </div>
         `;
         return;
@@ -115,12 +246,10 @@ export function setupVirtualGrid() {
     // --- 虚拟滚动参数计算 ---
     const itemHeight = globalState.sizeMap[globalState.currentIconSize] + 80; // 图片 + 名称 + margin (增加高度以适应多行文本)
     const gridWidth = container.clientWidth;
-    console.log('Grid Container ClientWidth:', gridWidth);
     if (gridWidth === 0) return; 
 
     // 计算列数 (缩略图宽度 + gap 5px)
     const columns = Math.floor(gridWidth / (globalState.sizeMap[globalState.currentIconSize] + 2)); 
-    console.log('Grid Container columns:', columns);
     if (columns === 0) return;
     
     // 使用完整的文件列表（API已经返回了当前页的数据）
@@ -140,15 +269,29 @@ export function setupVirtualGrid() {
     }
 
     // 重新渲染当前可见项目
-    console.log(globalState.virtualFiles.length);
     renderVisibleItems(true); 
     
-    // 添加分页控件
-    addPaginationControls(resultsContainer);
+    // 文件夹浏览模式下与桌面端一致，不显示分页。
+    if (isBrowsingFolder()) {
+        const existingPagination = document.getElementById('pagination-controls');
+        if (existingPagination) {
+            existingPagination.remove();
+        }
+    } else {
+        addPaginationControls(resultsContainer);
+    }
+
+    if (typeof globalState.pendingScrollTop === 'number') {
+        container.scrollTop = globalState.pendingScrollTop;
+        globalState.pendingScrollTop = null;
+    }
 }
 
 // 添加分页控件
 function addPaginationControls(resultsContainer) {
+    if (isBrowsingFolder()) {
+        return;
+    }
     // 移除现有的分页控件
     const existingPagination = document.getElementById('pagination-controls');
     if (existingPagination) {
@@ -224,32 +367,19 @@ function addPaginationControls(resultsContainer) {
             `;
             
             try {
-                // 调用后端API获取指定页面和页面大小的数据
                 const response = await apiSearchFiles({
                     tagExpression: query,
                     specialTagsStatus: globalState.specialTagsStatus,
                     sort_key: globalState.currentSortKey,
                     sort_order: globalState.currentSortOrder,
-                    page: 1, // 总是获取第一页
+                    page: 1,
                     page_size: globalState.pagination.pageSize,
                 });
-                
-                // 更新分页状态
                 globalState.pagination.currentPage = response.data.pagination.page;
                 globalState.pagination.totalPages = response.data.pagination.pages;
                 globalState.pagination.totalItems = response.data.pagination.total;
                 globalState.pagination.pageSize = response.data.pagination.page_size;
-                
-                // 更新文件列表
-                globalState.virtualFiles = response.data.file_paths.map(filePath => {
-                    const fileName = filePath.split('\\').pop().split('/').pop();
-                    return { 
-                        filePath, 
-                        fileName
-                    };
-                });
-                
-                // 重新渲染网格
+                globalState.virtualFiles = response.data.file_paths.map(filePath => buildVirtualFile(filePath));
                 setupVirtualGrid();
             } catch (error) {
                 console.error('更改每页数量失败:', error);
@@ -286,7 +416,6 @@ function addPaginationControls(resultsContainer) {
                     `;
                     
                     try {
-                        // 调用后端API获取指定页面的数据
                         const response = await apiSearchFiles({
                             tagExpression: query,
                             specialTagsStatus: globalState.specialTagsStatus,
@@ -295,23 +424,11 @@ function addPaginationControls(resultsContainer) {
                             page: targetPage,
                             page_size: globalState.pagination.pageSize,
                         });
-                        
-                        // 更新分页状态
                         globalState.pagination.currentPage = response.data.pagination.page;
                         globalState.pagination.totalPages = response.data.pagination.pages;
                         globalState.pagination.totalItems = response.data.pagination.total;
                         globalState.pagination.pageSize = response.data.pagination.page_size;
-                        
-                        // 更新文件列表
-                        globalState.virtualFiles = response.data.file_paths.map(filePath => {
-                            const fileName = filePath.split('\\').pop().split('/').pop();
-                            return { 
-                                filePath, 
-                                fileName
-                            };
-                        });
-                        
-                        // 重新渲染网格
+                        globalState.virtualFiles = response.data.file_paths.map(filePath => buildVirtualFile(filePath));
                         setupVirtualGrid();
                     } catch (error) {
                         console.error('获取分页数据失败:', error);
@@ -389,60 +506,9 @@ function renderVisibleItems(forceRefresh = false) {
                 // 绑定点击事件
                 item.addEventListener('click', async () => {
                     // 检测是否为文件夹
-                    if (await isDirectory(file.filePath)) {
-                        // 显示加载状态
-                        const resultsContainer = document.getElementById('results-container');
-                        resultsContainer.innerHTML = `
-                            <div class="loading">
-                                <div class="spinner"></div>
-                                <p>加载文件夹内容...</p>
-                            </div>
-                        `;
-                        
-                        try {
-                            // 获取文件夹内容
-                            const folderContents = await getFolderContents(file.filePath);
-                            
-                            if (folderContents.length > 0) {
-                                // 更新文件列表为文件夹内容
-                                globalState.virtualFiles = folderContents.map(filePath => {
-                                    const fileName = filePath.split('\\').pop().split('/').pop();
-                                    return { 
-                                        filePath, 
-                                        fileName
-                                    };
-                                });
-                                
-                                // 更新分页状态（文件夹内容不分页）
-                                globalState.pagination.currentPage = 1;
-                                globalState.pagination.totalPages = 1;
-                                globalState.pagination.totalItems = folderContents.length;
-                                
-                                // 添加文件夹路径到历史堆栈
-                                if (!globalState.folderHistory) {
-                                    globalState.folderHistory = [];
-                                }
-                                globalState.folderHistory.push(file.filePath);
-                                
-                                // 重新渲染网格
-                                setupVirtualGrid();
-                            } else {
-                                resultsContainer.innerHTML = `
-                                    <div class="text-center text-muted py-5">
-                                        <i class="fa fa-folder-open-o fa-3x mb-3"></i>
-                                        <p>文件夹为空</p>
-                                    </div>
-                                `;
-                            }
-                        } catch (error) {
-                            console.error('加载文件夹内容失败:', error);
-                            resultsContainer.innerHTML = `
-                                <div class="text-center text-danger py-5">
-                                    <i class="fa fa-exclamation-circle fa-3x mb-3"></i>
-                                    <p>加载文件夹内容失败</p>
-                                </div>
-                            `;
-                        }
+                    const directory = file.isDirectory === true || await isDirectory(file.filePath);
+                    if (directory) {
+                        await loadFolderContents(file.filePath);
                     } else {
                         // 检测是否为音频文件
                         if (isAudioFile(file.filePath)) {

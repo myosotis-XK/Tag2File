@@ -1,8 +1,8 @@
 // /src/components/search.js
 
 import { apiSearchFiles } from '../api.js';
-import { globalState } from '../state.js';
-import { setupVirtualGrid } from './virtualGrid.js';
+import { buildVirtualFile, clearBrowseState, globalState } from '../state.js';
+import { renderBrowseNav, setupVirtualGrid } from './virtualGrid.js';
 
 // 搜索文件
 export function searchFiles(pageOrEvent) {
@@ -20,6 +20,8 @@ export function searchFiles(pageOrEvent) {
     
     const query = document.getElementById('search-input').value;
     if (!query.trim()) {
+        clearBrowseState();
+        renderBrowseNav();
         showEmptyResults();
         return;
     }
@@ -37,12 +39,13 @@ export function searchFiles(pageOrEvent) {
         page_size: globalState.pagination.pageSize,
     })
     .then(response => {
+        clearBrowseState();
         // 更新分页状态
         globalState.pagination.currentPage = response.data.pagination.page;
         globalState.pagination.totalPages = response.data.pagination.pages;
         globalState.pagination.totalItems = response.data.pagination.total;
         globalState.pagination.pageSize = response.data.pagination.page_size;
-        console.log('Total Pages:', globalState.pagination);
+        renderBrowseNav();
         
         // 显示分页结果
         displayResults(response.data.file_paths);
@@ -64,6 +67,9 @@ export function clearSearch() {
         tag.classList.remove('active');
     });
     
+    clearBrowseState();
+    renderBrowseNav();
+
     // 重置结果显示
     showEmptyResults();
 }
@@ -105,13 +111,7 @@ function showEmptyResults() {
 
 function displayResults(filePaths) {
     // 1. 转换并缓存文件数据
-    globalState.virtualFiles = filePaths.map(filePath => {
-        const fileName = filePath.split('\\').pop().split('/').pop();
-        return { 
-            filePath, 
-            fileName
-        };
-    });
+    globalState.virtualFiles = filePaths.map(filePath => buildVirtualFile(filePath));
     
     // 2. 设置和渲染网格
     globalState.renderedIndexes = new Set(); // 重置索引

@@ -8,7 +8,6 @@ from PyQt5.QtWidgets import (
     QLayout,
     QScrollArea,
     QSizePolicy,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -63,11 +62,13 @@ class SingleFileTagView(QScrollArea):
         apply_scroll_area_style(fileinfo_area, tone="soft")
         fileinfo_widget = QWidget()
         fileinfo_widget.setStyleSheet("background-color: #f8fbff;")
-        self.text_edit = QTextEdit(fileinfo_widget)
-        self.text_edit.setReadOnly(True)
-        self.text_edit.setFont(QFont("Arial", 12))
-        self.text_edit.setStyleSheet("""
-            QTextEdit {
+        self.info_label = QLabel(fileinfo_widget)
+        self.info_label.setFont(QFont("Arial", 12))
+        self.info_label.setWordWrap(True)
+        self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.info_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.info_label.setStyleSheet("""
+            QLabel {
                 background-color: transparent;
                 border: none;
                 color: #314456;
@@ -76,7 +77,7 @@ class SingleFileTagView(QScrollArea):
         """)
         layout = QVBoxLayout(fileinfo_widget)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.text_edit)
+        layout.addWidget(self.info_label)
         fileinfo_area.setWidget(fileinfo_widget)
         fileinfo_area.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         fileinfo_area.setMaximumWidth(250)
@@ -168,7 +169,7 @@ class SingleFileTagView(QScrollArea):
         view = self.TagFileShowArea.get_file_view(self.current_file_path)
         if view is None:
             self.pixmap = QPixmap()
-            self.text_edit.clear()
+            self.info_label.clear()
         else:
             self.pixmap = QPixmap(view.file_path)
             if self.pixmap.isNull() and view.icon_source is not None:
@@ -181,7 +182,8 @@ class SingleFileTagView(QScrollArea):
                 f"<div style='margin-top:10px;'><span style='color:#6b7b8c;'>修改时间</span><br>{datetime.fromtimestamp(view.file_date).strftime('%Y年%m月%d日，%H:%M:%S')}</div>"
                 "</div>"
             )
-            self.text_edit.setHtml(message)
+            self.info_label.setTextFormat(Qt.RichText)
+            self.info_label.setText(message)
         self.image_viewer.load_image(self.pixmap)
         self.update_tags()
 

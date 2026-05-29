@@ -221,6 +221,26 @@ body {
     background-color: #ffffff;
     padding: 0px;
 }
+.folder-browse-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 6px 8px;
+    margin-bottom: 10px;
+    background-color: #f8fbff;
+    border: 1px solid #d9e4ef;
+    border-radius: 8px;
+}
+
+.current-folder-path {
+    min-width: 0;
+    flex: 1;
+    color: #435466;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .file-item {
     padding: 0px;
     margin-bottom: 5px;
