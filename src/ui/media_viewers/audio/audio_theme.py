@@ -183,7 +183,7 @@ LYRIC_STYLE = """
 LYRIC_HOVER_STYLE = """
     QLabel {
         color: #2980b9;
-        background-color: #e8f3fc;
+        background-color: transparent;
         border: none;
         border-radius: 8px;
         font-size: 18px;
@@ -195,12 +195,12 @@ LYRIC_HOVER_STYLE = """
 LYRIC_CURRENT_STYLE = """
     QLabel {
         color: #1f6fa5;
-        background-color: #dff0fb;
-        border: 1px solid #b8d9f0;
+        background-color: transparent;
+        border: none;
         border-radius: 10px;
         font-size: 19px;
         font-weight: 700;
-        padding: 5px 12px;
+        padding: 3px 10px;
     }
 """
 
