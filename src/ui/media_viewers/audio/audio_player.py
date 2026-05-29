@@ -1,7 +1,7 @@
 import os
 
-from PyQt5.QtCore import QPoint, Qt, QUrl
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtCore import QPoint, QSize, Qt, QUrl
+from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
 from PyQt5.QtWidgets import (
     QHBoxLayout,
@@ -14,6 +14,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from src.utils.path import root
 
 from .audio_utils import format_time, marker_jump_position, normalize_audio_path
 from .audio_theme import (
@@ -36,6 +38,7 @@ from .quick_marker_creator import QuickMarkerCreator
 
 
 WINDOW_TITLE = "高级音频播放器"
+AUDIO_ICON_DIR = os.path.join(root, "data", "icon", "audio")
 
 
 class AudioPlayer(QWidget):
@@ -164,11 +167,11 @@ class AudioPlayer(QWidget):
         center_layout = QHBoxLayout()
         center_layout.setSpacing(8)
 
-        self.btn_mode = self._create_icon_button("🔁", "顺序播放", self.toggle_play_mode)
-        self.btn_previous = self._create_icon_button("⏮", "上一首", self.play_previous)
-        self.btn_play = self._create_icon_button("▶️", "播放", self.toggle_play)
-        self.btn_next = self._create_icon_button("⏭", "下一首", self.play_next)
-        self.btn_volume = self._create_icon_button("🔊", "音量", self.toggle_volume_slider)
+        self.btn_mode = self._create_icon_button("repeat", "顺序播放", self.toggle_play_mode)
+        self.btn_previous = self._create_icon_button("previous", "上一首", self.play_previous)
+        self.btn_play = self._create_icon_button("play", "播放", self.toggle_play)
+        self.btn_next = self._create_icon_button("next", "下一首", self.play_next)
+        self.btn_volume = self._create_icon_button("volume", "音量", self.toggle_volume_slider)
         self._set_play_button_style()
 
         for button in (
@@ -184,17 +187,24 @@ class AudioPlayer(QWidget):
         control_layout.addStretch()
         return control_layout
 
-    def _create_icon_button(self, text, tooltip, callback):
-        button = QPushButton(text)
+    def _create_icon_button(self, icon_name, tooltip, callback):
+        button = QPushButton()
         button.setFixedSize(40, 40)
+        button.setIconSize(QSize(20, 20))
         button.setToolTip(tooltip)
         button.setStyleSheet(ICON_BUTTON_STYLE)
+        self._set_button_icon(button, icon_name)
         button.clicked.connect(callback)
         return button
 
     def _set_play_button_style(self):
         self.btn_play.setFixedSize(46, 46)
+        self.btn_play.setIconSize(QSize(22, 22))
         self.btn_play.setStyleSheet(PLAY_BUTTON_STYLE)
+
+    def _set_button_icon(self, button, icon_name):
+        icon_path = os.path.join(AUDIO_ICON_DIR, f"{icon_name}.svg")
+        button.setIcon(QIcon(icon_path))
 
     def _connect_signals(self):
         self.player.positionChanged.connect(self.on_position_changed)
@@ -279,10 +289,10 @@ class AudioPlayer(QWidget):
 
     def on_state_changed(self, state):
         if state == QMediaPlayer.PlayingState:
-            self.btn_play.setText("⏸")
+            self._set_button_icon(self.btn_play, "pause")
             self.btn_play.setToolTip("暂停")
         else:
-            self.btn_play.setText("▶️")
+            self._set_button_icon(self.btn_play, "play")
             self.btn_play.setToolTip("播放")
 
     def on_position_changed(self, ms):
@@ -306,11 +316,11 @@ class AudioPlayer(QWidget):
         self.player.setVolume(value)
         self.volume_value_label.setText(str(value))
         if value == 0:
-            self.btn_volume.setText("🔇")
+            self._set_button_icon(self.btn_volume, "mute")
         elif value < 50:
-            self.btn_volume.setText("🔉")
+            self._set_button_icon(self.btn_volume, "volume_low")
         else:
-            self.btn_volume.setText("🔊")
+            self._set_button_icon(self.btn_volume, "volume")
 
     def on_player_error(self, *_args):
         QMessageBox.critical(self, "Playback Error", self.player.errorString())
@@ -392,13 +402,13 @@ class AudioPlayer(QWidget):
     def toggle_play_mode(self):
         self.play_mode = (self.play_mode + 1) % 3
         if self.play_mode == 0:
-            self.btn_mode.setText("🔁")
+            self._set_button_icon(self.btn_mode, "repeat")
             self.btn_mode.setToolTip("顺序播放")
         elif self.play_mode == 1:
-            self.btn_mode.setText("🔀")
+            self._set_button_icon(self.btn_mode, "shuffle")
             self.btn_mode.setToolTip("随机播放")
         else:
-            self.btn_mode.setText("🔂")
+            self._set_button_icon(self.btn_mode, "repeat_one")
             self.btn_mode.setToolTip("单曲循环")
 
     def on_playlist_audio_selected(self, index):

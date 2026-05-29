@@ -94,15 +94,17 @@ PLAYER_STYLE = f"""
 
 ICON_BUTTON_STYLE = f"""
     QPushButton {{
-        background-color: {CONTROL_BG};
-        color: {TEXT};
+        background-color: {SURFACE};
+        color: #1f6fa5;
         border: 1px solid {BORDER_STRONG};
         border-radius: 20px;
-        font-size: 19px;
-        padding-bottom: 1px;
+        font-family: "Segoe UI Symbol", "Microsoft YaHei";
+        font-size: 18px;
+        font-weight: 700;
+        padding-bottom: 2px;
     }}
     QPushButton:hover {{
-        background-color: #e3eff8;
+        background-color: #edf6fd;
         border-color: #9fbedb;
     }}
     QPushButton:pressed {{
@@ -117,9 +119,10 @@ PLAY_BUTTON_STYLE = f"""
         color: white;
         border: 1px solid {PRIMARY};
         border-radius: 23px;
-        font-size: 21px;
+        font-family: "Segoe UI Symbol", "Microsoft YaHei";
+        font-size: 20px;
         font-weight: 700;
-        padding-bottom: 1px;
+        padding-bottom: 2px;
     }}
     QPushButton:hover {{
         background-color: {PRIMARY_DARK};
