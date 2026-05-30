@@ -45,6 +45,7 @@ class MultiImageViewer(QMainWindow):
 
         # 创建关闭按钮 (使用QPushButton替代QLabel)
         self.close_button = QPushButton("×", self)
+        self.close_button.setFocusPolicy(Qt.NoFocus)
         self.close_button.setStyleSheet("""
             QPushButton {
                 background-color: rgba(0, 0, 0, 120);

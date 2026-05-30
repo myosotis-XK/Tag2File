@@ -8,12 +8,14 @@ from PyQt5.QtWidgets import QApplication
 if hasattr(QApplication, 'setAttribute'):
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    QApplication.setAttribute(Qt.AA_DontUseNativeDialogs, True)
 app = QApplication(sys.argv)
 
 from src.utils import set_application_font
 from src.core import StartTask
 from web_app.flask_app import app as flask_app
 from src.ui.MainWindow import Tag2File
+from src.ui.components.style_utils import install_application_style
 
 
 def start_flask_server_thread():
@@ -36,6 +38,7 @@ def start_task_processing():
 if __name__ == '__main__':
     multiprocessing.freeze_support()  # 支持 Windows 下的多进程启动
     set_application_font()
+    install_application_style(app)
     viewer = Tag2File()
     start_task_processing()
     start_flask_server_thread()

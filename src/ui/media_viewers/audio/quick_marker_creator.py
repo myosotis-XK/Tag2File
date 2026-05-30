@@ -65,6 +65,7 @@ class QuickMarkerCreator(QWidget):
 
         self.create_btn = QPushButton("创建")
         self.create_btn.setFixedWidth(54)
+        self.create_btn.setFocusPolicy(Qt.NoFocus)
         self.create_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
         self.create_btn.clicked.connect(self.validate_and_create)
         time_layout.addWidget(self.create_btn)
@@ -75,6 +76,7 @@ class QuickMarkerCreator(QWidget):
 
         self.preset_btn = QPushButton("预设")
         self.preset_btn.setFixedWidth(44)
+        self.preset_btn.setFocusPolicy(Qt.NoFocus)
         self.preset_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
         self.preset_btn.clicked.connect(self.show_preset_menu)
         control_layout.addWidget(self.preset_btn)
@@ -92,6 +94,7 @@ class QuickMarkerCreator(QWidget):
 
         self.clear_btn = QPushButton("清空")
         self.clear_btn.setFixedWidth(50)
+        self.clear_btn.setFocusPolicy(Qt.NoFocus)
         self.clear_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
         self.clear_btn.clicked.connect(self.clear_all)
         control_layout.addWidget(self.clear_btn)

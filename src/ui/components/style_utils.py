@@ -1,7 +1,131 @@
-# src/ui/components/style_utils.py
 from PyQt5.QtWidgets import QFrame, QLabel, QLineEdit, QMenu, QPushButton, QScrollArea, QWidget
 from PyQt5.QtGui import QColor
 from PyQt5.QtCore import Qt
+
+
+def build_dialog_qss():
+    """
+    构建桌面对话框相关控件的统一 QSS。
+    """
+    return """
+        QDialog, QMessageBox, QInputDialog, QFileDialog, QColorDialog {
+            background-color: #f4f7fb;
+            color: #243447;
+        }
+        QLabel {
+            color: #243447;
+            background-color: transparent;
+        }
+        QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QListView, QTreeView {
+            background-color: #fbfdff;
+            color: #243447;
+            border: 1px solid #bfd0e0;
+            border-radius: 8px;
+            padding: 5px 8px;
+            selection-background-color: #d8ebff;
+            font-size: 14px;
+        }
+        QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus {
+            border: 1px solid #7ea8d6;
+            background-color: #ffffff;
+        }
+        QComboBox::drop-down {
+            border: none;
+            width: 24px;
+        }
+        QComboBox::down-arrow {
+            width: 10px;
+            height: 10px;
+        }
+        QGroupBox {
+            color: #243447;
+            border: 1px solid #d6e1ec;
+            border-radius: 10px;
+            margin-top: 10px;
+            padding-top: 10px;
+            background-color: #f8fbff;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0px 4px;
+        }
+        QListWidget, QTreeWidget {
+            background-color: #fbfdff;
+            color: #243447;
+            border: 1px solid #bfd0e0;
+            border-radius: 10px;
+            padding: 6px;
+            outline: none;
+            font-size: 14px;
+        }
+        QListWidget::item, QTreeWidget::item {
+            padding: 6px 10px;
+            margin: 1px 0px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+        }
+        QListWidget::item:hover, QTreeWidget::item:hover {
+            background-color: #eef5fc;
+            border-color: #d9e7f5;
+        }
+        QListWidget::item:selected, QTreeWidget::item:selected {
+            background-color: #d8ebff;
+            color: #1f2d3d;
+            border-color: #7ea8d6;
+        }
+        QHeaderView::section {
+            background-color: #eef4fa;
+            color: #435466;
+            border: none;
+            border-bottom: 1px solid #d6e1ec;
+            padding: 6px 8px;
+            font-weight: 600;
+        }
+        QScrollArea {
+            background-color: #f8fbff;
+            border: 1px solid #d6e1ec;
+            border-radius: 10px;
+        }
+        QScrollArea > QWidget > QWidget {
+            background-color: #f8fbff;
+            border: none;
+        }
+        QDialog QPushButton, QMessageBox QPushButton, QInputDialog QPushButton,
+        QFileDialog QPushButton, QColorDialog QPushButton {
+            background-color: #f8fbff;
+            color: #243447;
+            border: 1px solid #bfd0e0;
+            border-radius: 6px;
+            padding: 3px 8px;
+            font-size: 13px;
+            min-height: 24px;
+        }
+        QDialog QPushButton:hover, QMessageBox QPushButton:hover, QInputDialog QPushButton:hover,
+        QFileDialog QPushButton:hover, QColorDialog QPushButton:hover {
+            background-color: #e7f1fb;
+            border-color: #7ea8d6;
+        }
+        QDialog QPushButton:pressed, QMessageBox QPushButton:pressed, QInputDialog QPushButton:pressed,
+        QFileDialog QPushButton:pressed, QColorDialog QPushButton:pressed {
+            background-color: #d8e8f8;
+        }
+        QDialogButtonBox QPushButton {
+            min-width: 42px;
+            min-height: 24px;
+        }
+    """
+
+
+def install_application_style(app):
+    """
+    为整个应用安装统一的桌面对话框样式。
+    """
+    existing = app.styleSheet() or ""
+    dialog_qss = build_dialog_qss()
+    if dialog_qss not in existing:
+        app.setStyleSheet(f"{existing}\n{dialog_qss}".strip())
+    return app
 
 
 def _to_qcolor(color):
@@ -99,6 +223,7 @@ def apply_color_preview_button_style(
     """
     tokens = build_tag_color_tokens(color)
     hover_border_width = 2 if hover_border_width is None else hover_border_width
+    button.setFocusPolicy(Qt.NoFocus)
     button.setStyleSheet(f"""
         QPushButton {{
             background-color: {tokens['bg_normal'].name()};
@@ -197,6 +322,7 @@ def apply_button_style(button, variant="default", size="default"):
     palette = styles.get(variant, styles["default"])
     metrics = size_styles.get(size, size_styles["default"])
     button.setCursor(Qt.PointingHandCursor)
+    button.setFocusPolicy(Qt.NoFocus)
     button.setStyleSheet(f"""
         QPushButton {{
             background-color: {palette['bg']};
@@ -310,6 +436,75 @@ def apply_line_edit_style(line_edit, compact=False):
         }}
     """)
     return line_edit
+
+
+def apply_list_widget_style(list_widget, compact=False):
+    """
+    给列表控件应用统一的浅色面板样式。
+    """
+    border_radius = 8 if compact else 10
+    padding = 4 if compact else 6
+    item_padding_v = 4 if compact else 6
+    item_padding_h = 8 if compact else 10
+    list_widget.setStyleSheet(f"""
+        QListWidget {{
+            background-color: #fbfdff;
+            color: #243447;
+            border: 1px solid #bfd0e0;
+            border-radius: {border_radius}px;
+            padding: {padding}px;
+            outline: none;
+            font-size: 14px;
+        }}
+        QListWidget::item {{
+            padding: {item_padding_v}px {item_padding_h}px;
+            margin: 1px 0px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+        }}
+        QListWidget::item:hover {{
+            background-color: #eef5fc;
+            border-color: #d9e7f5;
+        }}
+        QListWidget::item:selected {{
+            background-color: #d8ebff;
+            color: #1f2d3d;
+            border-color: #7ea8d6;
+        }}
+    """)
+    return list_widget
+
+
+def apply_dialog_style(dialog):
+    """
+    给 QDialog 应用统一的浅色桌面样式。
+    """
+    dialog.setStyleSheet(build_dialog_qss())
+    return dialog
+
+
+def configure_dialog_button_box(button_box, ok_variant="primary", cancel_variant="default"):
+    """
+    统一 QDialogButtonBox 的按钮文案和尺寸。
+    """
+    try:
+        from PyQt5.QtWidgets import QDialogButtonBox
+    except ImportError:
+        return button_box
+
+    ok_button = button_box.button(QDialogButtonBox.Ok)
+    if ok_button:
+        ok_button.setText("确认")
+        ok_button.setMinimumSize(42, 24)
+        apply_button_style(ok_button, variant=ok_variant)
+
+    cancel_button = button_box.button(QDialogButtonBox.Cancel)
+    if cancel_button:
+        cancel_button.setText("取消")
+        cancel_button.setMinimumSize(42, 24)
+        apply_button_style(cancel_button, variant=cancel_variant)
+
+    return button_box
 
 
 def apply_panel_style(widget, tone="default", padding=0):

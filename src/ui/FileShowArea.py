@@ -9,8 +9,9 @@ from PyQt5.QtGui import QColor, QCursor, QFont, QMouseEvent, QPalette
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
-    QInputDialog,
     QLabel,
     QMenu,
     QMessageBox,
@@ -24,7 +25,13 @@ from PyQt5.QtWidgets import (
 
 from src.core.DictManage import DictManage
 from src.models import Background, Border, FileItem
-from src.ui.components.style_utils import create_button, create_context_menu
+from src.ui.components.style_utils import (
+    apply_dialog_style,
+    apply_line_edit_style,
+    configure_dialog_button_box,
+    create_button,
+    create_context_menu,
+)
 from src.utils import config, format_file_size, init_config_section, save_config
 
 from .FileSelectionComponent import FileSelectionComponent
@@ -919,12 +926,7 @@ class FileShowArea(QWidget):
         self._handle_action_result(result)
 
     def renameFile(self, file_path: str):
-        new_name, ok = QInputDialog.getText(
-            self,
-            "重命名文件",
-            "请输入新的文件名：",
-            text=os.path.basename(file_path),
-        )
+        new_name, ok = self._prompt_text_value("重命名文件", "请输入新的文件名：", text=os.path.basename(file_path))
         if not ok or not new_name:
             return
         result = self.action_service.rename_file(file_path, new_name)
@@ -1182,6 +1184,37 @@ class FileShowArea(QWidget):
 
     def _show_error_message(self, message: str):
         QMessageBox.critical(self, "错误", message)
+
+    def _prompt_text_value(self, title, label_text, text=""):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setModal(True)
+        dialog.setMinimumWidth(360)
+        apply_dialog_style(dialog)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        layout.addWidget(QLabel(label_text, dialog))
+
+        line_edit = QLineEdit(dialog)
+        line_edit.setText(text)
+        apply_line_edit_style(line_edit)
+        layout.addWidget(line_edit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+        configure_dialog_button_box(button_box)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        line_edit.selectAll()
+        line_edit.setFocus()
+
+        if dialog.exec_() != QDialog.Accepted:
+            return "", False
+        return line_edit.text().strip(), True
 
     def _handle_action_result(self, result: ActionResult):
         if result.path_mapping:

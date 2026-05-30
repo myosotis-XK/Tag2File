@@ -1,11 +1,27 @@
 import os
 import re
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QLabel, 
-                            QInputDialog, QFileDialog, QMessageBox, QLineEdit, QMenu)
+from PyQt5.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QLabel,
+    QFileDialog,
+    QMessageBox,
+    QLineEdit,
+    QDialogButtonBox,
+)
 from PyQt5.QtCore import Qt
 from src.utils import *
 from src.core.DictManage import DictManage
-from src.ui.components.style_utils import create_button, create_context_menu
+from src.ui.components.style_utils import (
+    apply_dialog_style,
+    apply_line_edit_style,
+    configure_dialog_button_box,
+    create_button,
+    create_context_menu,
+)
 
 class TagbaseManager(QDialog):
     def __init__(self, father=None):
@@ -26,6 +42,7 @@ class TagbaseManager(QDialog):
         
     def init_ui(self):
         layout = QVBoxLayout()
+        apply_dialog_style(self)
         
         # 当前标签库信息
         current_info_layout = QVBoxLayout()
@@ -182,7 +199,7 @@ class TagbaseManager(QDialog):
     
     def create_tagbase(self):
         """创建新标签库"""
-        name, ok = QInputDialog.getText(self, "创建标签库", "输入新标签库名称:")
+        name, ok = self._prompt_text_value("创建标签库", "输入新标签库名称:")
         if not ok or not name:
             return
         
@@ -412,3 +429,34 @@ class TagbaseManager(QDialog):
         self.load_tagbases()
         
         QMessageBox.information(self, "成功", f"已添加标签库: {file_name}")
+
+    def _prompt_text_value(self, title, label_text, text=""):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setModal(True)
+        dialog.setMinimumWidth(360)
+        apply_dialog_style(dialog)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        layout.addWidget(QLabel(label_text, dialog))
+
+        line_edit = QLineEdit(dialog)
+        line_edit.setText(text)
+        apply_line_edit_style(line_edit)
+        layout.addWidget(line_edit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+        configure_dialog_button_box(button_box)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        line_edit.selectAll()
+        line_edit.setFocus()
+
+        if dialog.exec_() != QDialog.Accepted:
+            return "", False
+        return line_edit.text().strip(), True

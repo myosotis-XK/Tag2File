@@ -3,6 +3,9 @@ from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -13,7 +16,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
     QWidget,
-    QInputDialog,
 )
 
 from src.core.DictManage import DictManage
@@ -21,6 +23,8 @@ from src.utils import config, init_config_section, save_config
 from src.ui.components.style_utils import (
     apply_line_edit_style,
     apply_scroll_area_style,
+    apply_dialog_style,
+    configure_dialog_button_box,
     create_button,
     create_colored_label,
     create_context_menu,
@@ -257,7 +261,7 @@ class TagView(QMainWindow):
 
     def rename_tag_action(self, label):
         tag = label.text()
-        new_name, ok = QInputDialog.getText(self, "重命名", "输入新标签名称:", text=tag)
+        new_name, ok = self._prompt_text_value("重命名", "输入新标签名称:", text=tag)
         if ok and new_name:
             if not self.cherk_tag(new_name):
                 return
@@ -278,12 +282,78 @@ class TagView(QMainWindow):
         tag = label.text()
         rows = self.DictManage.query_category()
         existing_category = [row[0] for row in rows]
-        category, ok = QInputDialog.getItem(self, "修改类别", "选择或输入新类别名称:", existing_category, 0, True)
+        category, ok = self._prompt_item_value(
+            "修改类别",
+            "选择或输入新类别名称:",
+            existing_category,
+        )
         if ok and category:
             if category not in existing_category:
                 QMessageBox.information(self, "错误", f"'{category}' 类别不存在")
                 return False
             self.DictManage.change_tag_category(tag, category)
+
+    def _prompt_text_value(self, title, label_text, text=""):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setModal(True)
+        dialog.setMinimumWidth(320)
+        apply_dialog_style(dialog)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        layout.addWidget(QLabel(label_text, dialog))
+
+        line_edit = QLineEdit(dialog)
+        line_edit.setText(text)
+        apply_line_edit_style(line_edit)
+        layout.addWidget(line_edit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+        configure_dialog_button_box(button_box)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        line_edit.selectAll()
+        line_edit.setFocus()
+
+        if dialog.exec_() != QDialog.Accepted:
+            return "", False
+        return line_edit.text().strip(), True
+
+    def _prompt_item_value(self, title, label_text, items):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setModal(True)
+        dialog.setMinimumWidth(340)
+        apply_dialog_style(dialog)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        layout.addWidget(QLabel(label_text, dialog))
+
+        combo_box = QComboBox(dialog)
+        combo_box.setEditable(True)
+        combo_box.addItems(items)
+        layout.addWidget(combo_box)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+        configure_dialog_button_box(button_box)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        combo_box.setFocus()
+        combo_box.lineEdit().selectAll()
+
+        if dialog.exec_() != QDialog.Accepted:
+            return "", False
+        return combo_box.currentText().strip(), True
 
     def _show_toast(self, text, duration=500):
         toast = QLabel(text, self)

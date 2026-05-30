@@ -1,12 +1,21 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
-                             QInputDialog, QMessageBox, QColorDialog,
-                             QSplitter, QWidget, QLabel, QDesktopWidget, QMenu,
+                             QMessageBox, QColorDialog,
+                             QSplitter, QWidget, QLabel, QDesktopWidget,
                              QFrame,
                              QLineEdit, QDialogButtonBox, QCompleter)
 from PyQt5.QtCore import Qt, QStringListModel
 from PyQt5.QtGui import QColor
 from src.core.DictManage import *  
-from src.ui.components.style_utils import build_tag_color_tokens, create_button, create_context_menu
+from src.ui.components.style_utils import (
+    apply_button_style,
+    apply_dialog_style,
+    apply_line_edit_style,
+    apply_list_widget_style,
+    build_tag_color_tokens,
+    configure_dialog_button_box,
+    create_button,
+    create_context_menu,
+)
 
 class CategoryManager(QDialog):  
     def __init__(self):
@@ -33,6 +42,7 @@ class CategoryManager(QDialog):
         leftLayout = QVBoxLayout(leftWidget)  
 
         self.categoryList = QListWidget()
+        apply_list_widget_style(self.categoryList)
         # 启用拖放功能
         self.categoryList.setDragDropMode(QListWidget.InternalMove)
         self.categoryList.setDefaultDropAction(Qt.MoveAction)
@@ -60,6 +70,7 @@ class CategoryManager(QDialog):
         rightLayout.addWidget(self.tagListLabel)  
 
         self.tagList = QListWidget()
+        apply_list_widget_style(self.tagList)
         # 启用拖放功能
         self.tagList.setDragDropMode(QListWidget.InternalMove)
         self.tagList.setDefaultDropAction(Qt.MoveAction)
@@ -86,6 +97,7 @@ class CategoryManager(QDialog):
 
         layout.addWidget(splitter)  
         self.setLayout(layout)  
+        apply_dialog_style(self)
 
         # 连接信号和槽  
         self.addButton.clicked.connect(self.addCategory)
@@ -221,7 +233,7 @@ class CategoryManager(QDialog):
             self.current_tag = current.text()  
 
     def addCategory(self):  
-        category, ok = QInputDialog.getText(self, "添加类别", "输入新类别名称:")  
+        category, ok = self._prompt_text_value("添加类别", "输入新类别名称:")  
         if ok and category:  
             rows = self.DictManage.query_category()
             categorys = [row[0] for row in rows]
@@ -237,7 +249,7 @@ class CategoryManager(QDialog):
             if oldCategory == "文件类型":
                 QMessageBox.warning(self, "警告", "“文件类型” 类别不允许重命名！")
                 return
-            newCategory, ok = QInputDialog.getText(self, "编辑类别", "输入新类别名称:", text=oldCategory)  
+            newCategory, ok = self._prompt_text_value("编辑类别", "输入新类别名称:", text=oldCategory)  
             if ok and newCategory:  
                 rows = self.DictManage.query_category()
                 categories = [row[0] for row in rows]
@@ -424,12 +436,14 @@ class CategoryManager(QDialog):
     def _prompt_tag_name(self, existing_tags):
         dialog = QDialog(self)
         dialog.setWindowTitle("添加标签")
+        apply_dialog_style(dialog)
 
         layout = QVBoxLayout(dialog)
         layout.addWidget(QLabel("选择或输入新标签名称:", dialog))
 
         line_edit = QLineEdit(dialog)
         line_edit.setText("")
+        apply_line_edit_style(line_edit)
         completer_model = QStringListModel(list(existing_tags), line_edit)
         completer = QCompleter(completer_model, line_edit)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
@@ -438,10 +452,44 @@ class CategoryManager(QDialog):
         layout.addWidget(line_edit)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+        configure_dialog_button_box(button_box)
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
 
+        line_edit.setFocus()
+
+        if dialog.exec_() != QDialog.Accepted:
+            return "", False
+
+        return line_edit.text().strip(), True
+
+    def _prompt_text_value(self, title, label_text, text=""):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setModal(True)
+        dialog.setMinimumWidth(360)
+        apply_dialog_style(dialog)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        label = QLabel(label_text, dialog)
+        layout.addWidget(label)
+
+        line_edit = QLineEdit(dialog)
+        line_edit.setText(text)
+        apply_line_edit_style(line_edit)
+        layout.addWidget(line_edit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+        configure_dialog_button_box(button_box)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        line_edit.selectAll()
         line_edit.setFocus()
 
         if dialog.exec_() != QDialog.Accepted:
