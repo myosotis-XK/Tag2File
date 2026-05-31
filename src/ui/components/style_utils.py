@@ -23,6 +23,7 @@ def build_dialog_qss():
             border-radius: 8px;
             padding: 5px 8px;
             selection-background-color: #d8ebff;
+            selection-color: #243447;
             font-size: 14px;
         }
         QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus {
@@ -423,6 +424,7 @@ def apply_line_edit_style(line_edit, compact=False):
             border-radius: {radius}px;
             padding: {padding_v}px {padding_h}px;
             selection-background-color: #d8ebff;
+            selection-color: #243447;
             font-size: 14px;
         }}
         QLineEdit:focus {{

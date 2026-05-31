@@ -97,7 +97,12 @@ class FileActionService:
 
         if changed_paths:
             self.dict_manage.fileChanged.emit("deleted", {"file_paths": list(changed_paths)})
-        return ActionResult(success=not errors, changed_paths=changed_paths, errors=errors)
+        return ActionResult(
+            success=not errors,
+            changed_paths=changed_paths,
+            removed_paths=changed_paths.copy(),
+            errors=errors,
+        )
 
     def refresh_file_meta(self, file_paths: list[str]) -> list[tuple[str, int, float]]:
         file_meta_datas: list[tuple[str, int, float]] = []

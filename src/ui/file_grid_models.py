@@ -42,6 +42,7 @@ class LayoutSnapshot:
 class ActionResult:
     success: bool
     changed_paths: list[str] = field(default_factory=list)
+    removed_paths: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     notifications: list[str] = field(default_factory=list)
     path_mapping: dict[str, str] = field(default_factory=dict)

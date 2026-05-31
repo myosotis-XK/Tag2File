@@ -1217,6 +1217,9 @@ class FileShowArea(QWidget):
         return line_edit.text().strip(), True
 
     def _handle_action_result(self, result: ActionResult):
+        if result.removed_paths:
+            self.remove_files(result.removed_paths)
+
         if result.path_mapping:
             # 文件移动/重命名后，外层仍以旧路径列表为主；
             # 这里统一把当前文件集替换成新路径，避免调用方自己维护映射。
