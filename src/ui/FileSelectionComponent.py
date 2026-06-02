@@ -6,6 +6,7 @@ from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt, pyqtSignal
 from src.utils import format_file_size
 from src.ui.components.style_utils import create_button
+from src.ui.ui_text import CommonText, FileSelectionText
 from .media_viewers import MultiImageViewer
 
 class ClickableLabel(QLabel):
@@ -52,7 +53,7 @@ class FileSelectionComponent(QDialog):
         self._populate_content()
 
     def _init_ui(self):
-        self.setWindowTitle("文件选择")
+        self.setWindowTitle(self.tr(FileSelectionText.WINDOW_TITLE))
         self.resize(800, 600)
 
         main_layout = QVBoxLayout(self)
@@ -66,8 +67,8 @@ class FileSelectionComponent(QDialog):
         main_layout.addWidget(scroll_area)
 
         button_layout = QHBoxLayout()
-        confirm_button = create_button("确认")
-        cancel_button = create_button("取消")
+        confirm_button = create_button(self.tr(CommonText.CONFIRM))
+        cancel_button = create_button(self.tr(CommonText.CANCEL))
         button_layout.addWidget(confirm_button)
         button_layout.addWidget(cancel_button)
         main_layout.addLayout(button_layout)
@@ -81,7 +82,7 @@ class FileSelectionComponent(QDialog):
         font.setStyleHint(QFont.SansSerif)
 
         if not self.file_groups:
-            no_data_label = QLabel("没有可供选择的文件组。")
+            no_data_label = QLabel(self.tr(FileSelectionText.NO_DATA))
             no_data_label.setAlignment(Qt.AlignCenter)
             self.scroll_layout.addWidget(no_data_label)
             return
@@ -90,7 +91,10 @@ class FileSelectionComponent(QDialog):
             current_group_selected_paths = []
             self.group_selections_data.append(current_group_selected_paths) 
 
-            group_label_text = self.group_titles[i] if i < len(self.group_titles) else f"文件组 {i+1} (共 {len(group_paths)} 个文件)"
+            group_label_text = self.group_titles[i] if i < len(self.group_titles) else self.tr(FileSelectionText.GROUP_TITLE).format(
+                index=i + 1,
+                count=len(group_paths),
+            )
             group_label = QLabel(group_label_text)
             group_label.setStyleSheet("font-weight: bold; background-color: #f0f0f0; padding: 5px;")
             self.scroll_layout.addWidget(group_label)
@@ -106,7 +110,7 @@ class FileSelectionComponent(QDialog):
                 self.radio_button_groups.append(button_group)
 
                 # --- 修改点 1: 创建并隐藏“不选择任何文件”选项 ---
-                no_selection_widget = QRadioButton("不选择任何文件")
+                no_selection_widget = QRadioButton(self.tr(FileSelectionText.NO_SELECTION))
                 no_selection_widget.setProperty("is_no_selection", True) 
                 no_selection_widget.file_path = None 
                 button_group.addButton(no_selection_widget)
@@ -172,7 +176,7 @@ class FileSelectionComponent(QDialog):
             pixmap = pixmap.scaled(self.image_size, self.image_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             image_label.setPixmap(pixmap)
         else:
-            image_label.setText("无法预览")
+            image_label.setText(self.tr(FileSelectionText.PREVIEW_UNAVAILABLE))
             image_label.setStyleSheet("color: #999; border: 1px solid #ccc; background-color: #f8f8f8;")
 
         display_info_text = ""
@@ -187,7 +191,7 @@ class FileSelectionComponent(QDialog):
             size_str = format_file_size(file_info.st_size)
             display_info_text += f"{size_str}"
         else:
-            display_info_text = f"文件不存在:\n{file_path}"
+            display_info_text = self.tr(FileSelectionText.FILE_MISSING).format(file_path=file_path)
 
         path_label = ClickableLabel(file_path=file_path)
         path_label.setText(display_info_text)
@@ -204,11 +208,11 @@ class FileSelectionComponent(QDialog):
 
         selection_widget = None
         if self.selection_type == 'single':
-            selection_widget = QRadioButton("选择")
+            selection_widget = QRadioButton(self.tr(FileSelectionText.SELECT))
             if button_group:
                 button_group.addButton(selection_widget)
         else:
-            selection_widget = QCheckBox("选中")
+            selection_widget = QCheckBox(self.tr(FileSelectionText.SELECTED))
             selection_widget.setChecked(False)
 
         if selection_widget:
@@ -251,7 +255,14 @@ class FileSelectionComponent(QDialog):
 
     def _open_file_with_system(self, file_path):
         if not os.path.exists(file_path):
-            QMessageBox.warning(self, "文件不存在", f"无法打开文件：\n{file_path}\n文件已不存在。")
+            QMessageBox.warning(
+                self,
+                self.tr(FileSelectionText.FILE_NOT_FOUND_TITLE),
+                self.tr(CommonText.OPEN_FILE_ERROR).format(
+                    file_path=file_path,
+                    error=self.tr(CommonText.FILE_NOT_FOUND),
+                ),
+            )
             return
 
         supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']
@@ -266,7 +277,11 @@ class FileSelectionComponent(QDialog):
                     break
 
             if not group_file_list:
-                QMessageBox.warning(self, "未找到文件组", f"文件未包含在任何文件组中：\n{file_path}")
+                QMessageBox.warning(
+                    self,
+                    self.tr(FileSelectionText.FILE_GROUP_NOT_FOUND_TITLE),
+                    self.tr(FileSelectionText.FILE_GROUP_NOT_FOUND).format(file_path=file_path),
+                )
                 return
 
             image_viewer = MultiImageViewer()
@@ -280,7 +295,11 @@ class FileSelectionComponent(QDialog):
             try:
                 os.startfile(file_path)
             except Exception as e:
-                QMessageBox.critical(self, "打开文件失败", f"无法打开文件：\n{file_path}\n错误：{e}")
+                QMessageBox.critical(
+                    self,
+                    self.tr(FileSelectionText.OPEN_FILE_FAILED_TITLE),
+                    self.tr(FileSelectionText.OPEN_FILE_FAILED).format(file_path=file_path, error=e),
+                )
 
     def _on_radio_button_toggled(self, checked, group_idx, file_path):
         """

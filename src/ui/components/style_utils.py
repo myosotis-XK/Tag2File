@@ -2,6 +2,8 @@ from PyQt5.QtWidgets import QFrame, QLabel, QLineEdit, QMenu, QPushButton, QScro
 from PyQt5.QtGui import QColor
 from PyQt5.QtCore import Qt
 
+from src.ui.ui_text import CommonText
+
 
 def build_dialog_qss():
     """
@@ -485,7 +487,12 @@ def apply_dialog_style(dialog):
     return dialog
 
 
-def configure_dialog_button_box(button_box, ok_variant="primary", cancel_variant="default"):
+def configure_dialog_button_box(
+    button_box,
+    ok_variant="primary",
+    cancel_variant="default",
+    translate=None,
+):
     """
     统一 QDialogButtonBox 的按钮文案和尺寸。
     """
@@ -496,13 +503,13 @@ def configure_dialog_button_box(button_box, ok_variant="primary", cancel_variant
 
     ok_button = button_box.button(QDialogButtonBox.Ok)
     if ok_button:
-        ok_button.setText("确认")
+        ok_button.setText(translate(CommonText.CONFIRM) if translate else CommonText.CONFIRM)
         ok_button.setMinimumSize(42, 24)
         apply_button_style(ok_button, variant=ok_variant)
 
     cancel_button = button_box.button(QDialogButtonBox.Cancel)
     if cancel_button:
-        cancel_button.setText("取消")
+        cancel_button.setText(translate(CommonText.CANCEL) if translate else CommonText.CANCEL)
         cancel_button.setMinimumSize(42, 24)
         apply_button_style(cancel_button, variant=cancel_variant)
 

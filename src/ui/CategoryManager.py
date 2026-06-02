@@ -16,6 +16,7 @@ from src.ui.components.style_utils import (
     create_button,
     create_context_menu,
 )
+from src.ui.ui_text import CategoryManagerText, CommonText
 
 class CategoryManager(QDialog):  
     def __init__(self):
@@ -28,7 +29,7 @@ class CategoryManager(QDialog):
         self.current_category = None  
         self.current_tag = None  
 
-        self.setWindowTitle("标签类别管理")  
+        self.setWindowTitle(self.tr(CategoryManagerText.WINDOW_TITLE))  
         self.setGeometry(100, 100, 600, 400)  
         self.initUI()  
         self.loadCategories()  
@@ -54,9 +55,9 @@ class CategoryManager(QDialog):
 
         # 类别操作按钮：添加/上移/下移
         buttonLayout = QHBoxLayout()  
-        self.addButton = create_button("添加类别")
-        self.upCategoryButton = create_button("上移")  
-        self.downCategoryButton = create_button("下移")
+        self.addButton = create_button(self.tr(CategoryManagerText.ADD_CATEGORY))
+        self.upCategoryButton = create_button(self.tr(CategoryManagerText.MOVE_UP))  
+        self.downCategoryButton = create_button(self.tr(CategoryManagerText.MOVE_DOWN))
         buttonLayout.addWidget(self.addButton)
         buttonLayout.addWidget(self.upCategoryButton)  
         buttonLayout.addWidget(self.downCategoryButton)
@@ -66,7 +67,7 @@ class CategoryManager(QDialog):
         rightWidget = QWidget()  
         rightLayout = QVBoxLayout(rightWidget)  
 
-        self.tagListLabel = QLabel("标签列表")  
+        self.tagListLabel = QLabel(self.tr(CategoryManagerText.TAG_LIST))  
         rightLayout.addWidget(self.tagListLabel)  
 
         self.tagList = QListWidget()
@@ -82,9 +83,9 @@ class CategoryManager(QDialog):
 
         # 标签操作按钮：添加/上移/下移
         tagButtonLayout = QHBoxLayout()  
-        self.addTagButton = create_button("添加标签")
-        self.upTagButton = create_button("上移")  
-        self.downTagButton = create_button("下移")
+        self.addTagButton = create_button(self.tr(CategoryManagerText.ADD_TAG))
+        self.upTagButton = create_button(self.tr(CategoryManagerText.MOVE_UP))  
+        self.downTagButton = create_button(self.tr(CategoryManagerText.MOVE_DOWN))
         tagButtonLayout.addWidget(self.addTagButton)
         tagButtonLayout.addWidget(self.upTagButton)  
         tagButtonLayout.addWidget(self.downTagButton)
@@ -123,17 +124,17 @@ class CategoryManager(QDialog):
         category = item.text()
         
 
-        editAction = menu.addAction("重命名")
-        deleteAction = menu.addAction("删除")
-        colorAction = menu.addAction("设置颜色")
+        editAction = menu.addAction(self.tr(CommonText.RENAME))
+        deleteAction = menu.addAction(self.tr(CommonText.DELETE))
+        colorAction = menu.addAction(self.tr(CategoryManagerText.SET_COLOR))
 
 
 
         # 根据特殊类别状态动态设置文本
-        specialText = "设为普通类别" if self.DictManage.query_category(category)[0][2] else "设为筛选类别"
+        specialText = self.tr(CategoryManagerText.SET_NORMAL_CATEGORY) if self.DictManage.query_category(category)[0][2] else self.tr(CategoryManagerText.SET_FILTER_CATEGORY)
         specialAction = menu.addAction(specialText)
 
-        if category == "文件类型":
+        if category == CategoryManagerText.FILE_TYPE_CATEGORY:
             editAction.setEnabled(False)
             deleteAction.setEnabled(False)
             specialAction.setEnabled(False)
@@ -162,7 +163,7 @@ class CategoryManager(QDialog):
         
         # 创建菜单
         menu = create_context_menu(self)
-        removeAction = menu.addAction("移除标签")
+        removeAction = menu.addAction(self.tr(CategoryManagerText.REMOVE_TAG))
         
         # 显示菜单并获取用户选择
         action = menu.exec_(self.tagList.mapToGlobal(position))
@@ -219,7 +220,7 @@ class CategoryManager(QDialog):
                 self.current_category = current  
             tags = self.DictManage.query('category', current, 'tag')
             self.tagList.addItems(tags)  
-            self.tagListLabel.setText(f"标签列表 - {current}")  
+            self.tagListLabel.setText(self.tr(CategoryManagerText.TAG_LIST_WITH_CATEGORY).format(category=current))  
             
             # 恢复标签选择  
             if self.current_tag:  
@@ -233,30 +234,30 @@ class CategoryManager(QDialog):
             self.current_tag = current.text()  
 
     def addCategory(self):  
-        category, ok = self._prompt_text_value("添加类别", "输入新类别名称:")  
+        category, ok = self._prompt_text_value(self.tr(CategoryManagerText.ADD_CATEGORY_TITLE), self.tr(CategoryManagerText.ENTER_NEW_CATEGORY_NAME))  
         if ok and category:  
             rows = self.DictManage.query_category()
             categorys = [row[0] for row in rows]
             if category not in categorys:  
                 self.DictManage.create_category(category)
             else:  
-                QMessageBox.warning(self, "警告", "类别已存在！")  
+                QMessageBox.warning(self, self.tr(CommonText.WARNING), self.tr(CategoryManagerText.CATEGORY_EXISTS))  
 
     def editCategory(self):  
         currentItem = self.categoryList.currentItem()  
         if currentItem:  
             oldCategory = currentItem.text()  
-            if oldCategory == "文件类型":
-                QMessageBox.warning(self, "警告", "“文件类型” 类别不允许重命名！")
+            if oldCategory == CategoryManagerText.FILE_TYPE_CATEGORY:
+                QMessageBox.warning(self, self.tr(CommonText.WARNING), self.tr(CategoryManagerText.FILE_TYPE_RENAME_FORBIDDEN))
                 return
-            newCategory, ok = self._prompt_text_value("编辑类别", "输入新类别名称:", text=oldCategory)  
+            newCategory, ok = self._prompt_text_value(self.tr(CategoryManagerText.EDIT_CATEGORY_TITLE), self.tr(CategoryManagerText.ENTER_NEW_CATEGORY_NAME), text=oldCategory)  
             if ok and newCategory:  
                 rows = self.DictManage.query_category()
                 categories = [row[0] for row in rows]
                 if newCategory == oldCategory:
                     return
                 if newCategory in categories:
-                    QMessageBox.warning(self, "警告", "类别已存在！")
+                    QMessageBox.warning(self, self.tr(CommonText.WARNING), self.tr(CategoryManagerText.CATEGORY_EXISTS))
                     return
                 self.DictManage.rename_category(oldCategory, newCategory)
                 
@@ -268,10 +269,10 @@ class CategoryManager(QDialog):
         currentItem = self.categoryList.currentItem()  
         if currentItem:  
             category = currentItem.text()  
-            if category == "文件类型":
-                QMessageBox.warning(self, "警告", "“文件类型” 类别不允许删除！")
+            if category == CategoryManagerText.FILE_TYPE_CATEGORY:
+                QMessageBox.warning(self, self.tr(CommonText.WARNING), self.tr(CategoryManagerText.FILE_TYPE_DELETE_FORBIDDEN))
                 return
-            reply = QMessageBox.question(self, "确认删除", f"确定要删除类别 '{category}' 吗？",  
+            reply = QMessageBox.question(self, self.tr(CategoryManagerText.CONFIRM_DELETE_TITLE), self.tr(CategoryManagerText.CONFIRM_DELETE_CATEGORY).format(category=category),  
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)  
             if reply == QMessageBox.Yes:  
                 self.DictManage.delete_category(category)
@@ -287,7 +288,7 @@ class CategoryManager(QDialog):
 
     def _get_category_color_with_preview(self, category, initial_color):
         dialog = QColorDialog(QColor(initial_color), self)
-        dialog.setWindowTitle(f"设置类别颜色 - {category}")
+        dialog.setWindowTitle(self.tr(CategoryManagerText.SET_CATEGORY_COLOR_TITLE).format(category=category))
         dialog.setOption(QColorDialog.DontUseNativeDialog, True)
 
         preview_panel = self._create_color_preview_panel(category)
@@ -345,14 +346,14 @@ class CategoryManager(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        title = QLabel("颜色预览", panel)
+        title = QLabel(self.tr(CategoryManagerText.COLOR_PREVIEW), panel)
         title.setStyleSheet("font-weight: bold; color: #2f2f2f;")
         layout.addWidget(title)
 
         self.category_preview_chip = QLabel(category, panel)
-        self.category_preview_hover_chip = QLabel(f"{category} hover", panel)
+        self.category_preview_hover_chip = QLabel(f"{category}{self.tr(CategoryManagerText.HOVER_SUFFIX)}", panel)
         self.category_preview_text = QLabel(category, panel)
-        self.category_preview_text_hover = QLabel(f"{category} hover", panel)
+        self.category_preview_text_hover = QLabel(f"{category}{self.tr(CategoryManagerText.HOVER_SUFFIX)}", panel)
 
         for chip in [self.category_preview_chip, self.category_preview_hover_chip]:
             chip.setAlignment(Qt.AlignCenter)
@@ -383,7 +384,7 @@ class CategoryManager(QDialog):
             }}
         """)
 
-        self.category_preview_hover_chip.setText(f"{category} hover")
+        self.category_preview_hover_chip.setText(f"{category}{self.tr(CategoryManagerText.HOVER_SUFFIX)}")
         self.category_preview_hover_chip.setStyleSheet(f"""
             QLabel {{
                 background-color: {tokens['bg_hover'].name()};
@@ -404,7 +405,7 @@ class CategoryManager(QDialog):
             }}
         """)
 
-        self.category_preview_text_hover.setText(f"{category} hover")
+        self.category_preview_text_hover.setText(f"{category}{self.tr(CategoryManagerText.HOVER_SUFFIX)}")
         self.category_preview_text_hover.setStyleSheet(f"""
             QLabel {{
                 color: {tokens['text_hover'].name()};
@@ -427,19 +428,19 @@ class CategoryManager(QDialog):
                 # 提示错误的消息框
                 message_box = QMessageBox(self)
                 message_box.setIcon(QMessageBox.Information)
-                message_box.setWindowTitle("错误！")
-                message_box.setText(f"存在非法字符：{op}")
+                message_box.setWindowTitle(self.tr(CategoryManagerText.ERROR_TITLE))
+                message_box.setText(self.tr(CategoryManagerText.INVALID_CHAR).format(op=op))
                 message_box.exec_()
                 return False
         return True
 
     def _prompt_tag_name(self, existing_tags):
         dialog = QDialog(self)
-        dialog.setWindowTitle("添加标签")
+        dialog.setWindowTitle(self.tr(CategoryManagerText.ADD_TAG_TITLE))
         apply_dialog_style(dialog)
 
         layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("选择或输入新标签名称:", dialog))
+        layout.addWidget(QLabel(self.tr(CategoryManagerText.SELECT_OR_ENTER_TAG), dialog))
 
         line_edit = QLineEdit(dialog)
         line_edit.setText("")
@@ -452,7 +453,7 @@ class CategoryManager(QDialog):
         layout.addWidget(line_edit)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
-        configure_dialog_button_box(button_box)
+        configure_dialog_button_box(button_box, translate=self.tr)
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
@@ -484,7 +485,7 @@ class CategoryManager(QDialog):
         layout.addWidget(line_edit)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
-        configure_dialog_button_box(button_box)
+        configure_dialog_button_box(button_box, translate=self.tr)
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)

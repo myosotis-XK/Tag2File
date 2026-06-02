@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
 from src.ui.components.preset_selector import PresetSelector
 from src.ui.components.style_utils import apply_color_preview_button_style, create_button
 from src.ui.components.time_input import TimeInput
+from src.ui.ui_text import AudioMarkerText, CommonText, PresetSelectorText
 
 
 class MarkerEditDialog(QDialog):
@@ -26,7 +27,7 @@ class MarkerEditDialog(QDialog):
         self.selected_preset_id = self.marker_data.get('preset_id')
         self.max_duration_ms = max_duration_ms
 
-        self.setWindowTitle("编辑标记" if marker_data else "创建标记")
+        self.setWindowTitle(self.tr(AudioMarkerText.EDIT_MARKER) if marker_data else self.tr(AudioMarkerText.CREATE_MARKER))
         self.resize(450, 450)
         self.init_ui()
 
@@ -35,13 +36,13 @@ class MarkerEditDialog(QDialog):
         layout.setSpacing(15)
 
         if self.presets:
-            self.preset_selector = PresetSelector(title="预设类型", parent=self)
+            self.preset_selector = PresetSelector(title=self.tr(PresetSelectorText.PRESET_TYPE), parent=self)
             self.preset_selector.load_presets(self.presets)
             self.preset_selector.preset_selected.connect(self.on_preset_selected)
             layout.addWidget(self.preset_selector)
 
         color_layout = QHBoxLayout()
-        color_layout.addWidget(QLabel("颜色:"))
+        color_layout.addWidget(QLabel(self.tr(AudioMarkerText.COLOR)))
 
         self.color_btn = QPushButton()
         self.color_btn.setFixedSize(60, 30)
@@ -55,20 +56,20 @@ class MarkerEditDialog(QDialog):
         layout.addLayout(color_layout)
         self._update_color_button()
 
-        layout.addWidget(QLabel("备注内容:"))
+        layout.addWidget(QLabel(self.tr(AudioMarkerText.NOTE_CONTENT)))
         self.text_edit = QTextEdit()
         self.text_edit.setMaximumHeight(100)
-        self.text_edit.setPlaceholderText("输入标记备注...")
+        self.text_edit.setPlaceholderText(self.tr(AudioMarkerText.NOTE_PLACEHOLDER))
         self.text_edit.setPlainText(self.marker_data.get('label', ''))
         layout.addWidget(self.text_edit)
 
-        time_group = QGroupBox("时间设置")
+        time_group = QGroupBox(self.tr(AudioMarkerText.TIME_SETTINGS))
         time_layout = QVBoxLayout()
         time_layout.setSpacing(10)
 
         time_input_layout = QHBoxLayout()
         time_input_layout.setSpacing(8)
-        start_label = QLabel("开始:")
+        start_label = QLabel(self.tr(AudioMarkerText.START))
         start_label.setFixedWidth(40)
         time_input_layout.addWidget(start_label)
 
@@ -80,7 +81,7 @@ class MarkerEditDialog(QDialog):
         separator.setStyleSheet("color: #7f8c8d; font-weight: bold; font-size: 14px;")
         time_input_layout.addWidget(separator)
 
-        end_label = QLabel("结束:")
+        end_label = QLabel(self.tr(AudioMarkerText.END))
         end_label.setFixedWidth(40)
         time_input_layout.addWidget(end_label)
 
@@ -89,7 +90,7 @@ class MarkerEditDialog(QDialog):
         time_input_layout.addStretch()
         time_layout.addLayout(time_input_layout)
 
-        tip_label = QLabel("只填写开始时间会保存为点标记，填写开始和结束时间会保存为区间标记。")
+        tip_label = QLabel(self.tr(AudioMarkerText.TIME_TIP))
         tip_label.setWordWrap(True)
         tip_label.setStyleSheet("color: #7f8c8d; font-size: 11px;")
         time_layout.addWidget(tip_label)
@@ -107,12 +108,12 @@ class MarkerEditDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        cancel_btn = create_button("取消")
+        cancel_btn = create_button(self.tr(CommonText.CANCEL))
         cancel_btn.setMinimumWidth(80)
         cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(cancel_btn)
 
-        save_btn = create_button("保存", variant="primary")
+        save_btn = create_button(self.tr(CommonText.SAVE), variant="primary")
         save_btn.setMinimumWidth(80)
         save_btn.clicked.connect(self.accept)
         button_layout.addWidget(save_btn)
@@ -129,7 +130,7 @@ class MarkerEditDialog(QDialog):
         self.text_edit.setPlainText(name)
 
     def choose_color(self):
-        color = QColorDialog.getColor(QColor(self.current_color), self, "选择标记颜色")
+        color = QColorDialog.getColor(QColor(self.current_color), self, self.tr(AudioMarkerText.CHOOSE_MARKER_COLOR))
         if color.isValid():
             self.current_color = color.name()
             self._update_color_button()
@@ -140,14 +141,14 @@ class MarkerEditDialog(QDialog):
         end_ms = self.end_time_input.get_milliseconds()
 
         if start_ms is None and end_ms is None:
-            QMessageBox.warning(self, "错误", "请至少输入一个时间")
+            QMessageBox.warning(self, self.tr(CommonText.ERROR), self.tr(AudioMarkerText.ENTER_AT_LEAST_ONE_TIME))
             return
 
         if end_ms is not None:
             if start_ms is None:
                 start_ms = 0
             if end_ms < start_ms:
-                QMessageBox.warning(self, "错误", "结束时间不能小于开始时间")
+                QMessageBox.warning(self, self.tr(CommonText.ERROR), self.tr(AudioMarkerText.END_BEFORE_START))
                 return
 
         super().accept()

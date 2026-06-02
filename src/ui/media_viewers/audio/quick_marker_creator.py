@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
 from src.ui.components.preset_selector_dialog import PresetSelectorDialog
 from src.ui.components.style_utils import apply_color_preview_button_style
 from src.ui.components.time_input import TimeInput
+from src.ui.ui_text import AudioMarkerText, CommonText
 
 from .audio_theme import (
     MARKER_LINE_EDIT_STYLE,
@@ -63,7 +64,7 @@ class QuickMarkerCreator(QWidget):
         time_layout.addWidget(self.end_time_input)
         time_layout.addStretch()
 
-        self.create_btn = QPushButton("创建")
+        self.create_btn = QPushButton(self.tr(AudioMarkerText.CREATE))
         self.create_btn.setFixedWidth(54)
         self.create_btn.setFocusPolicy(Qt.NoFocus)
         self.create_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
@@ -74,7 +75,7 @@ class QuickMarkerCreator(QWidget):
         control_layout = QHBoxLayout()
         control_layout.setSpacing(5)
 
-        self.preset_btn = QPushButton("预设")
+        self.preset_btn = QPushButton(self.tr(AudioMarkerText.PRESET))
         self.preset_btn.setFixedWidth(44)
         self.preset_btn.setFocusPolicy(Qt.NoFocus)
         self.preset_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
@@ -88,11 +89,11 @@ class QuickMarkerCreator(QWidget):
         self.update_color_button()
 
         self.label_input = QLineEdit()
-        self.label_input.setPlaceholderText("标记备注")
+        self.label_input.setPlaceholderText(self.tr(AudioMarkerText.NOTE_PLACEHOLDER))
         self.label_input.setStyleSheet(MARKER_LINE_EDIT_STYLE)
         control_layout.addWidget(self.label_input)
 
-        self.clear_btn = QPushButton("清空")
+        self.clear_btn = QPushButton(self.tr(CommonText.CLEAR))
         self.clear_btn.setFixedWidth(50)
         self.clear_btn.setFocusPolicy(Qt.NoFocus)
         self.clear_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
@@ -112,7 +113,7 @@ class QuickMarkerCreator(QWidget):
     def show_preset_menu(self):
         presets = self.marker_store.get_preset_rows()
         if not presets:
-            QMessageBox.information(self, "提示", "暂无预设，请先在预设管理器中创建预设")
+            QMessageBox.information(self, self.tr(CommonText.INFO), self.tr(AudioMarkerText.NO_PRESETS))
             return
 
         dialog = PresetSelectorDialog(
@@ -134,7 +135,7 @@ class QuickMarkerCreator(QWidget):
         self.label_input.setText(name)
 
     def choose_color(self):
-        color = QColorDialog.getColor(QColor(self.current_color), self, "选择标记颜色")
+        color = QColorDialog.getColor(QColor(self.current_color), self, self.tr(AudioMarkerText.CHOOSE_MARKER_COLOR))
         if color.isValid():
             self.current_color = color.name()
             self.selected_preset_id = None
@@ -150,16 +151,16 @@ class QuickMarkerCreator(QWidget):
 
     def validate_and_create(self):
         if not self.audio_file_path:
-            QMessageBox.warning(self, "错误", "未加载音频文件")
+            QMessageBox.warning(self, self.tr(CommonText.ERROR), self.tr(AudioMarkerText.AUDIO_NOT_LOADED))
             return
 
         start_ms = self.start_time_input.get_milliseconds()
         end_ms = self.end_time_input.get_milliseconds()
         if start_ms is None and end_ms is None:
-            QMessageBox.warning(self, "错误", "请至少输入一个时间")
+            QMessageBox.warning(self, self.tr(CommonText.ERROR), self.tr(AudioMarkerText.ENTER_AT_LEAST_ONE_TIME))
             return
 
-        label = self.label_input.text().strip() or "未命名标记"
+        label = self.label_input.text().strip() or self.tr(AudioMarkerText.UNNAMED_MARKER)
 
         if end_ms is None:
             marker_data = {
@@ -173,7 +174,7 @@ class QuickMarkerCreator(QWidget):
             if start_ms is None:
                 start_ms = 0
             if end_ms < start_ms:
-                QMessageBox.warning(self, "错误", "结束时间不能小于开始时间")
+                QMessageBox.warning(self, self.tr(CommonText.ERROR), self.tr(AudioMarkerText.END_BEFORE_START))
                 return
             marker_data = {
                 'type': 1,

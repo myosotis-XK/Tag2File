@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QDialog, QVBoxLayout
 from PyQt5.QtCore import Qt
 from .preset_selector import PresetSelector
 from .style_utils import create_button
+from src.ui.ui_text import PresetSelectorText
 
 
 class PresetSelectorDialog(QDialog):
@@ -22,7 +23,7 @@ class PresetSelectorDialog(QDialog):
         self.selected_color = None
         self.selected_name = None
 
-        self.setWindowTitle("选择预设类型")
+        self.setWindowTitle(self.tr(PresetSelectorText.SELECT_PRESET_TYPE))
         self.setModal(True)
         self.setMinimumWidth(270)
 
@@ -68,7 +69,7 @@ class PresetSelectorDialog(QDialog):
         layout.addWidget(self.preset_selector)
 
         # 添加"管理预设"按钮
-        self.manage_presets_btn = create_button("⚙️ 管理预设", variant="secondary")
+        self.manage_presets_btn = create_button(self.tr(PresetSelectorText.MANAGE_PRESETS), variant="secondary")
         self.manage_presets_btn.clicked.connect(self._on_manage_presets_clicked)
         layout.addWidget(self.manage_presets_btn)
 

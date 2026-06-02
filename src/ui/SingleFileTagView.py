@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
 from src.core.DictManage import DictManage
 from src.ui.components.style_utils import apply_panel_style, apply_scroll_area_style, create_button, create_colored_label
 from src.ui.media_viewers import ImageViewer
+from src.ui.ui_text import CommonText, SingleFileTagViewText
 
 from .FileShowArea import TagFileShowArea
 
@@ -106,10 +107,10 @@ class SingleFileTagView(QScrollArea):
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 0, 0, 4)
         button_layout.setSpacing(6)
-        self.prev_button = create_button("上一张")
+        self.prev_button = create_button(self.tr(CommonText.PREVIOUS))
         self.prev_button.setMaximumWidth(120)
         self.prev_button.clicked.connect(self.show_previous)
-        self.next_button = create_button("下一张")
+        self.next_button = create_button(self.tr(CommonText.NEXT))
         self.next_button.setMaximumWidth(120)
         self.next_button.clicked.connect(self.show_next)
         button_layout.addWidget(self.prev_button)
@@ -174,13 +175,11 @@ class SingleFileTagView(QScrollArea):
             self.pixmap = QPixmap(view.file_path)
             if self.pixmap.isNull() and view.icon_source is not None:
                 self.pixmap = view.icon_source.source
-            message = (
-                "<div style='color:#314456; line-height:1.6;'>"
-                f"<div style='font-size:18px; font-weight:600; color:#1f2d3d; margin-bottom:10px;'>{view.file_name}</div>"
-                f"<div><span style='color:#6b7b8c;'>文件路径</span><br>{view.file_path}</div>"
-                f"<div style='margin-top:10px;'><span style='color:#6b7b8c;'>文件大小</span><br>{view.formatted_size}</div>"
-                f"<div style='margin-top:10px;'><span style='color:#6b7b8c;'>修改时间</span><br>{datetime.fromtimestamp(view.file_date).strftime('%Y年%m月%d日，%H:%M:%S')}</div>"
-                "</div>"
+            message = self.tr(SingleFileTagViewText.FILE_INFO_HTML).format(
+                file_name=view.file_name,
+                file_path=view.file_path,
+                file_size=view.formatted_size,
+                modified_time=datetime.fromtimestamp(view.file_date).strftime("%Y年%m月%d日，%H:%M:%S"),
             )
             self.info_label.setTextFormat(Qt.RichText)
             self.info_label.setText(message)

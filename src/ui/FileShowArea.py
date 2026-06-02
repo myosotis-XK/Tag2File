@@ -7,24 +7,13 @@ from natsort import natsort_keygen
 from PyQt5.QtCore import QPoint, QRect, QSize, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QCursor, QFont, QMouseEvent, QPalette
 from PyQt5.QtWidgets import (
-    QAction,
-    QApplication,
-    QDialog,
-    QDialogButtonBox,
-    QFileDialog,
-    QLabel,
-    QMenu,
-    QMessageBox,
-    QRubberBand,
-    QScrollBar,
-    QStyleOptionSlider,
-    QTextEdit,
-    QVBoxLayout,
-    QWidget,
+    QAction, QApplication, QDialog, QDialogButtonBox, QFileDialog, QLabel, QMenu, QMessageBox, 
+    QRubberBand, QScrollBar, QStyleOptionSlider, QTextEdit, QVBoxLayout, QWidget, QLineEdit
 )
 
 from src.core.DictManage import DictManage
 from src.models import Background, Border, FileItem
+from src.ui.ui_text import CommonText, FileShowAreaText
 from src.ui.components.style_utils import (
     apply_dialog_style,
     apply_line_edit_style,
@@ -32,7 +21,7 @@ from src.ui.components.style_utils import (
     create_button,
     create_context_menu,
 )
-from src.utils import config, format_file_size, init_config_section, save_config
+from src.utils import config, init_config_section, save_config
 
 from .FileSelectionComponent import FileSelectionComponent
 from .file_grid import (
@@ -107,9 +96,7 @@ class FileShowArea(QWidget):
         self.current_sort_key = config.get("FileShowArea", "current_sort_key", fallback="date")
         self.current_sort_order = config.get("FileShowArea", "current_sort_order", fallback="desc")
         self.WINDOW_FRAMES = config.getint("FileShowArea", "WINDOW_FRAMES", fallback=60)
-        self.SCROLL_DISTANCE_PER_SECOND = config.getint(
-            "FileShowArea", "SCROLL_DISTANCE_PER_SECOND", fallback=500
-        )
+        self.SCROLL_DISTANCE_PER_SECOND = config.getint("FileShowArea", "SCROLL_DISTANCE_PER_SECOND", fallback=500)
         self.SCROLL_DISTANCE_PER_FRAME = self.SCROLL_DISTANCE_PER_SECOND / self.WINDOW_FRAMES
         self.SPACING_RATE = config.getfloat("FileShowArea", "SPACING_RATE", fallback=0.05)
         self.LABEL_SPACING = config.getint("FileShowArea", "LABEL_SPACING", fallback=5)
@@ -691,7 +678,7 @@ class FileShowArea(QWidget):
         context_menu = create_context_menu(self)
         self.addViewMenu(context_menu)
         self.addSortMenu(context_menu)
-        select_all_action = QAction("全选", self)
+        select_all_action = QAction(self.tr(FileShowAreaText.SELECT_ALL), self)
         select_all_action.triggered.connect(self.select_all_file)
         context_menu.addAction(select_all_action)
 
@@ -699,21 +686,21 @@ class FileShowArea(QWidget):
         context_menu.exec_(global_pos)
 
     def addViewMenu(self, context_menu: QMenu):
-        view_menu = context_menu.addMenu("查看")
+        view_menu = context_menu.addMenu(self.tr(FileShowAreaText.VIEW))
 
-        small_action = QAction("小图标", self)
+        small_action = QAction(self.tr(FileShowAreaText.SMALL_ICON), self)
         small_action.setCheckable(True)
         small_action.triggered.connect(lambda: self.set_thumbnail_level("small"))
         if self.current_image_size == "small":
             small_action.setChecked(True)
 
-        medium_action = QAction("中等图标", self)
+        medium_action = QAction(self.tr(FileShowAreaText.MEDIUM_ICON), self)
         medium_action.setCheckable(True)
         medium_action.triggered.connect(lambda: self.set_thumbnail_level("mid"))
         if self.current_image_size == "mid":
             medium_action.setChecked(True)
 
-        large_action = QAction("大图标", self)
+        large_action = QAction(self.tr(FileShowAreaText.LARGE_ICON), self)
         large_action.setCheckable(True)
         large_action.triggered.connect(lambda: self.set_thumbnail_level("large"))
         if self.current_image_size == "large":
@@ -724,15 +711,15 @@ class FileShowArea(QWidget):
         view_menu.addAction(large_action)
 
     def addSortMenu(self, context_menu: QMenu):
-        sort_menu = context_menu.addMenu("排序")
+        sort_menu = context_menu.addMenu(self.tr(FileShowAreaText.SORT))
 
         for key, text in [
-            ("name", "按文件名"),
-            ("size", "按文件大小"),
-            ("date", "按修改日期"),
-            ("random", "随机排序"),
+            ("name", FileShowAreaText.SORT_BY_NAME),
+            ("size", FileShowAreaText.SORT_BY_SIZE),
+            ("date", FileShowAreaText.SORT_BY_DATE),
+            ("random", FileShowAreaText.SORT_RANDOM),
         ]:
-            action = QAction(text, self)
+            action = QAction(self.tr(text), self)
             action.setCheckable(True)
             action.triggered.connect(lambda _, sort_key=key: self.set_sort(sort_key, self.current_sort_order))
             if self.current_sort_key == key:
@@ -740,13 +727,13 @@ class FileShowArea(QWidget):
             sort_menu.addAction(action)
 
         sort_menu.addSeparator()
-        asc_action = QAction("升序", self)
+        asc_action = QAction(self.tr(FileShowAreaText.ASCENDING), self)
         asc_action.setCheckable(True)
         asc_action.triggered.connect(lambda: self.set_sort(self.current_sort_key, "asc"))
         if self.current_sort_order == "asc":
             asc_action.setChecked(True)
 
-        desc_action = QAction("降序", self)
+        desc_action = QAction(self.tr(FileShowAreaText.DESCENDING), self)
         desc_action.setCheckable(True)
         desc_action.triggered.connect(lambda: self.set_sort(self.current_sort_key, "desc"))
         if self.current_sort_order == "desc":
@@ -791,7 +778,12 @@ class FileShowArea(QWidget):
     def openFile(self, event, label: QLabel, default: bool = False):
         file_path = label.file_path
         if not os.path.exists(file_path):
-            self.errorOccurred.emit(f"无法打开文件：\n{file_path}\n文件已不存在。")
+            self.errorOccurred.emit(
+                self.tr(CommonText.OPEN_FILE_ERROR).format(
+                    file_path=file_path,
+                    error=self.tr(CommonText.FILE_NOT_FOUND),
+                )
+            )
             return
 
         if os.path.isdir(file_path):
@@ -800,7 +792,9 @@ class FileShowArea(QWidget):
             try:
                 os.startfile(file_path)
             except Exception as exc:
-                self.errorOccurred.emit(f"无法打开文件：\n{file_path}\n{exc}")
+                self.errorOccurred.emit(
+                    self.tr(CommonText.OPEN_FILE_ERROR).format(file_path=file_path, error=exc)
+                )
             return
 
         self.fileActivated.emit(file_path)
@@ -824,7 +818,9 @@ class FileShowArea(QWidget):
             try:
                 os.startfile(file_path)
             except Exception as exc:
-                self.errorOccurred.emit(f"无法打开文件：\n{file_path}\n{exc}")
+                self.errorOccurred.emit(
+                    self.tr(CommonText.OPEN_FILE_ERROR).format(file_path=file_path, error=exc)
+                )
 
     def showLabelMenu(self, pos: QPoint, label: QLabel):
         file_path = label.file_path
@@ -850,50 +846,50 @@ class FileShowArea(QWidget):
         # 右键菜单的“选中项”语义和左键保持一致：
         # 如果当前项不在选区内，先把它提升为当前选中项，再弹出菜单。
         context_menu = create_context_menu(self)
-        properties_action = QAction("属性", self)
+        properties_action = QAction(self.tr(FileShowAreaText.PROPERTIES), self)
         properties_action.triggered.connect(lambda: self.displayImageProperties(file_path))
         context_menu.addAction(properties_action)
 
         if os.path.exists(file_path):
-            file_menu = context_menu.addMenu("文件操作")
+            file_menu = context_menu.addMenu(self.tr(FileShowAreaText.FILE_ACTIONS))
 
-            open_default_action = QAction("系统默认方式打开", self)
+            open_default_action = QAction(self.tr(FileShowAreaText.OPEN_WITH_DEFAULT), self)
             open_default_action.triggered.connect(lambda: self.openFile(None, label, default=True))
             file_menu.addAction(open_default_action)
 
-            open_folder_action = QAction("打开文件所在位置", self)
+            open_folder_action = QAction(self.tr(FileShowAreaText.OPEN_FILE_LOCATION), self)
             open_folder_action.triggered.connect(lambda: self._handle_action_result(self.action_service.open_folder(file_path)))
             file_menu.addAction(open_folder_action)
 
-            copy_file_action = QAction("复制", self)
+            copy_file_action = QAction(self.tr(CommonText.COPY), self)
             copy_file_action.triggered.connect(lambda: self.changeFilePathMessageBox("copy"))
             file_menu.addAction(copy_file_action)
 
-            move_file_action = QAction("剪切", self)
+            move_file_action = QAction(self.tr(CommonText.CUT), self)
             move_file_action.triggered.connect(lambda: self.changeFilePathMessageBox("cut"))
             file_menu.addAction(move_file_action)
 
-            rename_file_action = QAction("重命名", self)
+            rename_file_action = QAction(self.tr(CommonText.RENAME), self)
             rename_file_action.triggered.connect(lambda: self.renameFile(file_path))
             file_menu.addAction(rename_file_action)
 
-            delete_file_action = QAction("删除", self)
+            delete_file_action = QAction(self.tr(CommonText.DELETE), self)
             delete_file_action.triggered.connect(lambda: self.confirmDelete(os_delete=True))
             file_menu.addAction(delete_file_action)
         else:
-            select_invalid_action = QAction("选中所有失效文件", self)
+            select_invalid_action = QAction(self.tr(FileShowAreaText.SELECT_ALL_INVALID), self)
             select_invalid_action.triggered.connect(self.selectAllUnvalidFile)
             context_menu.addAction(select_invalid_action)
 
-            repair_file_action = QAction("修复文件", self)
+            repair_file_action = QAction(self.tr(FileShowAreaText.REPAIR_FILE), self)
             repair_file_action.triggered.connect(self.repairFile)
             context_menu.addAction(repair_file_action)
 
-        refresh_action = QAction("刷新", self)
+        refresh_action = QAction(self.tr(FileShowAreaText.REFRESH), self)
         refresh_action.triggered.connect(lambda: self.refresh_files(self.get_selected_files()))
         context_menu.addAction(refresh_action)
 
-        delete_from_base_action = QAction("从库中删除", self)
+        delete_from_base_action = QAction(self.tr(FileShowAreaText.DELETE_FROM_LIBRARY), self)
         delete_from_base_action.triggered.connect(self.confirmDelete)
         context_menu.addAction(delete_from_base_action)
 
@@ -907,7 +903,12 @@ class FileShowArea(QWidget):
         parent_path = os.path.dirname(selected_files[0])
         options = QFileDialog.Options()
         options |= QFileDialog.ShowDirsOnly
-        target_folder = QFileDialog.getExistingDirectory(self, "选择目标文件夹", parent_path, options=options)
+        target_folder = QFileDialog.getExistingDirectory(
+            self,
+            self.tr(FileShowAreaText.CHOOSE_TARGET_FOLDER),
+            parent_path,
+            options=options,
+        )
         if not target_folder:
             return
 
@@ -915,8 +916,8 @@ class FileShowArea(QWidget):
         if file_action == "copy":
             reply = QMessageBox.question(
                 self,
-                "提示",
-                "是否同步复制标签？",
+                self.tr(CommonText.INFO),
+                self.tr(FileShowAreaText.COPY_TAGS_CONFIRM),
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -926,7 +927,11 @@ class FileShowArea(QWidget):
         self._handle_action_result(result)
 
     def renameFile(self, file_path: str):
-        new_name, ok = self._prompt_text_value("重命名文件", "请输入新的文件名：", text=os.path.basename(file_path))
+        new_name, ok = self._prompt_text_value(
+            self.tr(FileShowAreaText.RENAME_FILE_TITLE),
+            self.tr(FileShowAreaText.ENTER_NEW_FILE_NAME),
+            text=os.path.basename(file_path),
+        )
         if not ok or not new_name:
             return
         result = self.action_service.rename_file(file_path, new_name)
@@ -934,10 +939,16 @@ class FileShowArea(QWidget):
 
     def confirmDelete(self, os_delete: bool = False):
         if os_delete:
-            message = "确定要删除选中的文件吗？此操作将在系统层删除文件！"
+            message = self.tr(FileShowAreaText.DELETE_FILES_CONFIRM)
         else:
-            message = "确定要从库中删除选中的文件吗？"
-        reply = QMessageBox.question(self, "确认删除", message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            message = self.tr(FileShowAreaText.DELETE_FROM_LIBRARY_CONFIRM)
+        reply = QMessageBox.question(
+            self,
+            self.tr(FileShowAreaText.CONFIRM_DELETE_TITLE),
+            message,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
         if reply == QMessageBox.Yes:
             result = self.action_service.delete_files(self.get_selected_files(), os_delete=os_delete)
             self._handle_action_result(result)
@@ -954,18 +965,18 @@ class FileShowArea(QWidget):
     def repairFile(self):
         selected_missing = [file_path for file_path in self.get_selected_files() if not os.path.exists(file_path)]
         if not selected_missing:
-            self.infoRequested.emit("当前没有选中失效文件。")
+            self.infoRequested.emit(self.tr(FileShowAreaText.NO_INVALID_SELECTED))
             return
 
         options = QFileDialog.Options()
         options |= QFileDialog.ShowDirsOnly
-        folder_path = QFileDialog.getExistingDirectory(self, "选择候选文件所在文件夹", options=options)
+        folder_path = QFileDialog.getExistingDirectory(self, self.tr(FileShowAreaText.CHOOSE_REPAIR_FOLDER), options=options)
         if not folder_path:
             return
 
         repair_file_groups, repair_group_titles, originals = self.action_service.build_repair_candidates(selected_missing, folder_path)
         if not repair_file_groups:
-            self.infoRequested.emit("当前没有需要修复的失效文件。")
+            self.infoRequested.emit(self.tr(FileShowAreaText.NO_REPAIR_NEEDED))
             return
 
         def repair_initial_selector(group_files_list):
@@ -1002,7 +1013,7 @@ class FileShowArea(QWidget):
         widget = QWidget()
         self.child_widget.append(widget)
         widget.destroyed.connect(lambda: self.child_widget.remove(widget) if widget in self.child_widget else None)
-        widget.setWindowTitle(f"{view.file_name} 属性")
+        widget.setWindowTitle(self.tr(FileShowAreaText.FILE_PROPERTIES_TITLE).format(file_name=view.file_name))
         widget.resize(500, 300)
 
         text_edit = QTextEdit(widget)
@@ -1010,17 +1021,17 @@ class FileShowArea(QWidget):
         text_edit.setFont(QFont("Arial", 12))
 
         tags = self.dict_manage.query("file", file_path, "tag")
-        tags_str = ", ".join(list(tags)) if tags else "无标签"
+        tags_str = ", ".join(list(tags)) if tags else self.tr(FileShowAreaText.NO_TAGS)
         message = (
-            f"<b>文件名:</b>&nbsp; {view.file_name}<br><br>"
-            f"<b>文件路径:</b>&nbsp; {view.file_path}<br><br>"
-            f"<b>文件大小:</b>&nbsp; {view.formatted_size}<br><br>"
-            f"<b>修改时间:</b>&nbsp; {view.formatted_date}<br><br>"
-            f"<b>文件标签:</b>&nbsp; {tags_str}"
+            f"<b>{self.tr(CommonText.FILE_NAME)}:</b>&nbsp; {view.file_name}<br><br>"
+            f"<b>{self.tr(CommonText.FILE_PATH)}:</b>&nbsp; {view.file_path}<br><br>"
+            f"<b>{self.tr(CommonText.FILE_SIZE)}:</b>&nbsp; {view.formatted_size}<br><br>"
+            f"<b>{self.tr(CommonText.MODIFIED_TIME)}:</b>&nbsp; {view.formatted_date}<br><br>"
+            f"<b>{self.tr(FileShowAreaText.FILE_TAGS)}:</b>&nbsp; {tags_str}"
         )
         text_edit.setHtml(message)
 
-        ok_button = create_button("确定", widget)
+        ok_button = create_button(self.tr(CommonText.OK), widget)
         ok_button.clicked.connect(widget.close)
 
         layout = QVBoxLayout(widget)
@@ -1180,10 +1191,10 @@ class FileShowArea(QWidget):
         self.currentFileChanged.emit(self.get_current_file())
 
     def _show_info_message(self, message: str):
-        QMessageBox.information(self, "提示", message)
+        QMessageBox.information(self, self.tr(CommonText.INFO), message)
 
     def _show_error_message(self, message: str):
-        QMessageBox.critical(self, "错误", message)
+        QMessageBox.critical(self, self.tr(CommonText.ERROR), message)
 
     def _prompt_text_value(self, title, label_text, text=""):
         dialog = QDialog(self)
@@ -1204,7 +1215,7 @@ class FileShowArea(QWidget):
         layout.addWidget(line_edit)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
-        configure_dialog_button_box(button_box)
+        configure_dialog_button_box(button_box, translate=self.tr)
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
@@ -1256,7 +1267,7 @@ class MainFileShowArea(FileShowArea):
             return
         context_menu, global_pos = result
 
-        tag_action = QAction("管理标签", self)
+        tag_action = QAction(self.tr(FileShowAreaText.MANAGE_TAGS), self)
         tag_action.triggered.connect(lambda: self.requestManageTags.emit(self.get_selected_files()))
         context_menu.insertAction(context_menu.actions()[0], tag_action)
         context_menu.exec_(global_pos)
@@ -1264,7 +1275,7 @@ class MainFileShowArea(FileShowArea):
 
 class TagFileShowArea(FileShowArea):
     def __init__(self, file_paths: list | None = None):
-        self.prompt_label = QLabel("请拖入文件或文件夹")
+        self.prompt_label = QLabel(FileShowAreaText.DRAG_FILES_OR_FOLDERS)
         self.prompt_label.setAlignment(Qt.AlignCenter)
         self.prompt_label.setStyleSheet(
             """
@@ -1276,6 +1287,7 @@ class TagFileShowArea(FileShowArea):
 
         super().__init__(file_paths)
         self.prompt_label.setParent(self)
+        self.prompt_label.setText(self.tr(FileShowAreaText.DRAG_FILES_OR_FOLDERS))
 
         self.setAcceptDrops(True)
         self._accept_folder = config.getboolean("TagFileShowArea", "acceptFloder", fallback=False)
@@ -1293,7 +1305,7 @@ class TagFileShowArea(FileShowArea):
         if result is None:
             return
         context_menu, global_pos = result
-        remove_action = QAction("移除", self)
+        remove_action = QAction(self.tr(CommonText.REMOVE), self)
         remove_action.triggered.connect(self.removeSelectedFiles)
         context_menu.addAction(remove_action)
         context_menu.exec_(global_pos)

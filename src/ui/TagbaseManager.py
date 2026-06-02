@@ -22,11 +22,12 @@ from src.ui.components.style_utils import (
     create_button,
     create_context_menu,
 )
+from src.ui.ui_text import CommonText, TagbaseManagerText
 
 class TagbaseManager(QDialog):
     def __init__(self, father=None):
         super().__init__()
-        self.setWindowTitle("标签库管理")
+        self.setWindowTitle(self.tr(TagbaseManagerText.WINDOW_TITLE))
         self.resize(600, 400)
         self.father = father
         self.DictManage = DictManage()
@@ -46,16 +47,20 @@ class TagbaseManager(QDialog):
         
         # 当前标签库信息
         current_info_layout = QVBoxLayout()
-        current_info_layout.addWidget(QLabel("当前标签库:"))
+        current_info_layout.addWidget(QLabel(self.tr(TagbaseManagerText.CURRENT_TAGBASE)))
         
-        self.current_name_label = QLabel(f"名称: {self.current_tagbase_name}")
-        self.current_path_label = QLabel(f"路径: {self.current_tagbase_path}")
+        self.current_name_label = QLabel(f"{self.tr(TagbaseManagerText.NAME)}: {self.current_tagbase_name}")
+        self.current_path_label = QLabel(f"{self.tr(TagbaseManagerText.PATH)}: {self.current_tagbase_path}")
         current_info_layout.addWidget(self.current_name_label)
         current_info_layout.addWidget(self.current_path_label)
         
         # 标签库列表 - 改为TreeWidget以支持多列
         self.tagbase_list = QTreeWidget()
-        self.tagbase_list.setHeaderLabels(["名称", "路径", "文件大小"])
+        self.tagbase_list.setHeaderLabels([
+            self.tr(TagbaseManagerText.NAME),
+            self.tr(TagbaseManagerText.PATH),
+            self.tr(TagbaseManagerText.SIZE),
+        ])
         self.tagbase_list.setColumnWidth(0, 150)
         self.tagbase_list.setColumnWidth(1, 280)
         
@@ -66,13 +71,13 @@ class TagbaseManager(QDialog):
         # 按钮区域
         button_layout = QHBoxLayout()
         
-        self.switch_btn = create_button("切换")
+        self.switch_btn = create_button(self.tr(CommonText.SWITCH))
         self.switch_btn.clicked.connect(self.switch_tagbase)
         
-        self.create_btn = create_button("创建")
+        self.create_btn = create_button(self.tr(CommonText.CREATE))
         self.create_btn.clicked.connect(self.create_tagbase)
         
-        self.add_btn = create_button("从文件添加标签库")
+        self.add_btn = create_button(self.tr(TagbaseManagerText.ADD_EXISTING_TAGBASE))
         self.add_btn.clicked.connect(self.add_existing_tagbase)
         
         button_layout.addWidget(self.switch_btn)
@@ -80,7 +85,7 @@ class TagbaseManager(QDialog):
         button_layout.addWidget(self.add_btn)
         
         layout.addLayout(current_info_layout)
-        layout.addWidget(QLabel("可用标签库:"))
+        layout.addWidget(QLabel(self.tr(TagbaseManagerText.AVAILABLE_TAGBASES)))
         layout.addWidget(self.tagbase_list)
         layout.addLayout(button_layout)
         
@@ -100,9 +105,9 @@ class TagbaseManager(QDialog):
         context_menu = create_context_menu(self)
         
         # 添加菜单项
-        edit_action = context_menu.addAction("编辑")
-        delete_action = context_menu.addAction("删除")
-        repair_action = context_menu.addAction("从备份修复")
+        edit_action = context_menu.addAction(self.tr(CommonText.EDIT))
+        delete_action = context_menu.addAction(self.tr(CommonText.DELETE))
+        repair_action = context_menu.addAction(self.tr(TagbaseManagerText.REPAIR_FROM_BACKUP))
         
         # 获取用户选择的动作
         action = context_menu.exec_(self.tagbase_list.mapToGlobal(position))
@@ -136,7 +141,7 @@ class TagbaseManager(QDialog):
             else:
                 return f"{size/(1024*1024*1024):.2f} GB"
         except Exception:
-            return "未知"
+            return self.tr(TagbaseManagerText.UNKNOWN)
     
     def load_tagbases(self):
         """加载所有标签库"""
@@ -181,14 +186,14 @@ class TagbaseManager(QDialog):
         # 更新显示
         self.current_tagbase_name = name
         self.current_tagbase_path = path
-        self.current_name_label.setText(f"名称: {name}")
-        self.current_path_label.setText(f"路径: {path}")
+        self.current_name_label.setText(f"{self.tr(TagbaseManagerText.NAME)}: {name}")
+        self.current_path_label.setText(f"{self.tr(TagbaseManagerText.PATH)}: {path}")
 
     def switch_tagbase(self):
         """切换当前标签库"""
         selected = self.tagbase_list.currentItem()
         if not selected:
-            QMessageBox.warning(self, "警告", "请先选择一个标签库")
+            QMessageBox.warning(self, self.tr(CommonText.WARNING), self.tr(TagbaseManagerText.SELECT_TAGBASE_FIRST))
             return
             
         name = selected.text(0)  # 第一列：名称
@@ -199,14 +204,14 @@ class TagbaseManager(QDialog):
     
     def create_tagbase(self):
         """创建新标签库"""
-        name, ok = self._prompt_text_value("创建标签库", "输入新标签库名称:")
+        name, ok = self._prompt_text_value(self.tr(TagbaseManagerText.CREATE_TAGBASE_TITLE), self.tr(TagbaseManagerText.ENTER_NEW_TAGBASE_NAME))
         if not ok or not name:
             return
         
         # 检查名称合法性
         invalid_chars = r'[\/:*?"<>|]'
         if re.search(invalid_chars, name):
-            QMessageBox.warning(self, "错误", "名称包含非法字符: \\ / : * ? \" < > |")
+            QMessageBox.warning(self, self.tr(CommonText.ERROR), self.tr(TagbaseManagerText.INVALID_NAME))
             return
         
         # 创建空标签库
@@ -223,13 +228,13 @@ class TagbaseManager(QDialog):
         
         # 更新列表
         self.load_tagbases()
-        QMessageBox.information(self, "成功", f"已创建标签库: {name}")
+        QMessageBox.information(self, self.tr(CommonText.SUCCESS), self.tr(TagbaseManagerText.CREATED_TAGBASE).format(name=name))
     
     def edit_tagbase(self):
         """编辑标签库名称和路径"""
         selected = self.tagbase_list.currentItem()
         if not selected:
-            QMessageBox.warning(self, "警告", "请先选择一个标签库")
+            QMessageBox.warning(self, self.tr(CommonText.WARNING), self.tr(TagbaseManagerText.SELECT_TAGBASE_FIRST))
             return
             
         old_name = selected.text(0)  # 第一列：名称
@@ -237,29 +242,29 @@ class TagbaseManager(QDialog):
         
         # 创建编辑对话框
         edit_dialog = QDialog(self)
-        edit_dialog.setWindowTitle("编辑标签库")
+        edit_dialog.setWindowTitle(self.tr(TagbaseManagerText.EDIT_TAGBASE_TITLE))
         edit_dialog.setMinimumWidth(400)
         
         layout = QVBoxLayout()
         
         # 名称输入
         name_layout = QHBoxLayout()
-        name_layout.addWidget(QLabel("名称:"))
+        name_layout.addWidget(QLabel(f"{self.tr(TagbaseManagerText.NAME)}:"))
         name_input = QLineEdit(old_name)
         name_layout.addWidget(name_input)
         layout.addLayout(name_layout)
         
         # 路径输入
         path_layout = QHBoxLayout()
-        path_layout.addWidget(QLabel("路径:"))
+        path_layout.addWidget(QLabel(f"{self.tr(TagbaseManagerText.PATH)}:"))
         path_input = QLineEdit(old_path)
         path_input.setReadOnly(True)  # 路径通过浏览按钮选择
         path_layout.addWidget(path_input)
         
-        browse_btn = create_button("浏览...")
+        browse_btn = create_button(self.tr(CommonText.BROWSE))
 
         def browse_path():
-            path = QFileDialog.getExistingDirectory(edit_dialog, "选择目录", path_input.text())
+            path = QFileDialog.getExistingDirectory(edit_dialog, self.tr(TagbaseManagerText.SELECT_DIRECTORY), path_input.text())
             if path:
                 path = normalize_path_lowercase(path)
                 path_input.setText(path)
@@ -270,8 +275,8 @@ class TagbaseManager(QDialog):
         
         # 按钮区域
         btn_layout = QHBoxLayout()
-        ok_btn = create_button("确认")
-        cancel_btn = create_button("取消")
+        ok_btn = create_button(self.tr(CommonText.CONFIRM))
+        cancel_btn = create_button(self.tr(CommonText.CANCEL))
         btn_layout.addWidget(ok_btn)
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)
@@ -288,11 +293,11 @@ class TagbaseManager(QDialog):
             # 检查名称合法性
             invalid_chars = r'[\/:*?"<>|]'
             if not new_name:
-                QMessageBox.warning(edit_dialog, "错误", "名称不能为空")
+                QMessageBox.warning(edit_dialog, self.tr(CommonText.ERROR), self.tr(TagbaseManagerText.NAME_EMPTY))
                 return
             
             if re.search(invalid_chars, new_name):
-                QMessageBox.warning(edit_dialog, "错误", "名称包含非法字符: \\ / : * ? \" < > |")
+                QMessageBox.warning(edit_dialog, self.tr(CommonText.ERROR), self.tr(TagbaseManagerText.INVALID_NAME))
                 return
 
             # 只有名称或路径有变化时才进行修改
@@ -327,8 +332,8 @@ class TagbaseManager(QDialog):
                 config.set('DictManage', 'tagbase_folder', new_path)
                 self.current_tagbase_name = new_name
                 self.current_tagbase_path = new_path
-                self.current_name_label.setText(f"名称: {new_name}")
-                self.current_path_label.setText(f"路径: {new_path}")
+                self.current_name_label.setText(f"{self.tr(TagbaseManagerText.NAME)}: {new_name}")
+                self.current_path_label.setText(f"{self.tr(TagbaseManagerText.PATH)}: {new_path}")
             
             self.tagbase_path_list = [new_full_path if p == old_full_path else p for p in self.tagbase_path_list]
             config.set('DictManage', 'tagbase_list', '|'.join(self.tagbase_path_list))
@@ -336,24 +341,24 @@ class TagbaseManager(QDialog):
             
             # 更新列表
             self.load_tagbases()
-            QMessageBox.information(self, "成功", "修改完成")
+            QMessageBox.information(self, self.tr(CommonText.SUCCESS), self.tr(TagbaseManagerText.EDIT_COMPLETED))
             
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"修改失败: {str(e)}")
+            QMessageBox.critical(self, self.tr(CommonText.ERROR), self.tr(TagbaseManagerText.EDIT_FAILED).format(error=str(e)))
     
     def delete_tagbase(self):
         """删除标签库"""
         selected = self.tagbase_list.currentItem()
         if not selected:
-            QMessageBox.warning(self, "警告", "请先选择一个标签库")
+            QMessageBox.warning(self, self.tr(CommonText.WARNING), self.tr(TagbaseManagerText.SELECT_TAGBASE_FIRST))
             return
             
         name = selected.text(0)  # 第一列：名称
         path = selected.text(1)  # 第二列：路径
         
         # 确认删除
-        reply = QMessageBox.question(self, "确认删除", 
-                                   f"确定要删除标签库 '{name}' 吗?\n此操作不可恢复!", 
+        reply = QMessageBox.question(self, self.tr(TagbaseManagerText.CONFIRM_DELETE_TITLE), 
+                                   self.tr(TagbaseManagerText.CONFIRM_DELETE_TAGBASE).format(name=name), 
                                    QMessageBox.Yes | QMessageBox.No)
         if reply != QMessageBox.Yes:
             return
@@ -388,16 +393,19 @@ class TagbaseManager(QDialog):
             
             # 更新列表
             self.load_tagbases()
-            QMessageBox.information(self, "成功", "删除完成")
+            QMessageBox.information(self, self.tr(CommonText.SUCCESS), self.tr(TagbaseManagerText.DELETE_COMPLETED))
             
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"删除失败: {str(e)}")
+            QMessageBox.critical(self, self.tr(CommonText.ERROR), self.tr(TagbaseManagerText.DELETE_FAILED).format(error=str(e)))
     
     def add_existing_tagbase(self):
         """添加现有标签库"""
         # 打开文件对话框，让用户选择任意一种标签库文件
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择标签库文件", self.DictManage.default_folder, f"标签库文件 (*{self.file_ext[0]})"
+            self,
+            self.tr(TagbaseManagerText.SELECT_TAGBASE_FILE),
+            self.DictManage.default_folder,
+            self.tr(TagbaseManagerText.TAGBASE_FILE_FILTER).format(ext=self.file_ext[0]),
         )
 
         if not file_path:
@@ -417,7 +425,7 @@ class TagbaseManager(QDialog):
         # 检查是否已存在
         tagbase_path = os.path.join(dir_path, file_name).replace('\\', '/')
         if tagbase_path in self.tagbase_path_list:
-            QMessageBox.information(self, "提示", f"标签库 '{file_name}' 已在列表中")
+            QMessageBox.information(self, self.tr(CommonText.INFO), self.tr(TagbaseManagerText.TAGBASE_ALREADY_LISTED).format(file_name=file_name))
             return
 
         # 添加到标签库列表
@@ -428,7 +436,7 @@ class TagbaseManager(QDialog):
         # 刷新列表
         self.load_tagbases()
         
-        QMessageBox.information(self, "成功", f"已添加标签库: {file_name}")
+        QMessageBox.information(self, self.tr(CommonText.SUCCESS), self.tr(TagbaseManagerText.ADDED_TAGBASE).format(file_name=file_name))
 
     def _prompt_text_value(self, title, label_text, text=""):
         dialog = QDialog(self)
@@ -449,7 +457,7 @@ class TagbaseManager(QDialog):
         layout.addWidget(line_edit)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
-        configure_dialog_button_box(button_box)
+        configure_dialog_button_box(button_box, translate=self.tr)
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)

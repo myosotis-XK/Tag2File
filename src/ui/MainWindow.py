@@ -17,6 +17,7 @@ from .TagInput import TagInputWidget
 from .TagbaseManager import *
 from .CategoryManager import *
 from .components.style_utils import create_button, create_context_menu
+from .ui_text import CommonText, MainWindowText
 
 
 @dataclass
@@ -30,7 +31,7 @@ class SearchSnapshot:
 class WebUsagePopup(QWidget):
     def __init__(self, url):
         super().__init__()
-        self.setWindowTitle("Web端入口")
+        self.setWindowTitle(self.tr(MainWindowText.WEB_ENTRY_TITLE))
         self.setFixedSize(300, 350)
         self.url = url
         self.initUI()
@@ -41,7 +42,7 @@ class WebUsagePopup(QWidget):
         layout.setSpacing(15)  # 元素间距
 
         # “访问地址”标题
-        label_title = QLabel("访问地址")
+        label_title = QLabel(self.tr(MainWindowText.ACCESS_ADDRESS))
         font_title = QFont()
         font_title.setPointSize(14)
         font_title.setBold(True)
@@ -112,8 +113,8 @@ class Tag2File(QMainWindow):
 
         # 托盘菜单
         tray_menu = create_context_menu()
-        show_action = QAction("显示窗口", self)
-        quit_action = QAction("退出", self)
+        show_action = QAction(self.tr(MainWindowText.TRAY_SHOW), self)
+        quit_action = QAction(self.tr(MainWindowText.TRAY_QUIT), self)
         tray_menu.addAction(show_action)
         tray_menu.addAction(quit_action)
 
@@ -138,10 +139,10 @@ class Tag2File(QMainWindow):
         menubar = self.menuBar()
 
         # 创建设置菜单
-        file_menu = menubar.addMenu("开始")
-        file_menu.addAction("标签库", self.showTagbaseManager)
-        file_menu.addAction("Web端入口", self.show_web_usage)
-        file_menu.addAction("最小化到托盘", self.minimize_to_tray)
+        file_menu = menubar.addMenu(self.tr(MainWindowText.START_MENU))
+        file_menu.addAction(self.tr(MainWindowText.TAGBASE_MANAGER), self.showTagbaseManager)
+        file_menu.addAction(self.tr(MainWindowText.WEB_ENTRY), self.show_web_usage)
+        file_menu.addAction(self.tr(MainWindowText.MINIMIZE_TO_TRAY), self.minimize_to_tray)
 
         # 创建界面
         self.file_view = QWidget()
@@ -158,19 +159,19 @@ class Tag2File(QMainWindow):
     def initFileView(self):
         # 创建切换按钮布局
         switch_layout = QHBoxLayout()
-        tag_button = create_button("管理标签")
+        tag_button = create_button(self.tr(MainWindowText.MANAGE_TAGS))
         tag_button.clicked.connect(self.showTagView)
         switch_layout.addWidget(tag_button)
 
-        category_button = create_button("管理类别")
+        category_button = create_button(self.tr(MainWindowText.MANAGE_CATEGORIES))
         category_button.clicked.connect(self.showCategoryManager)
         switch_layout.addWidget(category_button)
         # 创建搜索框布局
         search_layout = QVBoxLayout()
-        search_button = create_button("查询", self, variant="primary")
+        search_button = create_button(self.tr(CommonText.SEARCH), self, variant="primary")
         search_button.clicked.connect(lambda: self.changeFile())  # 绑定切换函数
         # 创建清空输入框的按钮  
-        clear_button = create_button("清空", self, variant="default")
+        clear_button = create_button(self.tr(CommonText.CLEAR), self, variant="default")
         clear_button.clicked.connect(self.clearInput)  # 绑定清空函数
         
         search_layout2 = QHBoxLayout()
@@ -218,11 +219,11 @@ class Tag2File(QMainWindow):
         folder_nav_layout.setContentsMargins(8, 0, 0, 0)
         folder_nav_layout.setSpacing(8)
 
-        self.restore_search_button = create_button("返回搜索结果", variant="default", size="control")
+        self.restore_search_button = create_button(self.tr(MainWindowText.RESTORE_SEARCH_RESULTS), variant="default", size="control")
         self.restore_search_button.clicked.connect(self.restore_search_snapshot)
         folder_nav_layout.addWidget(self.restore_search_button)
 
-        self.go_parent_button = create_button("上一级", variant="default", size="control")
+        self.go_parent_button = create_button(self.tr(MainWindowText.GO_PARENT), variant="default", size="control")
         self.go_parent_button.clicked.connect(self.go_parent_or_restore)
         folder_nav_layout.addWidget(self.go_parent_button)
 
@@ -394,8 +395,8 @@ class Tag2File(QMainWindow):
         except ValueError as e:
             message_box = QMessageBox(self)
             message_box.setIcon(QMessageBox.Information)
-            message_box.setWindowTitle("错误！")
-            message_box.setText(f"错误的表达式：{tag_expression}\n\n具体原因：{e}")
+            message_box.setWindowTitle(self.tr(MainWindowText.INVALID_EXPRESSION_TITLE))
+            message_box.setText(self.tr(MainWindowText.INVALID_EXPRESSION).format(tag_expression=tag_expression, error=e))
             message_box.exec_()
             return False
 
@@ -473,7 +474,11 @@ class Tag2File(QMainWindow):
                     file_size = 0 if entry.is_dir() else stat_info.st_size
                     file_meta_datas.append((entry.path.replace("\\", "/"), file_size, stat_info.st_mtime))
         except OSError as exc:
-            QMessageBox.critical(self, "错误", f"无法打开文件夹：\n{folder_path}\n{exc}")
+            QMessageBox.critical(
+                self,
+                self.tr(CommonText.ERROR),
+                self.tr(MainWindowText.OPEN_FOLDER_ERROR).format(folder_path=folder_path, error=exc),
+            )
             return False
 
         self.current_folder = folder_path

@@ -3,6 +3,7 @@ from PyQt5.QtCore import pyqtSignal, Qt
 
 from .flow_layout import QFlowLayout
 from src.ui.components.style_utils import create_colored_label
+from src.ui.ui_text import PresetSelectorText
 
 
 class PresetSelector(QWidget):
@@ -10,7 +11,7 @@ class PresetSelector(QWidget):
 
     # 信号：当预设被选中时发出 (preset_id, color, name)
     preset_selected = pyqtSignal(int, str, str)
-    def __init__(self, title="预设类型", parent=None):
+    def __init__(self, title=PresetSelectorText.PRESET_TYPE, parent=None):
         """
         初始化预设选择器
 

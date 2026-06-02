@@ -29,6 +29,8 @@ from src.ui.components.style_utils import (
     create_colored_label,
     create_context_menu,
 )
+from src.ui.ui_text import CommonText, TagViewText
+from src.ui.ui_text import CategoryManagerText
 
 from .FileShowArea import TagFileShowArea
 from .SingleFileTagView import QFlowLayout, SingleFileTagView
@@ -54,7 +56,7 @@ class TagView(QMainWindow):
 
         self.MainWindow = MainWindow
         self.resize(1200, 700)
-        self.setWindowTitle("标签管理")
+        self.setWindowTitle(self.tr(TagViewText.WINDOW_TITLE))
 
         self.model = "batch"
         self.quickly_model = config.getboolean("TagView", "quickly_model", fallback=False)
@@ -79,31 +81,31 @@ class TagView(QMainWindow):
         self.SingleFileTagView = SingleFileTagView(self.file_paths, self.TagFileShowArea)
         self.SingleFileTagView.hide()
 
-        self.floder_button = create_button("不接受文件夹", self)
+        self.floder_button = create_button(self.tr(TagViewText.REJECT_FOLDER), self)
         if self.TagFileShowArea.accepts_folder():
-            self.floder_button.setText("接受文件夹")
+            self.floder_button.setText(self.tr(TagViewText.ACCEPT_FOLDER))
         self.floder_button.clicked.connect(self.change_floder_model)
 
-        self.model_button = create_button("普通模式", self, variant="default")
+        self.model_button = create_button(self.tr(TagViewText.NORMAL_MODE), self, variant="default")
         if self.quickly_model:
-            self.model_button.setText("快速模式")
+            self.model_button.setText(self.tr(TagViewText.QUICK_MODE))
         self.model_button.clicked.connect(self.change_quickly_model)
 
         self.tag_input = QLineEdit(self)
-        self.tag_input.setPlaceholderText("输入标签...")
+        self.tag_input.setPlaceholderText(self.tr(TagViewText.TAG_INPUT_PLACEHOLDER))
         self.tag_input.setFixedHeight(30)
         apply_line_edit_style(self.tag_input)
 
-        add_button = create_button("添加", self, variant="primary")
+        add_button = create_button(self.tr(CommonText.ADD), self, variant="primary")
         add_button.clicked.connect(self.addTag)
 
-        delete_button = create_button("删除", self)
+        delete_button = create_button(self.tr(TagViewText.DELETE_TAG), self)
         delete_button.clicked.connect(self.deleteTag)
 
-        clear_button = create_button("清空", self)
+        clear_button = create_button(self.tr(CommonText.CLEAR), self)
         clear_button.clicked.connect(self.clearFile)
 
-        self.switch_view_button = create_button("切换视图", variant="default")
+        self.switch_view_button = create_button(self.tr(TagViewText.SWITCH_VIEW), variant="default")
         self.switch_view_button.clicked.connect(self.toggle_view)
 
         toolbar_widget = QWidget()
@@ -185,7 +187,7 @@ class TagView(QMainWindow):
         tag_layout = QFlowLayout(margin=10, spacing=6)
         for item in self.DictManage.query_category():
             category = item[0]
-            if category == "文件类型":
+            if category == CategoryManagerText.FILE_TYPE_CATEGORY:
                 continue
             color = item[1]
             tags = self.DictManage.query("category", category, "tag")
@@ -231,13 +233,13 @@ class TagView(QMainWindow):
     def show_tag_context_menu(self, pos, label):
         context_menu = create_context_menu(self)
 
-        delete_action = QAction("删除", self)
+        delete_action = QAction(self.tr(TagViewText.DELETE_TAG), self)
         delete_action.triggered.connect(lambda: self.delete_tag_action(label))
 
-        rename_action = QAction("重命名", self)
+        rename_action = QAction(self.tr(CommonText.RENAME), self)
         rename_action.triggered.connect(lambda: self.rename_tag_action(label))
 
-        change_category_action = QAction("修改类别", self)
+        change_category_action = QAction(self.tr(TagViewText.CHANGE_CATEGORY), self)
         change_category_action.triggered.connect(lambda: self.change_tag_category_action(label))
 
         context_menu.addAction(delete_action)
@@ -255,21 +257,25 @@ class TagView(QMainWindow):
         operators = [" and ", " or ", "'", "(", ")", "-"]
         for op in operators:
             if op in tag:
-                QMessageBox.information(self, "错误", f"存在非法字符: {op}")
+                QMessageBox.information(self, self.tr(CommonText.ERROR), self.tr(TagViewText.INVALID_CHAR).format(op=op))
                 return False
         return True
 
     def rename_tag_action(self, label):
         tag = label.text()
-        new_name, ok = self._prompt_text_value("重命名", "输入新标签名称:", text=tag)
+        new_name, ok = self._prompt_text_value(
+            self.tr(TagViewText.RENAME_TITLE),
+            self.tr(TagViewText.ENTER_NEW_TAG_NAME),
+            text=tag,
+        )
         if ok and new_name:
             if not self.cherk_tag(new_name):
                 return
             if new_name in self.DictManage.get_all_tags():
                 reply = QMessageBox.question(
                     self,
-                    "继续",
-                    f"'{new_name}' 标签已存在，继续将合并标签，是否继续？",
+                    self.tr(CommonText.CONTINUE),
+                    self.tr(TagViewText.MERGE_EXISTING_TAG_CONFIRM).format(new_name=new_name),
                     QMessageBox.Yes | QMessageBox.No,
                     QMessageBox.No,
                 )
@@ -283,13 +289,13 @@ class TagView(QMainWindow):
         rows = self.DictManage.query_category()
         existing_category = [row[0] for row in rows]
         category, ok = self._prompt_item_value(
-            "修改类别",
-            "选择或输入新类别名称:",
+            self.tr(TagViewText.CHANGE_CATEGORY_TITLE),
+            self.tr(TagViewText.SELECT_OR_ENTER_CATEGORY),
             existing_category,
         )
         if ok and category:
             if category not in existing_category:
-                QMessageBox.information(self, "错误", f"'{category}' 类别不存在")
+                QMessageBox.information(self, self.tr(CommonText.ERROR), self.tr(TagViewText.CATEGORY_NOT_FOUND).format(category=category))
                 return False
             self.DictManage.change_tag_category(tag, category)
 
@@ -312,7 +318,7 @@ class TagView(QMainWindow):
         layout.addWidget(line_edit)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
-        configure_dialog_button_box(button_box)
+        configure_dialog_button_box(button_box, translate=self.tr)
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
@@ -343,7 +349,7 @@ class TagView(QMainWindow):
         layout.addWidget(combo_box)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
-        configure_dialog_button_box(button_box)
+        configure_dialog_button_box(button_box, translate=self.tr)
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
@@ -391,7 +397,7 @@ class TagView(QMainWindow):
             return
         if self.model == "batch":
             self.DictManage.add_tag(tag, self.TagFileShowArea.get_files())
-            self._show_toast("添加成功")
+            self._show_toast(self.tr(TagViewText.ADD_SUCCESS))
         else:
             self.SingleFileTagView.add_tag_current_file(tag)
         self.tag_input.clear()
@@ -400,7 +406,7 @@ class TagView(QMainWindow):
         tag = self.tag_input.text()
         if self.model == "batch":
             self.DictManage.delete_tag(tag, self.TagFileShowArea.get_files())
-            self._show_toast("删除成功")
+            self._show_toast(self.tr(TagViewText.DELETE_SUCCESS))
         else:
             self.SingleFileTagView.delete_tag_current_file(tag)
 
@@ -423,7 +429,7 @@ class TagView(QMainWindow):
             self.splitter.replaceWidget(0, self.SingleFileTagView)
             self.SingleFileTagView.show()
             self.SingleFileTagView.update_index(file_path)
-            self.switch_view_button.setText("单文件视图")
+            self.switch_view_button.setText(self.tr(TagViewText.SINGLE_FILE_VIEW))
         else:
             self.model = "batch"
             self.SingleFileTagView.hide()
@@ -434,7 +440,7 @@ class TagView(QMainWindow):
             if file_path is not None:
                 self.TagFileShowArea.set_current_file(file_path, keep_selection=False)
                 self.TagFileShowArea.scroll_to_file(file_path)
-            self.switch_view_button.setText("多文件视图")
+            self.switch_view_button.setText(self.tr(TagViewText.MULTI_FILE_VIEW))
 
         self.splitter.setSizes(current_sizes)
 
@@ -443,16 +449,16 @@ class TagView(QMainWindow):
         config.set("TagView", "quickly_model", str(self.quickly_model))
         save_config()
         if self.quickly_model:
-            self.model_button.setText("快速模式")
+            self.model_button.setText(self.tr(TagViewText.QUICK_MODE))
         else:
-            self.model_button.setText("普通模式")
+            self.model_button.setText(self.tr(TagViewText.NORMAL_MODE))
 
     def change_floder_model(self):
         self.TagFileShowArea.set_accept_folder(not self.TagFileShowArea.accepts_folder())
         if self.TagFileShowArea.accepts_folder():
-            self.floder_button.setText("接受文件夹")
+            self.floder_button.setText(self.tr(TagViewText.ACCEPT_FOLDER))
         else:
-            self.floder_button.setText("不接受文件夹")
+            self.floder_button.setText(self.tr(TagViewText.REJECT_FOLDER))
 
     def _sync_files_from_area(self, file_paths):
         # TagFileShowArea 现在是文件列表的单一事实来源；

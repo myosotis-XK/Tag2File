@@ -5,8 +5,11 @@ import ctypes
 from ctypes import wintypes
 from typing import Optional
 
+from PyQt5.QtCore import QCoreApplication
+
 from src.core.DictManage import DictManage
 from src.utils import get_all_files, get_available_filename
+from src.ui.ui_text import FileShowAreaText
 
 from .file_grid_models import ActionResult
 
@@ -147,7 +150,12 @@ class FileActionService:
                 continue
             file_name = os.path.basename(original_path)
             groups.append(file_name_to_paths.get(file_name, []))
-            titles.append(f"修复: '{file_name}' ({original_path})")
+            titles.append(
+                QCoreApplication.translate(
+                    "FileActionService",
+                    FileShowAreaText.REPAIR_CANDIDATE_TITLE,
+                ).format(file_name=file_name, original_path=original_path)
+            )
             originals.append(original_path)
         return groups, titles, originals
 
