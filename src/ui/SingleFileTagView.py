@@ -1,8 +1,9 @@
 from datetime import datetime
 
 from PyQt5.QtCore import QPoint, QRect, QSize, Qt
-from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLayout,
@@ -57,28 +58,51 @@ class SingleFileTagView(QScrollArea):
         apply_panel_style(self.fileinfo_card, tone="soft")
         fileinfo_card_layout = QVBoxLayout(self.fileinfo_card)
         fileinfo_card_layout.setContentsMargins(8, 8, 8, 8)
+        fileinfo_card_layout.setSpacing(10)
 
         fileinfo_area = QScrollArea()
         fileinfo_area.setWidgetResizable(True)
         apply_scroll_area_style(fileinfo_area, tone="soft")
         fileinfo_widget = QWidget()
         fileinfo_widget.setStyleSheet("background-color: #f8fbff;")
-        self.info_label = QLabel(fileinfo_widget)
-        self.info_label.setFont(QFont("Arial", 12))
-        self.info_label.setWordWrap(True)
-        self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.info_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        self.info_label.setStyleSheet("""
+
+        self.info_title_label = QLabel(self.tr(SingleFileTagViewText.DETAILS_TITLE), fileinfo_widget)
+        self.info_title_label.setStyleSheet("""
             QLabel {
                 background-color: transparent;
                 border: none;
-                color: #314456;
+                color: #1f2d3d;
+                font-size: 16px;
+                font-weight: 600;
+                padding: 2px 2px 8px 2px;
+            }
+        """)
+        self.file_name_value = QLabel(fileinfo_widget)
+        self.file_name_value.setWordWrap(True)
+        self.file_name_value.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.file_name_value.setStyleSheet("""
+            QLabel {
+                background-color: transparent;
+                border: none;
+                color: #1f2d3d;
+                font-size: 18px;
+                font-weight: 600;
                 padding: 2px;
             }
         """)
+        self.path_value = self._create_info_value_label(fileinfo_widget)
+        self.size_value = self._create_info_value_label(fileinfo_widget)
+        self.modified_time_value = self._create_info_value_label(fileinfo_widget)
+
         layout = QVBoxLayout(fileinfo_widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.info_label)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(10)
+        layout.addWidget(self.info_title_label)
+        layout.addWidget(self.file_name_value)
+        layout.addWidget(self._create_info_row(self.tr(CommonText.FILE_PATH), self.path_value, fileinfo_widget))
+        layout.addWidget(self._create_info_row(self.tr(CommonText.FILE_SIZE), self.size_value, fileinfo_widget))
+        layout.addWidget(self._create_info_row(self.tr(CommonText.MODIFIED_TIME), self.modified_time_value, fileinfo_widget))
+        layout.addStretch()
         fileinfo_area.setWidget(fileinfo_widget)
         fileinfo_area.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         fileinfo_area.setMaximumWidth(250)
@@ -170,21 +194,68 @@ class SingleFileTagView(QScrollArea):
         view = self.TagFileShowArea.get_file_view(self.current_file_path)
         if view is None:
             self.pixmap = QPixmap()
-            self.info_label.clear()
+            self.file_name_value.clear()
+            self.path_value.clear()
+            self.size_value.clear()
+            self.modified_time_value.clear()
         else:
             self.pixmap = QPixmap(view.file_path)
             if self.pixmap.isNull() and view.icon_source is not None:
                 self.pixmap = view.icon_source.source
-            message = self.tr(SingleFileTagViewText.FILE_INFO_HTML).format(
-                file_name=view.file_name,
-                file_path=view.file_path,
-                file_size=view.formatted_size,
-                modified_time=datetime.fromtimestamp(view.file_date).strftime("%Y年%m月%d日，%H:%M:%S"),
+            self.file_name_value.setText(view.file_name)
+            self.path_value.setText(view.file_path)
+            self.size_value.setText(view.formatted_size)
+            self.modified_time_value.setText(
+                datetime.fromtimestamp(view.file_date).strftime("%Y年%m月%d日，%H:%M:%S")
             )
-            self.info_label.setTextFormat(Qt.RichText)
-            self.info_label.setText(message)
         self.image_viewer.load_image(self.pixmap)
         self.update_tags()
+
+    def _create_info_value_label(self, parent):
+        label = QLabel(parent)
+        label.setWordWrap(True)
+        label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        label.setStyleSheet("""
+            QLabel {
+                background-color: transparent;
+                border: none;
+                color: #314456;
+                font-size: 12px;
+                padding: 0px;
+            }
+        """)
+        return label
+
+    def _create_info_row(self, title, value_label, parent):
+        row = QFrame(parent)
+        row.setStyleSheet("""
+            QFrame {
+                background-color: transparent;
+                border: none;
+                border-top: 1px solid #e3ebf3;
+                padding-top: 8px;
+            }
+        """)
+        row_layout = QVBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(4)
+
+        title_label = QLabel(title, row)
+        title_label.setStyleSheet("""
+            QLabel {
+                background-color: transparent;
+                border: none;
+                color: #6b7b8c;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+            }
+        """)
+        row_layout.addWidget(title_label)
+        row_layout.addWidget(value_label)
+        return row
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

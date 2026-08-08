@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from src.ui.ui_text import AudioPlayerText
 from src.utils.path import root
 
 from .audio_utils import format_time, marker_jump_position, normalize_audio_path
@@ -37,14 +38,13 @@ from .playlist_panel import PlaylistPanel
 from .quick_marker_creator import QuickMarkerCreator
 
 
-WINDOW_TITLE = "高级音频播放器"
 AUDIO_ICON_DIR = os.path.join(root, "data", "icon", "audio")
 
 
 class AudioPlayer(QWidget):
     def __init__(self, path, audio_files=None):
         super().__init__()
-        self.window_title_prefix = WINDOW_TITLE
+        self.window_title_prefix = self.tr(AudioPlayerText.WINDOW_TITLE)
         self.path = path
         self.play_mode = 0
         self.marker_store = MarkerStore()
@@ -108,7 +108,7 @@ class AudioPlayer(QWidget):
         switch_layout.setSpacing(4)
         switch_widget.setLayout(switch_layout)
 
-        self.btn_show_markers = QPushButton("📋 标记")
+        self.btn_show_markers = QPushButton(self.tr(AudioPlayerText.SHOW_MARKERS))
         self.btn_show_markers.setCheckable(True)
         self.btn_show_markers.setChecked(True)
         self.btn_show_markers.setFocusPolicy(Qt.NoFocus)
@@ -116,7 +116,7 @@ class AudioPlayer(QWidget):
         self.btn_show_markers.clicked.connect(lambda: self.switch_right_panel(0))
         switch_layout.addWidget(self.btn_show_markers)
 
-        self.btn_show_playlist = QPushButton("☰ 播放列表")
+        self.btn_show_playlist = QPushButton(self.tr(AudioPlayerText.SHOW_PLAYLIST))
         self.btn_show_playlist.setCheckable(True)
         self.btn_show_playlist.setFocusPolicy(Qt.NoFocus)
         self.btn_show_playlist.setStyleSheet(TAB_BUTTON_STYLE)
@@ -169,11 +169,11 @@ class AudioPlayer(QWidget):
         center_layout = QHBoxLayout()
         center_layout.setSpacing(8)
 
-        self.btn_mode = self._create_icon_button("repeat", "顺序播放", self.toggle_play_mode)
-        self.btn_previous = self._create_icon_button("previous", "上一首", self.play_previous)
-        self.btn_play = self._create_icon_button("play", "播放", self.toggle_play)
-        self.btn_next = self._create_icon_button("next", "下一首", self.play_next)
-        self.btn_volume = self._create_icon_button("volume", "音量", self.toggle_volume_slider)
+        self.btn_mode = self._create_icon_button("repeat", self.tr(AudioPlayerText.SEQUENTIAL_PLAY), self.toggle_play_mode)
+        self.btn_previous = self._create_icon_button("previous", self.tr(AudioPlayerText.PREVIOUS_TRACK), self.play_previous)
+        self.btn_play = self._create_icon_button("play", self.tr(AudioPlayerText.PLAY), self.toggle_play)
+        self.btn_next = self._create_icon_button("next", self.tr(AudioPlayerText.NEXT_TRACK), self.play_next)
+        self.btn_volume = self._create_icon_button("volume", self.tr(AudioPlayerText.VOLUME), self.toggle_volume_slider)
         self._set_play_button_style()
 
         for button in (
@@ -258,7 +258,11 @@ class AudioPlayer(QWidget):
         self.path = target_path
 
         if not os.path.exists(target_path):
-            QMessageBox.warning(self, "File Error", f"File does not exist:\n{target_path}")
+            QMessageBox.warning(
+                self,
+                self.tr(AudioPlayerText.FILE_ERROR),
+                self.tr(AudioPlayerText.FILE_DOES_NOT_EXIST).format(path=target_path),
+            )
             return False
 
         try:
@@ -270,7 +274,11 @@ class AudioPlayer(QWidget):
             self.update_title()
             return True
         except Exception as exc:
-            QMessageBox.critical(self, "Load Error", f"Unable to load media:\n{exc}")
+            QMessageBox.critical(
+                self,
+                self.tr(AudioPlayerText.LOAD_ERROR),
+                self.tr(AudioPlayerText.UNABLE_TO_LOAD_MEDIA).format(error=exc),
+            )
             return False
 
     def refresh_markers(self):
@@ -293,10 +301,10 @@ class AudioPlayer(QWidget):
     def on_state_changed(self, state):
         if state == QMediaPlayer.PlayingState:
             self._set_button_icon(self.btn_play, "pause")
-            self.btn_play.setToolTip("暂停")
+            self.btn_play.setToolTip(self.tr(AudioPlayerText.PAUSE))
         else:
             self._set_button_icon(self.btn_play, "play")
-            self.btn_play.setToolTip("播放")
+            self.btn_play.setToolTip(self.tr(AudioPlayerText.PLAY))
 
     def on_position_changed(self, ms):
         if not self.slider.isSliderDown():
@@ -326,7 +334,7 @@ class AudioPlayer(QWidget):
             self._set_button_icon(self.btn_volume, "volume")
 
     def on_player_error(self, *_args):
-        QMessageBox.critical(self, "Playback Error", self.player.errorString())
+        QMessageBox.critical(self, self.tr(AudioPlayerText.PLAYBACK_ERROR), self.player.errorString())
 
     def on_marker_jump(self, marker_id):
         marker = self._find_marker_by_id(marker_id)
@@ -338,14 +346,18 @@ class AudioPlayer(QWidget):
 
     def create_marker(self, marker_data):
         if not self.current_audio_path:
-            QMessageBox.warning(self, "Error", "No audio file is loaded.")
+            QMessageBox.warning(self, self.tr(AudioPlayerText.LOAD_ERROR), self.tr(AudioPlayerText.NO_AUDIO_FILE_LOADED))
             return
 
         try:
             self.marker_store.add_marker(self.current_audio_path, marker_data)
             self.refresh_markers()
         except Exception as exc:
-            QMessageBox.critical(self, "Error", f"Failed to create marker:\n{exc}")
+            QMessageBox.critical(
+                self,
+                self.tr(AudioPlayerText.LOAD_ERROR),
+                self.tr(AudioPlayerText.CREATE_MARKER_FAILED).format(error=exc),
+            )
 
     def edit_marker(self, marker):
         if not self.current_audio_path:
@@ -365,7 +377,11 @@ class AudioPlayer(QWidget):
             self.refresh_markers()
             return True
         except Exception as exc:
-            QMessageBox.critical(self, "Error", f"Failed to update marker:\n{exc}")
+            QMessageBox.critical(
+                self,
+                self.tr(AudioPlayerText.LOAD_ERROR),
+                self.tr(AudioPlayerText.UPDATE_MARKER_FAILED).format(error=exc),
+            )
             return False
 
     def delete_marker(self, marker_id):
@@ -376,7 +392,11 @@ class AudioPlayer(QWidget):
             self.marker_store.delete_marker(self.current_audio_path, marker_id)
             self.refresh_markers()
         except Exception as exc:
-            QMessageBox.critical(self, "Error", f"Failed to delete marker:\n{exc}")
+            QMessageBox.critical(
+                self,
+                self.tr(AudioPlayerText.LOAD_ERROR),
+                self.tr(AudioPlayerText.DELETE_MARKER_FAILED).format(error=exc),
+            )
 
     def switch_right_panel(self, panel_index):
         show_markers = panel_index == 0
@@ -406,13 +426,13 @@ class AudioPlayer(QWidget):
         self.play_mode = (self.play_mode + 1) % 3
         if self.play_mode == 0:
             self._set_button_icon(self.btn_mode, "repeat")
-            self.btn_mode.setToolTip("顺序播放")
+            self.btn_mode.setToolTip(self.tr(AudioPlayerText.SEQUENTIAL_PLAY))
         elif self.play_mode == 1:
             self._set_button_icon(self.btn_mode, "shuffle")
-            self.btn_mode.setToolTip("随机播放")
+            self.btn_mode.setToolTip(self.tr(AudioPlayerText.SHUFFLE_PLAY))
         else:
             self._set_button_icon(self.btn_mode, "repeat_one")
-            self.btn_mode.setToolTip("单曲循环")
+            self.btn_mode.setToolTip(self.tr(AudioPlayerText.REPEAT_ONE))
 
     def on_playlist_audio_selected(self, index):
         if self.play_audio_at_index(index):
@@ -457,7 +477,7 @@ class AudioPlayer(QWidget):
 
     def create_point_marker(self):
         if not self.current_audio_path:
-            QMessageBox.warning(self, "Error", "No audio file is loaded.")
+            QMessageBox.warning(self, self.tr(AudioPlayerText.LOAD_ERROR), self.tr(AudioPlayerText.NO_AUDIO_FILE_LOADED))
             return
 
         dialog = MarkerEditDialog(
@@ -479,7 +499,11 @@ class AudioPlayer(QWidget):
             self.marker_store.add_marker(self.current_audio_path, dialog.get_data())
             self.refresh_markers()
         except Exception as exc:
-            QMessageBox.critical(self, "Error", f"Failed to create marker:\n{exc}")
+            QMessageBox.critical(
+                self,
+                self.tr(AudioPlayerText.LOAD_ERROR),
+                self.tr(AudioPlayerText.CREATE_MARKER_FAILED).format(error=exc),
+            )
 
     def play_previous(self):
         previous_index = self.playlist_controller.get_previous_index(self.play_mode)

@@ -172,14 +172,7 @@ class TagbaseManagerText:
 
 
 class SingleFileTagViewText:
-    FILE_INFO_HTML = (
-        "<div style='color:#314456; line-height:1.6;'>"
-        "<div style='font-size:18px; font-weight:600; color:#1f2d3d; margin-bottom:10px;'>{file_name}</div>"
-        "<div><span style='color:#6b7b8c;'>文件路径</span><br>{file_path}</div>"
-        "<div style='margin-top:10px;'><span style='color:#6b7b8c;'>文件大小</span><br>{file_size}</div>"
-        "<div style='margin-top:10px;'><span style='color:#6b7b8c;'>修改时间</span><br>{modified_time}</div>"
-        "</div>"
-    )
+    DETAILS_TITLE = "文件信息"
 
 
 class FileSelectionText:
@@ -222,3 +215,26 @@ class AudioMarkerText:
     UNNAMED_MARKER = "未命名标记"
     END_BEFORE_START = "结束时间不能小于开始时间"
     CREATE = "创建"
+
+
+class AudioPlayerText:
+    WINDOW_TITLE = "高级音频播放器"
+    SHOW_MARKERS = "📋 标记"
+    SHOW_PLAYLIST = "☰ 播放列表"
+    SEQUENTIAL_PLAY = "顺序播放"
+    SHUFFLE_PLAY = "随机播放"
+    REPEAT_ONE = "单曲循环"
+    PREVIOUS_TRACK = "上一首"
+    PLAY = "播放"
+    PAUSE = "暂停"
+    NEXT_TRACK = "下一首"
+    VOLUME = "音量"
+    FILE_ERROR = "File Error"
+    FILE_DOES_NOT_EXIST = "File does not exist:\n{path}"
+    LOAD_ERROR = "Load Error"
+    UNABLE_TO_LOAD_MEDIA = "Unable to load media:\n{error}"
+    PLAYBACK_ERROR = "Playback Error"
+    NO_AUDIO_FILE_LOADED = "No audio file is loaded."
+    CREATE_MARKER_FAILED = "Failed to create marker:\n{error}"
+    UPDATE_MARKER_FAILED = "Failed to update marker:\n{error}"
+    DELETE_MARKER_FAILED = "Failed to delete marker:\n{error}"
