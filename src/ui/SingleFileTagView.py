@@ -66,17 +66,6 @@ class SingleFileTagView(QScrollArea):
         fileinfo_widget = QWidget()
         fileinfo_widget.setStyleSheet("background-color: #f8fbff;")
 
-        self.info_title_label = QLabel(self.tr(SingleFileTagViewText.DETAILS_TITLE), fileinfo_widget)
-        self.info_title_label.setStyleSheet("""
-            QLabel {
-                background-color: transparent;
-                border: none;
-                color: #1f2d3d;
-                font-size: 16px;
-                font-weight: 600;
-                padding: 2px 2px 8px 2px;
-            }
-        """)
         self.file_name_value = QLabel(fileinfo_widget)
         self.file_name_value.setWordWrap(True)
         self.file_name_value.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -85,7 +74,7 @@ class SingleFileTagView(QScrollArea):
                 background-color: transparent;
                 border: none;
                 color: #1f2d3d;
-                font-size: 18px;
+                font-size: 14px;
                 font-weight: 600;
                 padding: 2px;
             }
@@ -97,7 +86,6 @@ class SingleFileTagView(QScrollArea):
         layout = QVBoxLayout(fileinfo_widget)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(10)
-        layout.addWidget(self.info_title_label)
         layout.addWidget(self.file_name_value)
         layout.addWidget(self._create_info_row(self.tr(CommonText.FILE_PATH), self.path_value, fileinfo_widget))
         layout.addWidget(self._create_info_row(self.tr(CommonText.FILE_SIZE), self.size_value, fileinfo_widget))
@@ -234,23 +222,23 @@ class SingleFileTagView(QScrollArea):
                 background-color: transparent;
                 border: none;
                 border-top: 1px solid #e3ebf3;
-                padding-top: 8px;
+                padding-top: 4px;
             }
         """)
         row_layout = QVBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
-        row_layout.setSpacing(4)
+        row_layout.setSpacing(2)
 
         title_label = QLabel(title, row)
         title_label.setStyleSheet("""
             QLabel {
                 background-color: transparent;
                 border: none;
-                color: #6b7b8c;
-                font-size: 11px;
-                font-weight: 600;
-                letter-spacing: 1px;
-                text-transform: uppercase;
+                color: #465a6e;
+                font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+                font-size: 13px;
+                font-weight: 400;
+                padding: 0px;
             }
         """)
         row_layout.addWidget(title_label)

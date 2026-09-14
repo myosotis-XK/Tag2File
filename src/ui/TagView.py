@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.core.DictManage import DictManage
-from src.utils import config, init_config_section, save_config
+from src.utils import config, init_config_section, save_config, root
 from src.ui.components.style_utils import (
     apply_line_edit_style,
     apply_scroll_area_style,
@@ -345,7 +345,28 @@ class TagView(QMainWindow):
 
         combo_box = QComboBox(dialog)
         combo_box.setEditable(True)
+        combo_box.setInsertPolicy(QComboBox.NoInsert)
         combo_box.addItems(items)
+        combo_box.setMaxVisibleItems(12)
+        combo_box.setStyleSheet(f"""
+            QComboBox {{ padding-right: 32px; min-height: 24px; }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 28px;
+                border-left: 1px solid #bfd0e0;
+                background-color: #eaf2fa;
+                border-top-right-radius: 8px;
+                border-bottom-right-radius: 8px;
+            }}
+            QComboBox::down-arrow {{
+                image: url("{root}/data/icon/app/chevron-down.svg");
+                width: 12px;
+                height: 12px;
+            }}
+        """)
+        combo_box.completer().setCaseSensitivity(Qt.CaseInsensitive)
+        combo_box.completer().setFilterMode(Qt.MatchContains)
         layout.addWidget(combo_box)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
