@@ -147,13 +147,27 @@ class TagbaseManager(QDialog):
         """加载所有标签库"""
         self.tagbase_list.clear()
         
-        self.tagbase_path_list = config.get('DictManage', 'tagbase_list', fallback='').split('|')
-        if '' in self.tagbase_path_list:
-            self.tagbase_path_list.remove('')
+        self.tagbase_path_list = []
+        for tagbase_path in config.get('DictManage', 'tagbase_list', fallback='').split('|'):
+            if not tagbase_path:
+                continue
+            if tagbase_path not in self.tagbase_path_list:
+                self.tagbase_path_list.append(tagbase_path)
         
         # 查找默认路径的所有标签库
         if os.path.exists(self.DictManage.default_folder):
-            for item in os.listdir(self.DictManage.default_folder):
+            default_files = os.listdir(self.DictManage.default_folder)
+            default_file_names = {os.path.normcase(item) for item in default_files}
+            default_dir = os.path.normcase(os.path.abspath(self.DictManage.default_folder))
+            # 仅清理已成功读取的默认目录中的失效记录，保留外部库及辅助文件。
+            self.tagbase_path_list = [
+                path for path in self.tagbase_path_list
+                if os.path.normcase(os.path.abspath(os.path.dirname(path))) != default_dir
+                or any(os.path.normcase(os.path.basename(path) + ext)
+                       in default_file_names
+                       for ext in self.file_ext)
+            ]
+            for item in default_files:
                 if item.endswith(self.file_ext[0]):
                     name = item[:-3]
                     tagbase_path = os.path.join(self.DictManage.default_folder, name).replace('\\', '/')
@@ -222,7 +236,10 @@ class TagbaseManager(QDialog):
         self.DictManage.create_tagbase(tagbase_path)
 
         # 添加到配置
-        self.tagbase_path_list.append(tagbase_path)  # 默认路径只存名称
+        # 列表统一保存不带文件扩展名的路径。
+        base_path = os.path.join(floder_path, name).replace('\\', '/')
+        if base_path not in self.tagbase_path_list:
+            self.tagbase_path_list.append(base_path)
         config.set('DictManage', 'tagbase_list', '|'.join(self.tagbase_path_list))
         save_config()
         
