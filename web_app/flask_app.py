@@ -166,7 +166,12 @@ def load_tagbase_data(tagbase_path: str) -> dict:
         # 如果读取失败，将返回带有空字典的 data
     return data
 
-tagbase_data_dict = {}
+tagbase_data_dict: dict[str, DataAPI] = {}
+
+def load_tagbase(db_path: str):
+    if db_path not in tagbase_data_dict:
+        db_path_full = db_path if db_path.lower().endswith('.db') else db_path + '.db'
+        tagbase_data_dict[db_path] = DataAPI(db_path_full)
 
 _icon_provider = QFileIconProvider()
 
@@ -421,9 +426,7 @@ def get_init():
     if db_path is None:
         db_path = db_list[0]
         set_user_setting(user_id, 'database_path', db_path)
-    if db_path not in tagbase_data_dict:
-        db_path_full = db_path + '.db'
-        tagbase_data_dict[db_path] = DataAPI(db_path_full)
+    load_tagbase(db_path)
     return jsonify({
         'database_list': db_list,
         'database_path': db_path,
@@ -436,9 +439,7 @@ def switch_db():
     if not db_path:
         return jsonify({'success': False, 'message': '数据库路径不能为空'}), 400
     set_user_setting(session.get('user_id'), 'database_path', db_path)
-    if db_path not in tagbase_data_dict:
-        db_path_full = db_path + '.db'
-        tagbase_data_dict[db_path] = DataAPI(db_path_full)
+    load_tagbase(db_path)
     return jsonify({'success': True, 'message': f'切换到数据库 {db_path}'})
 
 @app.route('/add_tag', methods=['POST'])
@@ -449,35 +450,21 @@ def add_tag():
     if not isinstance(data, dict):
         return jsonify({'success': False, 'message': '请求体必须是 JSON 对象'}), 400
 
-    db_path = data.get('db_path', data.get('database'))
-    tag = data.get('tag')
-    file_paths = data.get('file_paths', data.get('files'))
+    db_path: str = data.get('db_path', data.get('database'))
+    tag: str = data.get('tag')
+    file_paths: list[str] = data.get('file_paths', data.get('files'))
 
-    if not isinstance(db_path, str) or not db_path.strip():
-        return jsonify({'success': False, 'message': '数据库路径不能为空'}), 400
-    if not isinstance(tag, str) or not tag.strip():
-        return jsonify({'success': False, 'message': '标签不能为空'}), 400
+    if not isinstance(db_path, str) or not db_path:
+        return jsonify({'success': False, 'message': '数据库路径必须是非空字符串'}), 400
+    if not isinstance(tag, str) or not tag:
+        return jsonify({'success': False, 'message': '标签必须是非空字符串'}), 400
     if not isinstance(file_paths, list) or not file_paths:
         return jsonify({'success': False, 'message': '文件列表必须是非空数组'}), 400
-    if any(not isinstance(path, str) or not path.strip() for path in file_paths):
+    if any(not isinstance(path, str) or not path for path in file_paths):
         return jsonify({'success': False, 'message': '文件列表中的路径必须是非空字符串'}), 400
 
-    db_path = db_path.strip()
-    tag = tag.strip()
-    # 与项目中的文件路径存储格式保持一致，并避免重复处理同一路径。
-    file_paths = list(dict.fromkeys(path.strip().replace('\\', '/') for path in file_paths))
-    missing_files = [path for path in file_paths if not os.path.exists(path)]
-    if missing_files:
-        return jsonify({
-            'success': False,
-            'message': '部分文件不存在',
-            'missing_files': missing_files,
-        }), 400
-
-    if db_path not in tagbase_data_dict:
-        db_path_full = db_path if db_path.lower().endswith('.db') else db_path + '.db'
-        tagbase_data_dict[db_path] = DataAPI(db_path_full)
-
+    file_paths = list(dict.fromkeys(path.replace('\\', '/') for path in file_paths))
+    load_tagbase(db_path)
     data_api: DataAPI = tagbase_data_dict[db_path]
     data_api.add_tag(tag, file_paths)
 

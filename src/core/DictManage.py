@@ -709,9 +709,13 @@ class DataAPI():
                     batch = new_files[i:i+BATCH_SIZE]
                     insert_datas = []
                     for file_path in batch:
-                        st = os.stat(file_path)
-                        size_bytes = st.st_size
-                        mtime = st.st_mtime
+                        try:
+                            st = os.stat(file_path)
+                            size_bytes = st.st_size
+                            mtime = st.st_mtime
+                        except:
+                            size_bytes = 0
+                            mtime = 0
                         insert_datas.append((file_path, size_bytes, mtime))
                     cur.executemany("INSERT INTO file(name, size_bytes, mtime) VALUES (?, ?, ?)", insert_datas) 
 
