@@ -13,6 +13,7 @@ from PyQt5.QtCore import QFileInfo, QSize, QBuffer, QByteArray, QIODevice
 from PyQt5.QtGui import QIcon
 from src.utils import get_cache_path, root, config, thumbnailExtractor
 from src.models import get_file_init_icon
+from src.core.DictManage import DataAPI
 from web_app.blueprint.audio import audio_api_bp, audio_page_bp
 from web_app.decorators import login_required
 
@@ -413,7 +414,6 @@ def serve_root():
 def favicon():
     return send_from_directory(os.path.join(root, 'data', 'icon', 'app'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
-from src.core.DictManage import DataAPI
 @app.route('/get_init', methods=['GET'])
 @login_required
 def get_init():
