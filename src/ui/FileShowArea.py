@@ -69,6 +69,7 @@ class FileShowArea(QWidget):
     requestRemoveFiles = pyqtSignal(list)
     errorOccurred = pyqtSignal(str)
     infoRequested = pyqtSignal(str)
+    thumbnailReady = pyqtSignal(str)
 
     file_status_map = {
         (0, 0, 0): (Border.NONE, Background.TRANSPARENT),
@@ -87,6 +88,7 @@ class FileShowArea(QWidget):
         self.state = FileGridState()
         self.layout_engine = FileGridLayoutEngine()
         self.thumbnail_controller = ThumbnailController(self.applyIconSource, self)
+        self.preview_thumbnail_controller = ThumbnailController(self.applyIconSource, self)
         self.action_service = FileActionService(self.dict_manage)
 
         self.SMALL_SIZE = config.getint("FileShowArea", "SMALL_SIZE", fallback=50)
@@ -190,6 +192,7 @@ class FileShowArea(QWidget):
 
     def closeEvent(self, event):
         self.thumbnail_controller.invalidate()
+        self.preview_thumbnail_controller.invalidate()
         self.auto_scroll_timer.stop()
         self.thumbnail_request_timer.stop()
         for widget in self.child_widget[:]:
@@ -209,6 +212,7 @@ class FileShowArea(QWidget):
         # 完整替换文件集时，先回收所有可见标签并使旧缩略图任务失效，
         # 再整体重建状态，避免 UI 还引用旧文件对象。
         self.thumbnail_controller.invalidate()
+        self.preview_thumbnail_controller.invalidate()
         self._recycle_all_labels()
         self.state.clear_ctrl_selection()
         self.state.clear_selection()
@@ -295,6 +299,10 @@ class FileShowArea(QWidget):
             label_size=file_item.label_size,
             icon_source=file_item.icon_source.get("current"),
         )
+
+    def request_file_thumbnail(self, file_path: str) -> None:
+        # 单文件预览不依赖网格可见范围，也不与网格请求共用取消代次。
+        self.preview_thumbnail_controller.load(self.state, [file_path], self.image_size)
 
     def set_current_file(self, file_path: Optional[str], keep_selection: bool = False) -> None:
         previous = self.state.set_current_file(file_path)
@@ -447,6 +455,7 @@ class FileShowArea(QWidget):
         label.show()
 
     def applyIconSource(self, file_path: str) -> None:
+        self.thumbnailReady.emit(file_path)
         if file_path not in self._labels:
             return
         file_item = self.state.get_item_if_exists(file_path)

@@ -103,7 +103,7 @@ class TagViewText:
     ENTER_NEW_TAG_NAME = "输入新标签名称:"
     MERGE_EXISTING_TAG_CONFIRM = "'{new_name}' 标签已存在，继续将合并标签，是否继续？"
     CHANGE_CATEGORY_TITLE = "修改类别"
-    SELECT_OR_ENTER_CATEGORY = "选择或输入新类别名称:"
+    SELECT_CATEGORY = "选择新类别:"
     CATEGORY_NOT_FOUND = "'{category}' 类别不存在"
     ADD_SUCCESS = "添加成功"
     DELETE_SUCCESS = "删除成功"

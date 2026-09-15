@@ -441,6 +441,55 @@ def switch_db():
         tagbase_data_dict[db_path] = DataAPI(db_path_full)
     return jsonify({'success': True, 'message': f'切换到数据库 {db_path}'})
 
+@app.route('/add_tag', methods=['POST'])
+@login_required
+def add_tag():
+    """给指定数据库中的一组文件添加标签。"""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'success': False, 'message': '请求体必须是 JSON 对象'}), 400
+
+    db_path = data.get('db_path', data.get('database'))
+    tag = data.get('tag')
+    file_paths = data.get('file_paths', data.get('files'))
+
+    if not isinstance(db_path, str) or not db_path.strip():
+        return jsonify({'success': False, 'message': '数据库路径不能为空'}), 400
+    if not isinstance(tag, str) or not tag.strip():
+        return jsonify({'success': False, 'message': '标签不能为空'}), 400
+    if not isinstance(file_paths, list) or not file_paths:
+        return jsonify({'success': False, 'message': '文件列表必须是非空数组'}), 400
+    if any(not isinstance(path, str) or not path.strip() for path in file_paths):
+        return jsonify({'success': False, 'message': '文件列表中的路径必须是非空字符串'}), 400
+
+    db_path = db_path.strip()
+    tag = tag.strip()
+    # 与项目中的文件路径存储格式保持一致，并避免重复处理同一路径。
+    file_paths = list(dict.fromkeys(path.strip().replace('\\', '/') for path in file_paths))
+    missing_files = [path for path in file_paths if not os.path.exists(path)]
+    if missing_files:
+        return jsonify({
+            'success': False,
+            'message': '部分文件不存在',
+            'missing_files': missing_files,
+        }), 400
+
+    if db_path not in tagbase_data_dict:
+        db_path_full = db_path if db_path.lower().endswith('.db') else db_path + '.db'
+        tagbase_data_dict[db_path] = DataAPI(db_path_full)
+
+    data_api: DataAPI = tagbase_data_dict[db_path]
+    data_api.add_tag(tag, file_paths)
+
+    return jsonify({
+        'success': True,
+        'message': '打标成功',
+        'database': db_path,
+        'tag': tag,
+        'file_paths': file_paths,
+        'file_count': len(file_paths),
+    })
+
 @app.route('/get_category', methods=['GET'])
 @login_required
 def get_category():

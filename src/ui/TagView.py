@@ -290,7 +290,7 @@ class TagView(QMainWindow):
         existing_category = [row[0] for row in rows]
         category, ok = self._prompt_item_value(
             self.tr(TagViewText.CHANGE_CATEGORY_TITLE),
-            self.tr(TagViewText.SELECT_OR_ENTER_CATEGORY),
+            self.tr(TagViewText.SELECT_CATEGORY),
             existing_category,
         )
         if ok and category:
@@ -344,7 +344,7 @@ class TagView(QMainWindow):
         layout.addWidget(QLabel(label_text, dialog))
 
         combo_box = QComboBox(dialog)
-        combo_box.setEditable(True)
+        combo_box.setEditable(False)
         combo_box.setInsertPolicy(QComboBox.NoInsert)
         combo_box.addItems(items)
         combo_box.setMaxVisibleItems(12)
@@ -365,8 +365,6 @@ class TagView(QMainWindow):
                 height: 12px;
             }}
         """)
-        combo_box.completer().setCaseSensitivity(Qt.CaseInsensitive)
-        combo_box.completer().setFilterMode(Qt.MatchContains)
         layout.addWidget(combo_box)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
@@ -376,7 +374,6 @@ class TagView(QMainWindow):
         layout.addWidget(button_box)
 
         combo_box.setFocus()
-        combo_box.lineEdit().selectAll()
 
         if dialog.exec_() != QDialog.Accepted:
             return "", False

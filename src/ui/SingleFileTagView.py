@@ -31,6 +31,7 @@ class SingleFileTagView(QScrollArea):
         self.DictManage.categoryChanged.connect(self._on_data_changed)
         self.DictManage.fileChanged.connect(self._on_file_changed)
         self.TagFileShowArea = TagFileShowArea
+        self.TagFileShowArea.thumbnailReady.connect(self._on_thumbnail_ready)
         self.file_paths = file_paths
         self.current_index = 0
         self.current_file_path = self.file_paths[0] if self.file_paths else None
@@ -198,6 +199,21 @@ class SingleFileTagView(QScrollArea):
             )
         self.image_viewer.load_image(self.pixmap)
         self.update_tags()
+        if view is not None:
+            self.TagFileShowArea.request_file_thumbnail(view.file_path)
+
+    def _on_thumbnail_ready(self, file_path):
+        if file_path != self.current_file_path:
+            return
+        view = self.TagFileShowArea.get_file_view(file_path)
+        if view is None or view.icon_source is None:
+            return
+        # 图片仍优先显示原图；视频等格式在后台封面就绪后替换默认图标。
+        pixmap = QPixmap(file_path)
+        if pixmap.isNull():
+            pixmap = view.icon_source.source
+        self.pixmap = pixmap
+        self.image_viewer.load_image(pixmap)
 
     def _create_info_value_label(self, parent):
         label = QLabel(parent)
