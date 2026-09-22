@@ -63,6 +63,22 @@ export function apiGetCategories() {
   return api.get('/get_category');
 }
 
+// 获取当前标签库中一个文件已有的标签
+export function apiGetFileTags(filePath) {
+  return api.get('/get_file_tags', {
+    params: { path: filePath },
+  });
+}
+
+// 给一组文件添加一个已有标签
+export function apiAddTag({ dbPath, tag, filePaths }) {
+  return api.post('/add_tag', {
+    db_path: dbPath,
+    tag,
+    file_paths: filePaths,
+  });
+}
+
 // 获取特殊标签状态
 export function apiGetSpecialTagsStatus() {
   return api.get('/get_special_tags_status');

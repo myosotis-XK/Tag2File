@@ -503,6 +503,55 @@ def get_category():
         'category_order': category_order 
     })
 
+@app.route('/get_file_tags', methods=['GET'])
+@login_required
+def get_file_tags():
+    """返回当前标签库中指定文件已有的标签。"""
+    file_path = request.args.get('path', type=str)
+    if not file_path:
+        return jsonify({'success': False, 'message': '文件路径不能为空'}), 400
+
+    file_path = file_path.replace('\\', '/')
+    db_path = get_user_setting(session.get('user_id'), 'database_path')
+    if not db_path:
+        return jsonify({'success': False, 'message': '当前标签库不可用'}), 400
+
+    load_tagbase(db_path)
+    data_api: DataAPI = tagbase_data_dict[db_path]
+    tags = sorted(data_api.query('file', file_path, 'tag'))
+    return jsonify({
+        'success': True,
+        'file_path': file_path,
+        'tags': tags,
+    })
+
+@app.route('/get_file_tags_batch', methods=['POST'])
+@login_required
+def get_file_tags_batch():
+    """从指定标签库批量读取文件已有标签，不改变用户当前选择。"""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'success': False, 'message': '请求体必须是 JSON 对象'}), 400
+
+    db_path = data.get('db_path', data.get('database'))
+    file_paths = data.get('file_paths', data.get('files'))
+    if not isinstance(db_path, str) or not db_path:
+        return jsonify({'success': False, 'message': '数据库路径必须是非空字符串'}), 400
+    if not isinstance(file_paths, list) or not file_paths or len(file_paths) > 1000:
+        return jsonify({'success': False, 'message': '文件列表必须是 1 至 1000 个路径'}), 400
+    if any(not isinstance(path, str) or not path for path in file_paths):
+        return jsonify({'success': False, 'message': '文件列表中的路径必须是非空字符串'}), 400
+
+    file_paths = list(dict.fromkeys(path.replace('\\', '/') for path in file_paths))
+    load_tagbase(db_path)
+    data_api: DataAPI = tagbase_data_dict[db_path]
+    return jsonify({
+        'success': True,
+        'database': db_path,
+        'file_paths': file_paths,
+        'tags_by_file': data_api.get_file_tags_batch(file_paths),
+    })
+
 @app.route('/get_special_tags_status', methods=['GET'])
 @login_required
 def get_special_tags_status():

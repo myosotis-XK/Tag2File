@@ -298,6 +298,27 @@ class DataAPI():
         finally:
             cur.close()
 
+    def get_file_tags_batch(self, file_paths: list[str]) -> dict[str, list[str]]:
+        """批量读取文件已有标签；标签库中不存在的文件返回空列表。"""
+        paths = list(dict.fromkeys(file_paths))
+        result = {path: [] for path in paths}
+        with self._lock:
+            for start in range(0, len(paths), 500):
+                batch = paths[start:start + 500]
+                if not batch:
+                    continue
+                placeholders = ",".join("?" for _ in batch)
+                rows = self.conn.execute(
+                    f"SELECT f.name, t.name FROM file f "
+                    f"JOIN tag_file tf ON tf.file_id=f.id "
+                    f"JOIN tag t ON t.id=tf.tag_id "
+                    f"WHERE f.name IN ({placeholders}) ORDER BY f.name, t.name",
+                    batch,
+                ).fetchall()
+                for path, tag in rows:
+                    result[path].append(tag)
+        return result
+
     def _tag_to_category(self, tag: str) -> str:
         """返回指定 tag 所属的 category 名称"""
         cur = self.conn.execute(

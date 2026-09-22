@@ -361,6 +361,10 @@ body {
     transition: transform 0.2s, box-shadow 0.2s;
     overflow: hidden;
     padding: 4px;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: pan-y;
 }
 
 .thumb-img {
@@ -434,4 +438,92 @@ body {
 .thumb-item.large .thumb-img,
 .thumb-item.large .thumb-icon {
     height: 170px;
+}
+
+/* 长按文件后的单标签选择框 */
+.file-tagging-header-text {
+    min-width: 0;
+}
+
+.file-tagging-file-name {
+    max-width: min(72vw, 420px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-tagging-existing-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 5px;
+    min-height: 18px;
+}
+
+.file-tagging-existing-tag {
+    max-width: min(48vw, 180px);
+    padding: 1px 7px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: #e7f0ff;
+    color: #315d95;
+    font-size: 12px;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-tagging-existing-empty,
+.file-tagging-existing-error {
+    color: #7b8794;
+    font-size: 12px;
+    line-height: 18px;
+}
+
+.file-tagging-existing-error {
+    color: #b02a37;
+}
+
+.file-tagging-category + .file-tagging-category {
+    margin-top: 18px;
+}
+
+.file-tagging-category-title {
+    margin-bottom: 8px;
+    color: #53677c;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.file-tagging-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.file-tagging-tag {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-tagging-notice {
+    position: fixed;
+    z-index: 1090;
+    top: 72px;
+    left: 50%;
+    min-width: min(88vw, 280px);
+    max-width: min(88vw, 520px);
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -12px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    text-align: center;
+}
+
+.file-tagging-notice.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
 }

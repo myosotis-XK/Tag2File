@@ -2,6 +2,7 @@ import { buildVirtualFile, clearBrowseState, globalState, loadMainViewState, sav
 import { apiGetFolderContents, apiGetThumbnail, apiOpenFile, apiSearchFiles } from '../api.js';
 import { throttle } from '../utils.js';
 import { saveAudioPlayerContext } from './audioPlayerContext.js';
+import { attachFileTaggingGesture } from './fileTagging.js';
 
 // 检测是否为音频文件
 function isAudioFile(filePath) {
@@ -573,8 +574,15 @@ function renderVisibleItems(forceRefresh = false) {
                     <div class="thumb-name" style="display: -webkit-box; -webkit-line-clamp: ${estimatedLines}; -webkit-box-orient: vertical; overflow: hidden;" title="${file.fileName}">${file.fileName}</div>
                 `;
                 
-                // 绑定点击事件
-                item.addEventListener('click', async () => {
+                const taggingGesture = attachFileTaggingGesture(item, file);
+
+                // 普通点击打开文件；长按后的这一次点击只用于结束长按手势。
+                item.addEventListener('click', async event => {
+                    if (taggingGesture.consumeClick()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                    }
                     // 检测是否为文件夹
                     const directory = file.isDirectory === true || await isDirectory(file.filePath);
                     if (directory) {
