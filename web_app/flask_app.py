@@ -170,8 +170,10 @@ def load_tagbase_data(tagbase_path: str) -> dict:
 tagbase_data_dict: dict[str, DataAPI] = {}
 
 def load_tagbase(db_path: str):
+    db_path_full = db_path if db_path.lower().endswith('.db') else db_path + '.db'
+    if not os.path.isfile(db_path_full):
+        raise FileNotFoundError(f"标签库不存在: {db_path_full}")
     if db_path not in tagbase_data_dict:
-        db_path_full = db_path if db_path.lower().endswith('.db') else db_path + '.db'
         tagbase_data_dict[db_path] = DataAPI(db_path_full)
 
 _icon_provider = QFileIconProvider()
@@ -438,8 +440,8 @@ def switch_db():
     db_path = request.json.get('db_path')
     if not db_path:
         return jsonify({'success': False, 'message': '数据库路径不能为空'}), 400
-    set_user_setting(session.get('user_id'), 'database_path', db_path)
     load_tagbase(db_path)
+    set_user_setting(session.get('user_id'), 'database_path', db_path)
     return jsonify({'success': True, 'message': f'切换到数据库 {db_path}'})
 
 @app.route('/add_tag', methods=['POST'])
