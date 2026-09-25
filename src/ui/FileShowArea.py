@@ -497,7 +497,7 @@ class FileShowArea(QWidget):
         # 只保留视口附近的标签，向上下各扩一段缓冲区，
         # 用来减少快速滚动时频繁创建/销毁控件带来的抖动。
         visible_rect = QRect(self._offset, self._offset + self.rect().bottomRight())
-        extra_h = int(visible_rect.height() * 0.5)
+        extra_h = int(visible_rect.height() * 1.0)
         visible_rect.adjust(0, -extra_h, 0, extra_h)
 
         visible_files = self.layout_engine.get_files_in_rect(

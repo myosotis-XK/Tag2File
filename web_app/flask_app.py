@@ -387,7 +387,6 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         user_id = loogin_check(username, password)
-        print(user_id)
         if user_id:
             session['logged_in'] = True
             session['user_id'] = user_id
