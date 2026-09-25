@@ -16,7 +16,16 @@ def get_audio_dependencies():
 
 
 def sort_markers(markers):
-    return sorted(markers, key=lambda marker: marker.get('start', marker.get('time', 0)))
+    def get_start_time(marker):
+        marker_type = marker['type']
+        if marker_type == 0:
+            return marker['time']
+        elif marker_type == 1:
+            return marker['start']
+        else:
+            return 0
+    
+    return sorted(markers, key=get_start_time)
 
 
 @audio_page_bp.route('/player', methods=['GET'])
