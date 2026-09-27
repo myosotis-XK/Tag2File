@@ -79,6 +79,9 @@ class ThumbnailExtractor:
         """提取图片文件的缩略图"""
         try:
             with Image.open(file_path) as img:
+                # CMYK JPEG 可正常解码，但 PNG 缩略图缓存不支持 CMYK。
+                if img.mode == 'CMYK':
+                    img = img.convert('RGB')
                 # 移除 ICC 配置以减少警告
                 if 'icc_profile' in img.info:
                     img.info.pop('icc_profile')
