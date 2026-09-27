@@ -17,6 +17,7 @@ from src.core.DictManage import DictManage
 from src.ui.components.style_utils import apply_panel_style, apply_scroll_area_style, create_button, create_colored_label
 from src.ui.media_viewers import ImageViewer
 from src.ui.ui_text import CommonText, SingleFileTagViewText
+from src.utils.image_loader import load_pixmap
 
 from .FileShowArea import TagFileShowArea
 
@@ -188,7 +189,7 @@ class SingleFileTagView(QScrollArea):
             self.size_value.clear()
             self.modified_time_value.clear()
         else:
-            self.pixmap = QPixmap(view.file_path)
+            self.pixmap = load_pixmap(view.file_path)
             if self.pixmap.isNull() and view.icon_source is not None:
                 self.pixmap = view.icon_source.source
             self.file_name_value.setText(view.file_name)
@@ -209,7 +210,7 @@ class SingleFileTagView(QScrollArea):
         if view is None or view.icon_source is None:
             return
         # 图片仍优先显示原图；视频等格式在后台封面就绪后替换默认图标。
-        pixmap = QPixmap(file_path)
+        pixmap = load_pixmap(file_path)
         if pixmap.isNull():
             pixmap = view.icon_source.source
         self.pixmap = pixmap

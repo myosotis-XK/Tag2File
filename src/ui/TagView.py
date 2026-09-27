@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import (
 
 from src.core.DictManage import DictManage
 from src.utils import config, init_config_section, save_config, root
+from src.utils.window_position import WindowPositionKeeper
 from src.ui.components.style_utils import (
     apply_line_edit_style,
     apply_scroll_area_style,
@@ -70,6 +71,7 @@ class TagView(QMainWindow):
         """)
         self.setCentralWidget(self.central_widget)
         self.setup_ui()
+        self._position_keeper = WindowPositionKeeper(self, "tag_manager")
         self.show()
         if len(self.file_paths) == 1:
             self.toggle_view()

@@ -17,6 +17,7 @@ from src.ui.components.style_utils import (
     create_context_menu,
 )
 from src.ui.ui_text import CategoryManagerText, CommonText
+from src.utils.window_position import WindowPositionKeeper
 
 class CategoryManager(QDialog):  
     def __init__(self):
@@ -34,6 +35,7 @@ class CategoryManager(QDialog):
         self.initUI()  
         self.loadCategories()  
         self.center()  
+        self._position_keeper = WindowPositionKeeper(self, "category_manager")
 
     def initUI(self):  
         layout = QHBoxLayout()  

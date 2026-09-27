@@ -2,9 +2,10 @@ import os
 import time
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QScrollArea, QWidget, 
                              QLabel, QRadioButton, QCheckBox, QMessageBox, QButtonGroup)
-from PyQt5.QtGui import QPixmap, QFont
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, pyqtSignal
 from src.utils import format_file_size
+from src.utils.image_loader import load_pixmap
 from src.ui.components.style_utils import create_button
 from src.ui.ui_text import CommonText, FileSelectionText
 from .media_viewers import MultiImageViewer
@@ -171,7 +172,7 @@ class FileSelectionComponent(QDialog):
         image_label.setAlignment(Qt.AlignCenter)
         image_label.setFixedSize(self.image_size, self.image_size)
         
-        pixmap = QPixmap(file_path)
+        pixmap = load_pixmap(file_path)
         if not pixmap.isNull():
             pixmap = pixmap.scaled(self.image_size, self.image_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             image_label.setPixmap(pixmap)
@@ -265,7 +266,7 @@ class FileSelectionComponent(QDialog):
             )
             return
 
-        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']
+        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp', '.avif']
         ext = os.path.splitext(file_path)[1].lower()
 
         if ext in supported_formats:

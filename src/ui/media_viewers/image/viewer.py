@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QFrame, QGraphicsView, QGraphicsScene
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor,  QBrush
+from PyQt5.QtGui import QPixmap, QPainter, QColor,  QBrush
 from PyQt5.QtCore import Qt, QRectF
+from src.utils.image_loader import load_qimage
 
 from .components import ZoomIndicator
 
@@ -74,25 +75,27 @@ class ImageViewer(QGraphicsView):
         # 仅保持手动100%模式，其他缩放在切换图片后适应窗口
         keep_original_size = not self.fit_to_window and self.current_zoom_factor == 1.0
 
-        # 清除当前场景中的内容  
-        self.scene.clear()  
-        
         # 根据source类型执行不同的加载逻辑  
         if isinstance(source, str):  
             # 源是文件路径  
-            self.original_image = QImage(source)  
-            if self.original_image.isNull():  
+            image = load_qimage(source)
+            if image.isNull():
                 return False  
-            self.original_pixmap = QPixmap.fromImage(self.original_image)  
+            pixmap = QPixmap.fromImage(image)
         elif isinstance(source, QPixmap):  
             # 源是QPixmap对象
             if source.isNull():
                 return False
-            self.original_pixmap = source  
-            self.original_image = source.toImage()  # 转换为QImage存储  
+            pixmap = source
+            image = source.toImage()  # 转换为QImage存储
         else:  
             # 既不是路径也不是QPixmap对象  
             return False  
+
+        # 解码成功后再替换场景，避免加载失败时留下已删除的图像项。
+        self.scene.clear()
+        self.original_image = image
+        self.original_pixmap = pixmap
         
         # 添加图像到场景  
         self.pixmap_item = self.scene.addPixmap(self.original_pixmap)  

@@ -22,6 +22,7 @@ from src.ui.components.style_utils import (
     create_context_menu,
 )
 from src.utils import config, init_config_section, save_config
+from src.utils.window_position import WindowPositionKeeper
 
 from .FileSelectionComponent import FileSelectionComponent
 from .file_grid import (
@@ -808,7 +809,7 @@ class FileShowArea(QWidget):
 
         self.fileActivated.emit(file_path)
 
-        supported_image_formats = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"]
+        supported_image_formats = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp", ".avif"]
         supported_audio_formats = [".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".wma"]
         ext = os.path.splitext(file_path)[1].lower()
 
@@ -1061,6 +1062,7 @@ class FileShowArea(QWidget):
         if y < screen_geometry.top():
             y = screen_geometry.top() + 30
         widget.move(x, y)
+        widget._position_keeper = WindowPositionKeeper(widget, "file_properties")
         widget.show()
 
     # ---------------- Internal Helpers ----------------
