@@ -71,6 +71,9 @@ class ImageViewer(QGraphicsView):
         返回:  
             加载是否成功  
         """  
+        # 仅保持手动100%模式，其他缩放在切换图片后适应窗口
+        keep_original_size = not self.fit_to_window and self.current_zoom_factor == 1.0
+
         # 清除当前场景中的内容  
         self.scene.clear()  
         
@@ -101,9 +104,13 @@ class ImageViewer(QGraphicsView):
         # 设置场景矩形  
         self.scene.setSceneRect(QRectF(self.pixmap_item.boundingRect()))  
         
-        # 默认适应窗口显示  
-        self.fit_image_to_window(show_indicator=False)  
-        self.fit_to_window = True  
+        if keep_original_size:
+            self.fit_to_window = False
+            self.current_zoom_index = self.zoom_levels.index(100)
+            self.current_zoom_factor = 1.0
+            self.centerOn(self.pixmap_item)
+        else:
+            self.fit_image_to_window(show_indicator=False)
         
         # 更新拖动模式  
         self.update_drag_mode()  
@@ -249,6 +256,8 @@ class ImageViewer(QGraphicsView):
         """使图像适合窗口大小"""  
         if not self.pixmap_item or not self.original_image:  
             return  
+
+        self.fit_to_window = True
         
         # 计算缩放因子以适应窗口  
         view_rect = self.viewport().rect()  
