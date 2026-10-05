@@ -49,7 +49,7 @@ class ImageBrowser(QMainWindow):
         """打开多个图片文件"""  
         file_dialog = QFileDialog()  
         file_dialog.setFileMode(QFileDialog.ExistingFiles)  
-        file_dialog.setNameFilter("图片文件 (*.jpg *.jpeg *.png *.bmp *.gif *.tiff *.webp *.avif)")
+        file_dialog.setNameFilter("图片文件 (*.jpg *.jpeg *.jfif *.png *.bmp *.gif *.tiff *.webp *.avif)")
 
         if file_dialog.exec_():  
             file_paths = file_dialog.selectedFiles()  

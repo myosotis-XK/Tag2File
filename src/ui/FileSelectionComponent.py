@@ -266,7 +266,7 @@ class FileSelectionComponent(QDialog):
             )
             return
 
-        supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp', '.avif']
+        supported_formats = ['.jpg', '.jpeg', '.jfif', '.png', '.bmp', '.gif', '.tiff', '.webp', '.avif']
         ext = os.path.splitext(file_path)[1].lower()
 
         if ext in supported_formats:

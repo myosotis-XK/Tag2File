@@ -810,7 +810,7 @@ class FileShowArea(QWidget):
 
         self.fileActivated.emit(file_path)
 
-        supported_image_formats = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp", ".avif"]
+        supported_image_formats = [".jpg", ".jpeg", ".jfif", ".png", ".bmp", ".tiff", ".webp", ".avif"]
         supported_audio_formats = [".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".wma"]
         ext = os.path.splitext(file_path)[1].lower()
 
