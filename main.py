@@ -1,9 +1,22 @@
 
+import ctypes
+import os
 import sys
 import threading
 import multiprocessing
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
+
+# Windows 使用 AppUserModelID 合并任务栏按钮，避免归入 Python 解释器。
+# 必须在创建 QApplication 和任何窗口之前设置。
+if sys.platform == 'win32':
+    set_app_id = ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID
+    set_app_id.argtypes = [ctypes.c_wchar_p]
+    set_app_id.restype = ctypes.c_long
+    result = set_app_id('Tag2File.Desktop')
+    if result < 0:
+        raise OSError(f'设置 Tag2File 任务栏标识失败 (HRESULT: {result:#x})')
 
 if hasattr(QApplication, 'setAttribute'):
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
@@ -11,7 +24,11 @@ if hasattr(QApplication, 'setAttribute'):
     QApplication.setAttribute(Qt.AA_DontUseNativeDialogs, True)
 app = QApplication(sys.argv)
 
-from src.utils import set_application_font
+from src.utils import root, set_application_font
+
+app.setApplicationName('Tag2File')
+app.setWindowIcon(QIcon(os.path.join(root, 'data', 'icon', 'app', 'favicon.ico')))
+
 from src.core import StartTask
 from web_app.flask_app import app as flask_app
 from src.ui.MainWindow import Tag2File
