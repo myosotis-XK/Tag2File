@@ -5,6 +5,8 @@ from PyQt5.QtGui import QKeySequence, QCursor
 from PyQt5.QtCore import Qt, QTimer
 import threading
 
+from src.utils.window_position import WindowPositionKeeper
+
 from .viewer import ImageViewerMain
 from .components import NavButton
 
@@ -87,6 +89,7 @@ class MultiImageViewer(QMainWindow):
         
         # 更新按钮位置  
         self.update_button_positions()  
+        self._position_keeper = WindowPositionKeeper(self, "image_viewer")
 
     def resizeEvent(self, event):  
         """窗口大小变化事件"""  

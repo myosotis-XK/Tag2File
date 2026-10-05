@@ -15,6 +15,9 @@ class WindowPositionKeeper(QObject):
         window.installEventFilter(self)
 
     def eventFilter(self, watched, event):
+        # 多图片查看器也可嵌入图片浏览器；只记录独立窗口的位置。
+        if not self.window.isWindow():
+            return super().eventFilter(watched, event)
         if event.type() == QEvent.Show and not event.spontaneous():
             self.restore_position()
             self.remember_normal_position()
