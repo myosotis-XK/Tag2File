@@ -200,6 +200,7 @@ class FileShowArea(QWidget):
             widget.close()
         for viewer in self.image_viewers[:]:
             viewer.close()
+        self.state.close()
         super().closeEvent(event)
 
     # ---------------- Public API ----------------

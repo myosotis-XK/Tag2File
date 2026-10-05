@@ -23,8 +23,7 @@ class AutoCleanupCache:
         self.thread.start()
 
     def _cleanup_loop(self):
-        while not self._stop_event.is_set():
-            time.sleep(self.cleanup_interval)
+        while not self._stop_event.wait(self.cleanup_interval):
             self.cleanup()
 
     def cleanup(self):
@@ -58,9 +57,12 @@ class AutoCleanupCache:
             return value
         
     def stop(self):
-        """停止后台轮询线程"""
+        """停止后台线程并释放缓存内容"""
         self._stop_event.set()
-        self.thread.join()
+        if threading.current_thread() is not self.thread:
+            self.thread.join()
+        with self.lock:
+            self.cache.clear()
 
     def __setitem__(self, key, value):
         self.set(key, value)

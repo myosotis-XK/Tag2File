@@ -8,6 +8,7 @@ from typing import Optional
 from PyQt5.QtCore import QCoreApplication
 
 from src.core.DictManage import DictManage
+from src.core.changes import TagbaseChanges
 from src.utils import get_all_files, get_available_filename
 from src.ui.ui_text import FileShowAreaText
 
@@ -86,20 +87,27 @@ class FileActionService:
     def delete_files(self, file_paths: list[str], os_delete: bool = False) -> ActionResult:
         errors: list[str] = []
         changed_paths: list[str] = []
+        deleted_disk_paths: list[str] = []
+        changes = TagbaseChanges(self.dict_manage.dataAPI.db_path)
         for file_path in file_paths:
             try:
-                self.dict_manage.delete_file(file_path, notify=False)
+                changes.merge(self.dict_manage.delete_file(file_path, notify=False))
                 if os_delete and os.path.exists(file_path):
                     if os.path.isdir(file_path):
                         shutil.rmtree(file_path)
                     else:
                         os.remove(file_path)
+                    deleted_disk_paths.append(file_path)
                 changed_paths.append(file_path)
             except Exception as exc:
                 errors.append(f"{file_path}: {exc}")
 
-        if changed_paths:
-            self.dict_manage.fileChanged.emit("deleted", {"file_paths": list(changed_paths)})
+        # 数据库删除成功但磁盘删除失败时仍通知已提交的变更；
+        # 只存在于磁盘的文件则只产生文件事件。
+        deleted_paths = list(dict.fromkeys(changes.removed_file_paths + deleted_disk_paths))
+        if deleted_paths:
+            changes.file_events = [("deleted", {"file_paths": deleted_paths})]
+            self.dict_manage.publish_changes(changes)
         return ActionResult(
             success=not errors,
             changed_paths=changed_paths,

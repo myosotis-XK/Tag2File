@@ -467,7 +467,10 @@ def add_tag():
     file_paths = list(dict.fromkeys(path.replace('\\', '/') for path in file_paths))
     load_tagbase(db_path)
     data_api: DataAPI = tagbase_data_dict[db_path]
-    data_api.add_tag(tag, file_paths)
+    changes = data_api.add_tag(tag, file_paths)
+    publish_changes = app.config.get('PUBLISH_TAGBASE_CHANGES')
+    if publish_changes is not None:
+        publish_changes(changes)
 
     return jsonify({
         'success': True,

@@ -49,10 +49,15 @@ save_config()
 class TagView(QMainWindow):
     def __init__(self, MainWindow, file_paths):
         super().__init__()
+        self.setAttribute(Qt.WA_DeleteOnClose)
 
         self.DictManage = DictManage()
         self.DictManage.tagChanged.connect(self._on_tag_or_category_changed)
         self.DictManage.categoryChanged.connect(self._on_tag_or_category_changed)
+        self.DictManage.tagbaseChanged.connect(self._queue_tag_refresh)
+        self._tag_refresh_timer = QTimer(self)
+        self._tag_refresh_timer.setSingleShot(True)
+        self._tag_refresh_timer.timeout.connect(self.observer_update)
         self.file_paths = file_paths
 
         self.MainWindow = MainWindow
@@ -176,13 +181,19 @@ class TagView(QMainWindow):
         self.tag_scroll_area.verticalScrollBar().setValue(scroll_value)
 
     def closeEvent(self, event):
+        self._tag_refresh_timer.stop()
         self.TagFileShowArea.closeEvent(event)
         self.MainWindow.tag_view = None
         self.SingleFileTagView.closeEvent(event)
         super().closeEvent(event)
 
     def _on_tag_or_category_changed(self, action, payload):
-        self.observer_update()
+        if action != "special_status_changed":
+            self._queue_tag_refresh()
+
+    def _queue_tag_refresh(self, *args):
+        if not self._tag_refresh_timer.isActive():
+            self._tag_refresh_timer.start(0)
 
     def create_tag_widget(self):
         # 标签列表直接从 DictManage 重建，避免在 UI 层缓存一份容易过期的树结构。
@@ -409,6 +420,7 @@ class TagView(QMainWindow):
             self._toasts = []
         self._toasts.append(fade)
         fade.finished.connect(lambda: self._toasts.remove(fade))
+        fade.finished.connect(fade.deleteLater)
         QTimer.singleShot(max(0, duration - 200), fade.start)
 
     def addTag(self):

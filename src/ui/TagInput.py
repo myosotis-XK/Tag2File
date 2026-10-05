@@ -124,6 +124,10 @@ class TagInputWidget(QWidget):
         QWidget.__init__(self, parent)
         self.DictManage = DictManage()
         self.DictManage.tagChanged.connect(self._on_tag_changed)
+        self.DictManage.tagbaseChanged.connect(self._queue_library_refresh)
+        self._library_refresh_timer = QTimer(self)
+        self._library_refresh_timer.setSingleShot(True)
+        self._library_refresh_timer.timeout.connect(self.observer_update)
         self.tag_library = self.DictManage.get_all_tags()
         # 操作符列表  
         self.operators = ['∩', '∪', "'", '(', ')']  
@@ -240,7 +244,12 @@ class TagInputWidget(QWidget):
         self.tag_model.setStringList(list(self.tag_library))
 
     def _on_tag_changed(self, action, payload):
-        self.observer_update()
+        if action in {"created", "deleted", "renamed", "merged"}:
+            self._queue_library_refresh()
+
+    def _queue_library_refresh(self, *args):
+        if not self._library_refresh_timer.isActive():
+            self._library_refresh_timer.start(0)
 
     def eventFilter(self, obj, event):
         """处理标签区域的点击事件"""

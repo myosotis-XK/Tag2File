@@ -130,6 +130,13 @@ class TagLabel(QLabel):
         else:
             return str(count)
 
+    def set_count(self, count):
+        formatted = self.format_count(count)
+        if formatted != self.count:
+            self.count = formatted
+            self.updateGeometry()
+            self.update()
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setFont(self.font())

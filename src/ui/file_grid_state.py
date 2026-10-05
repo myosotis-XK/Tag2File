@@ -162,3 +162,7 @@ class FileGridState:
         self._current_file = None
         self._hover_file = None
         self._selection_snapshot.clear()
+
+    def close(self) -> None:
+        self._item_cache.stop()
+        self.clear()

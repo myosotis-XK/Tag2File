@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
                              QSplitter, QWidget, QLabel, QDesktopWidget,
                              QFrame,
                              QLineEdit, QDialogButtonBox, QCompleter)
-from PyQt5.QtCore import Qt, QStringListModel
+from PyQt5.QtCore import Qt, QStringListModel, QTimer
 from PyQt5.QtGui import QColor
 from src.core.DictManage import *  
 from src.ui.components.style_utils import (
@@ -25,6 +25,10 @@ class CategoryManager(QDialog):
         self.DictManage = DictManage()  
         self.DictManage.categoryChanged.connect(self._on_dict_changed)
         self.DictManage.tagChanged.connect(self._on_dict_changed)
+        self.DictManage.tagbaseChanged.connect(self._queue_refresh)
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self.observer_update)
         
         # 记住当前选择的类别和标签  
         self.current_category = None  
@@ -204,7 +208,12 @@ class CategoryManager(QDialog):
                 self.categoryList.setCurrentItem(items[0])
 
     def _on_dict_changed(self, action, payload):
-        self.observer_update()
+        if action != "special_status_changed":
+            self._queue_refresh()
+
+    def _queue_refresh(self, *args):
+        if not self._refresh_timer.isActive():
+            self._refresh_timer.start(0)
 
     def loadCategories(self):  
         self.categoryList.clear()

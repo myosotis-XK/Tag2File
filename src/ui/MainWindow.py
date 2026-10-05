@@ -3,6 +3,7 @@ import sys
 from io import BytesIO
 from dataclasses import dataclass
 from typing import Optional
+from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, \
     QTreeWidgetItem, QApplication, QSystemTrayIcon, QSizePolicy
 from PyQt5.QtGui import QColor, QFontMetrics, QIcon, QPixmap
@@ -87,7 +88,12 @@ class Tag2File(QMainWindow):
         self.DictManage.tagChanged.connect(self._on_tag_changed)
         self.DictManage.categoryChanged.connect(self._on_category_changed)
         self.DictManage.fileChanged.connect(self._on_file_changed)
+        self.DictManage.tagFileRelationChanged.connect(self._on_relation_changed)
         self.DictManage.tagbaseChanged.connect(self._on_tagbase_changed)
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self._flush_refresh)
+        self._reset_pending_refresh()
 
         self.child_widget = [] # 文件属性窗口
         self.tag_view = None
@@ -289,6 +295,7 @@ class Tag2File(QMainWindow):
 
     def create_tag_widget(self):
         tree = CategoryTreeWidget(self)
+        self._tag_labels = {}
         tree.setIndentation(10)
 
         # 创建类别项
@@ -314,6 +321,7 @@ class Tag2File(QMainWindow):
                     label = TagLabel(tag, file_count, color, self)
                 label_item = QTreeWidgetItem(category_item)
                 tree.setItemWidget(label_item, 0, label)
+                self._tag_labels[tag] = label
             # 设置展开状态
             if is_special:
                 category_item.setExpanded(False)
@@ -350,31 +358,74 @@ class Tag2File(QMainWindow):
 
     def onSpecialLabelCheckChanged(self, tag, checked):
         self.DictManage.change_special_tags_status(tag, checked)
-        self.changeFile(self.tag_expression)
 
     def observer_update(self):
-        self.update_tag_widget()
-        if self.browse_mode == "folder_browse":
-            return
-        self.changeFile(self.tag_expression, True)
+        self._schedule_refresh(tree=True, search=True)
+
+    def _reset_pending_refresh(self):
+        self._refresh_tree = False
+        self._refresh_search = False
+        self._refresh_files = False
+        self._refresh_counts = set()
+        self._refresh_special_states = {}
+
+    def _schedule_refresh(self, *, tree=False, search=False, files=False, tags=()):
+        self._refresh_tree |= tree
+        self._refresh_search |= search
+        self._refresh_files |= files
+        self._refresh_counts.update(tags)
+        if not self._refresh_timer.isActive():
+            self._refresh_timer.start(0)
+
+    def _flush_refresh(self):
+        tree, search, files = self._refresh_tree, self._refresh_search, self._refresh_files
+        tags, special_states = self._refresh_counts, self._refresh_special_states
+        self._reset_pending_refresh()
+        if tree:
+            self.update_tag_widget()
+        else:
+            for tag in tags:
+                label = self._tag_labels.get(tag)
+                if label is not None and not isinstance(label, SpecialTagLabel):
+                    label.set_count(self.DictManage.query_tag_file_count(tag))
+            for tag, status in special_states.items():
+                label = self._tag_labels.get(tag)
+                if isinstance(label, SpecialTagLabel):
+                    label.isChecked = status
+                    label.update()
+            if tags:
+                self.tag_tree.adjustColumnWidth()
+        if search and self.browse_mode != "folder_browse":
+            self.changeFile(self.tag_expression, True, skip_unchanged=not files)
 
     def _on_tag_changed(self, action, payload):
-        self.observer_update()
+        if action == "special_status_changed":
+            self._refresh_special_states[payload["tag"]] = payload["status"]
+            self._schedule_refresh(search=True)
+        else:
+            self._schedule_refresh(tree=True, search=action != "reordered")
 
     def _on_category_changed(self, action, payload):
-        self.update_tag_widget()
+        self._schedule_refresh(tree=True, search=action in {"deleted", "special_changed"})
+
+    def _on_relation_changed(self, action, payload):
+        # 关系变化只影响计数和搜索结果；标签名称、分类、顺序保持原样。
+        self._schedule_refresh(tags=payload["tags"], search=True)
 
     def _on_file_changed(self, action, payload):
-        self.update_tag_widget()
-        if self.browse_mode == "folder_browse":
+        if action == "audio_markers_changed":
             return
-        self.changeFile(self.tag_expression, True)
+        self._schedule_refresh(search=True, files=True)
 
     def _on_tagbase_changed(self, db_path):
-        self.observer_update()
+        self._refresh_timer.stop()
+        self._reset_pending_refresh()
+        self._clear_folder_browse()
+        self._schedule_refresh(tree=True, search=True, files=True)
 
 
     def closeEvent(self, event):
+        self._refresh_timer.stop()
         self.MainFileShowArea.closeEvent(event)
         if self.categoryManager != None:
             self.categoryManager.close()
@@ -428,7 +479,7 @@ class Tag2File(QMainWindow):
         self.tagbaseManager.show()
 
     # 改变显示文件
-    def changeFile(self, tag_expression = None, recover=False):
+    def changeFile(self, tag_expression = None, recover=False, skip_unchanged=False):
         if tag_expression == None:
             self.tag_expression = self.tag_input.get_query()
         else:
@@ -436,12 +487,13 @@ class Tag2File(QMainWindow):
         self._clear_folder_browse()
         if self.tag_expression == '':
             file_paths = []
-            self.MainFileShowArea.set_files(file_paths)
         else:
             file_paths = self.get_tag_files(self.tag_expression)
             if file_paths is False:
                 return
-            self.MainFileShowArea.set_files(file_paths, recover_scroll=recover)
+        if skip_unchanged and {item[0] for item in file_paths} == set(self.MainFileShowArea.get_files()):
+            return
+        self.MainFileShowArea.set_files(file_paths, recover_scroll=recover)
 
     def enter_folder(self, folder_path: str) -> None:
         folder_path = os.path.normpath(folder_path)

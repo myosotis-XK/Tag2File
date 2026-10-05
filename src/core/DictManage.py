@@ -3,8 +3,9 @@ import threading
 import sqlite3
 import time
 import json
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, QThread, Qt, pyqtSignal, pyqtSlot
 from src.utils import *
+from .changes import TagbaseChanges, normalize_db_path
 
 default_value = {
     'tagbase_folder': 'default_folder',
@@ -28,10 +29,12 @@ class DataAPI():
     _instances: dict[str, "DataAPI"] = {}
     _cls_lock = threading.Lock()
     def __new__(cls, db_path: str):
+        db_path = normalize_db_path(db_path)
         with cls._cls_lock:
             if db_path not in cls._instances:
                 inst = super().__new__(cls)
                 cls._instances[db_path] = inst
+                inst.db_path = db_path
                 inst.uncategorized_id = None
 
                 # UI & 线程安全
@@ -187,35 +190,46 @@ class DataAPI():
             self.conn = None
 
     def rename_tag(self, old_name: str, new_name: str):
-        with self._lock, self.conn:
-            cur = self.conn.cursor()
-            row = cur.execute("SELECT id FROM tag WHERE name=?", (old_name,)).fetchone()
-            if not row:
-                cur.close()
-                return
-            old_id = row[0]
-
-            row = cur.execute("SELECT id FROM tag WHERE name=?", (new_name,)).fetchone()
-            cur.close()
-
-            if row: # 如果新名称存在，合并标签：将 old_name 的文件关联转移到 new_name
-                new_id = row[0]
-                self.conn.execute("""
-                    INSERT OR IGNORE INTO tag_file(tag_id, file_id)
-                    SELECT ?, file_id FROM tag_file WHERE tag_id = ?
-                """, (new_id, old_id))
-                self.conn.execute("DELETE FROM tag_file WHERE tag_id=?", (old_id,))
-                self.conn.execute("DELETE FROM tag WHERE id=?", (old_id,))
-            else:
-                self.conn.execute("UPDATE tag SET name=? WHERE id=?", (new_name, old_id))
-
-        # 同步缓存
-        old_files = self.tag2file_cache.pop(old_name, None)
-        if old_files is not None:
-            if new_name in self.tag2file_cache:
-                self.tag2file_cache[new_name] |= old_files
-            else:
-                self.tag2file_cache[new_name] = old_files
+        changes = TagbaseChanges(self.db_path)
+        if old_name == new_name:
+            return changes
+        with self._lock:
+            with self.conn:
+                cur = self.conn.cursor()
+                try:
+                    row = cur.execute("SELECT id FROM tag WHERE name=?", (old_name,)).fetchone()
+                    if not row:
+                        return changes
+                    old_id = row[0]
+                    files = cur.execute(
+                        "SELECT f.id, f.name FROM file f JOIN tag_file tf ON f.id=tf.file_id WHERE tf.tag_id=?",
+                        (old_id,),
+                    ).fetchall()
+                    row = cur.execute("SELECT id FROM tag WHERE name=?", (new_name,)).fetchone()
+                    action = "renamed"
+                    if row:
+                        action = "merged"
+                        new_id = row[0]
+                        existing = {r[0] for r in cur.execute("SELECT file_id FROM tag_file WHERE tag_id=?", (new_id,))}
+                        added = [path for fid, path in files if fid not in existing]
+                        if added:
+                            changes.added_relations[new_name] = added
+                        if files:
+                            changes.removed_relations[old_name] = [path for _, path in files]
+                        cur.execute("INSERT OR IGNORE INTO tag_file(tag_id, file_id) SELECT ?, file_id FROM tag_file WHERE tag_id=?", (new_id, old_id))
+                        cur.execute("DELETE FROM tag WHERE id=?", (old_id,))
+                    else:
+                        cur.execute("UPDATE tag SET name=? WHERE id=?", (new_name, old_id))
+                    changes.tag_events.append((action, {
+                        "old_name": old_name, "new_name": new_name,
+                        "file_paths": [path for _, path in files],
+                    }))
+                finally:
+                    cur.close()
+            # 合并时目标标签可能只缓存了部分文件，重新查询比拼接不完整缓存可靠。
+            self.tag2file_cache.pop(old_name, None)
+            self.tag2file_cache.pop(new_name, None)
+        return changes
 
     def rename_file(self, old_name: str, new_name: str):
         with self._lock, self.conn:
@@ -319,6 +333,14 @@ class DataAPI():
                     result[path].append(tag)
         return result
 
+    def get_file_tag_details(self, file_path: str) -> list[tuple[str, str]]:
+        with self._lock:
+            return self.conn.execute(
+                "SELECT t.name, c.color FROM file f JOIN tag_file tf ON f.id=tf.file_id "
+                "JOIN tag t ON t.id=tf.tag_id JOIN category c ON c.id=t.category_id "
+                "WHERE f.name=? ORDER BY c.order_index, t.order_index", (file_path,),
+            ).fetchall()
+
     def _tag_to_category(self, tag: str) -> str:
         """返回指定 tag 所属的 category 名称"""
         cur = self.conn.execute(
@@ -354,38 +376,29 @@ class DataAPI():
             cur.close()
 
     def query(self, src_group: str, src_entity: str, dst_group: str):
-        key = (src_group, dst_group)
-
-        if key == ('tag', 'file'):
-            return self._tag_to_file(src_entity)
-
-        if key == ('file', 'tag'):
-            return self._file_to_tag(src_entity)
-
-        if key == ('tag', 'category'):
-            return self._tag_to_category(src_entity)
-
-        if key == ('category', 'tag'):
-            return self._category_to_tag(src_entity)
-
-        raise ValueError(f"unsupported relation {src_group} → {dst_group}")
+        with self._lock:
+            key = (src_group, dst_group)
+            if key == ('tag', 'file'):
+                return self._tag_to_file(src_entity)
+            if key == ('file', 'tag'):
+                return self._file_to_tag(src_entity)
+            if key == ('tag', 'category'):
+                return self._tag_to_category(src_entity)
+            if key == ('category', 'tag'):
+                return self._category_to_tag(src_entity)
+            raise ValueError(f"unsupported relation {src_group} → {dst_group}")
 
     def query_tag_file_count(self, tag: str) -> int:
-        if tag in self.tag2file_cache:
-            return len(self.tag2file_cache[tag])
-        cur = self.conn.execute(
-            """
-            SELECT COUNT(*)
-            FROM tag_file tf
-            JOIN tag t ON t.id = tf.tag_id
-            WHERE t.name = ?
-            """,
-            (tag,)
-        )
-        try:
-            return cur.fetchone()[0]
-        finally:
-            cur.close()
+        with self._lock:
+            if tag in self.tag2file_cache:
+                return len(self.tag2file_cache[tag])
+            cur = self.conn.execute(
+                "SELECT COUNT(*) FROM tag_file tf JOIN tag t ON t.id=tf.tag_id WHERE t.name=?", (tag,),
+            )
+            try:
+                return cur.fetchone()[0]
+            finally:
+                cur.close()
 
     def get_all_files(self) -> set[tuple[str, int, float]]:
         with self._lock, self.conn:
@@ -510,80 +523,100 @@ class DataAPI():
             cur.close()
 
     # 标签操作
-    def _cleanup_orphan_files(self, file_ids: list[int]):
-        with self._lock, self.conn:
-            cur = self.conn.cursor()
-            for file_id in file_ids:
-                # 检查文件是否无关联 tag
-                cur.execute("SELECT COUNT(*) FROM tag_file WHERE file_id=?", (file_id,))
-                if cur.fetchone()[0] == 0:
-                    # 删除文件
-                    self.conn.execute("DELETE FROM file WHERE id=?", (file_id,))
-                    if file_id in self.file_cache:
-                        del self.file_cache[file_id]
-            cur.close()
+    def _cleanup_orphan_files(self, file_ids: list[int], cur: sqlite3.Cursor) -> dict[int, str]:
+        # 使用调用者的事务，关系删除和孤立记录清理一起提交或回滚。
+        removed = {}
+        for start in range(0, len(file_ids), 500):
+            batch = file_ids[start:start + 500]
+            placeholders = ','.join('?' for _ in batch)
+            rows = cur.execute(
+                f"SELECT id, name FROM file WHERE id IN ({placeholders}) "
+                "AND NOT EXISTS (SELECT 1 FROM tag_file WHERE file_id=file.id)", batch,
+            ).fetchall()
+            removed.update(rows)
+            cur.executemany("DELETE FROM file WHERE id=?", [(fid,) for fid, _ in rows])
+        return removed
+
+    def _create_tag(self, tag: str, cur: sqlite3.Cursor) -> int:
+        cur.execute("SELECT COALESCE(MAX(order_index), -1)+1 FROM tag WHERE category_id=?", (self.uncategorized_id,))
+        order_index = cur.fetchone()[0]
+        cur.execute("INSERT INTO tag (name, category_id, order_index) VALUES (?, ?, ?)",
+                    (tag, self.uncategorized_id, order_index))
+        return cur.lastrowid
 
     def create_tag(self, tag: str) -> int:
         with self._lock, self.conn:
             cur = self.conn.cursor()
-            cur.execute(
-                "SELECT COALESCE(MAX(order_index), -1)+1 FROM tag WHERE category_id=?",
-                (self.uncategorized_id,)
-            )
-            order_index = cur.fetchone()[0]
-            cur.execute(
-                "INSERT INTO tag (name, category_id, order_index) VALUES (?, ?, ?)",
-                (tag, self.uncategorized_id, order_index)
-            )
-            tag_id = cur.lastrowid
-            cur.close()
-        return tag_id    
+            try:
+                return self._create_tag(tag, cur)
+            finally:
+                cur.close()
 
     def delete_tag(self, tag: str, file_paths: list[str]):
-        with self._lock, self.conn:
-            cur = self.conn.cursor()
-            cur.execute("SELECT id FROM tag WHERE name=?", (tag,))
-            row = cur.fetchone()
-            if not row:
-                return
-            tag_id = row[0]
-            file_ids = []
-            for path in file_paths:
-                cur.execute("SELECT id FROM file WHERE name=?", (path,))
-                row = cur.fetchone()
-                if row:
-                    file_id = row[0]
-                    file_ids.append(file_id)
-                    cur.execute("DELETE FROM tag_file WHERE tag_id=? AND file_id=?", (tag_id, file_id))
-            cur.close()
-        self._cleanup_orphan_files(file_ids)
-        if tag in self.tag2file_cache:
-            self.tag2file_cache[tag] -= set(file_ids)
+        changes = TagbaseChanges(self.db_path)
+        paths = list(dict.fromkeys(path.replace('\\', '/') for path in file_paths))
+        with self._lock:
+            with self.conn:
+                cur = self.conn.cursor()
+                try:
+                    row = cur.execute("SELECT id FROM tag WHERE name=?", (tag,)).fetchone()
+                    if not row:
+                        return changes
+                    tag_id = row[0]
+                    files = {}
+                    for start in range(0, len(paths), 500):
+                        batch = paths[start:start + 500]
+                        placeholders = ','.join('?' for _ in batch)
+                        files.update(cur.execute(
+                            f"SELECT f.id, f.name FROM file f JOIN tag_file tf ON f.id=tf.file_id "
+                            f"WHERE tf.tag_id=? AND f.name IN ({placeholders})", [tag_id, *batch],
+                        ).fetchall())
+                    cur.executemany("DELETE FROM tag_file WHERE tag_id=? AND file_id=?", [(tag_id, fid) for fid in files])
+                    removed = self._cleanup_orphan_files(list(files), cur)
+                finally:
+                    cur.close()
+            if files:
+                changes.removed_relations[tag] = list(files.values())
+            changes.removed_file_paths = list(removed.values())
+            for fid in removed:
+                self.file_cache.pop(fid, None)
+            if tag in self.tag2file_cache:
+                self.tag2file_cache[tag].difference_update(files)
+        return changes
 
     def destroy_tag(self, tag: str):
         """删除标签及相关关系，同时清理孤立文件"""
-        with self._lock, self.conn:
-            cur = self.conn.cursor()
-            # 查找 tag_id 和 category
-            cur.execute("SELECT id FROM tag WHERE name=?", (tag,))
-            row = cur.fetchone()
-            if not row:
-                return
-            tag_id = row[0]
-
-            # 删除 tag 与文件的关联
-            cur.execute("SELECT file_id FROM tag_file WHERE tag_id=?", (tag_id,))
-            file_ids = [r[0] for r in cur.fetchall()]
-
-            # 删除 tag 本身
-            cur.execute("DELETE FROM tag WHERE id=?", (tag_id,))
-            cur.close()
-        self._cleanup_orphan_files(file_ids)
-        if tag in self.tag2file_cache:
-            del self.tag2file_cache[tag]
+        changes = TagbaseChanges(self.db_path)
+        with self._lock:
+            with self.conn:
+                cur = self.conn.cursor()
+                try:
+                    row = cur.execute("SELECT id FROM tag WHERE name=?", (tag,)).fetchone()
+                    if not row:
+                        return changes
+                    files = dict(cur.execute(
+                        "SELECT f.id, f.name FROM file f JOIN tag_file tf ON f.id=tf.file_id WHERE tf.tag_id=?", (row[0],),
+                    ).fetchall())
+                    cur.execute("DELETE FROM tag WHERE id=?", (row[0],))
+                    removed = self._cleanup_orphan_files(list(files), cur)
+                finally:
+                    cur.close()
+            changes.tag_events.append(("deleted", {"tag": tag, "file_paths": list(files.values())}))
+            if files:
+                changes.removed_relations[tag] = list(files.values())
+            changes.removed_file_paths = list(removed.values())
+            for fid in removed:
+                self.file_cache.pop(fid, None)
+            self.tag2file_cache.pop(tag, None)
+        return changes
 
     def change_special_tags_status(self, tag: str, status: bool):
         with self._lock, self.conn:
+            row = self.conn.execute(
+                "SELECT tss.status FROM tag t LEFT JOIN tag_special_status tss ON t.id=tss.tag_id WHERE t.name=?", (tag,),
+            ).fetchone()
+            if row is None or bool(1 if row[0] is None else row[0]) == bool(status):
+                return False
             self.conn.execute("""
                 INSERT INTO tag_special_status (tag_id, status)
                 VALUES (
@@ -593,6 +626,7 @@ class DataAPI():
                 ON CONFLICT(tag_id)
                 DO UPDATE SET status = excluded.status
             """, (tag, int(status)))
+        return True
 
     def change_tag_category(self, tag: str, category: str):
         with self._lock, self.conn:
@@ -672,100 +706,79 @@ class DataAPI():
 
     # 文件操作
     def delete_file(self, file_path: str):
-        with self._lock, self.conn:
-            cur = self.conn.cursor()
-            row = cur.execute("SELECT id FROM file WHERE name=?", (file_path,)).fetchone()
-            if not row:
-                return
-            fid = row[0]
-            self.conn.execute("DELETE FROM file WHERE id=?", (fid,))
-            cur.close()
-        # 同步缓存
-        self.file_cache.pop(fid, None)
-        for tag, fids in self.tag2file_cache.items():
-            fids.discard(fid)
+        changes = TagbaseChanges(self.db_path)
+        with self._lock:
+            with self.conn:
+                cur = self.conn.cursor()
+                try:
+                    row = cur.execute("SELECT id FROM file WHERE name=?", (file_path,)).fetchone()
+                    if not row:
+                        return changes
+                    fid = row[0]
+                    tags = [row[0] for row in cur.execute(
+                        "SELECT t.name FROM tag t JOIN tag_file tf ON t.id=tf.tag_id WHERE tf.file_id=?", (fid,),
+                    ).fetchall()]
+                    cur.execute("DELETE FROM file WHERE id=?", (fid,))
+                finally:
+                    cur.close()
+            self.file_cache.pop(fid, None)
+            for fids in self.tag2file_cache.values():
+                fids.discard(fid)
+            changes.file_events.append(("deleted", {"file_paths": [file_path]}))
+            changes.removed_relations = {tag: [file_path] for tag in tags}
+            changes.removed_file_paths = [file_path]
+        return changes
 
     def add_tag(self, tag: str, file_paths: list[str]):
+        changes = TagbaseChanges(self.db_path)
         if not tag or not file_paths:
-            return
-
-        THRESHOLD = 500      # 小批量阈值
-        BATCH_SIZE = 10000   # 批量处理大小
-        with self._lock, self.conn:
-            cur = self.conn.cursor()
-
-            # 确保 tag 存在
-            cur.execute("SELECT id, category_id FROM tag WHERE name=?", (tag,))
-            row = cur.fetchone()
-            if row is None:
-                tag_id = self.create_tag(tag)
-            else:
-                tag_id = row[0]
-
-            existing_files = {}
-
-            # 查询已有文件 ID
-            if len(file_paths) <= THRESHOLD:
-                # 小批量直接 IN 查询
-                placeholders = ','.join('?' for _ in file_paths)
-                cur.execute(f"SELECT name, id FROM file WHERE name IN ({placeholders})", file_paths)
-                existing_files = {row[0]: row[1] for row in cur.fetchall()}
-            else:
-                # 大批量使用临时表
-                cur.execute("CREATE TEMP TABLE temp_files(name TEXT PRIMARY KEY)")
-                for i in range(0, len(file_paths), BATCH_SIZE):
-                    cur.executemany(
-                        "INSERT INTO temp_files(name) VALUES (?)",
-                        [(p,) for p in file_paths[i:i+BATCH_SIZE]]
-                    )
-
-                # 获取已有文件 ID
-                cur.execute("SELECT f.name, f.id FROM file f JOIN temp_files t ON f.name = t.name")
-                existing_files = {row[0]: row[1] for row in cur.fetchall()}
-
-            # 批量插入不存在的文件
-            new_files = [p for p in file_paths if p not in existing_files]
-            if new_files:
-                for i in range(0, len(new_files), BATCH_SIZE):
-                    batch = new_files[i:i+BATCH_SIZE]
-                    insert_datas = []
-                    for file_path in batch:
-                        try:
-                            st = os.stat(file_path)
-                            size_bytes = st.st_size
-                            mtime = st.st_mtime
-                        except:
-                            size_bytes = 0
-                            mtime = 0
-                        insert_datas.append((file_path, size_bytes, mtime))
-                    cur.executemany("INSERT INTO file(name, size_bytes, mtime) VALUES (?, ?, ?)", insert_datas) 
-
-                # 查询新插入文件 ID
-                for i in range(0, len(new_files), THRESHOLD):
-                    batch = new_files[i:i+THRESHOLD]
-                    placeholders = ','.join('?' for _ in batch)
-                    cur.execute(f"SELECT id, name, size_bytes, mtime FROM file WHERE name IN ({placeholders})", batch)
-                    rows = cur.fetchall()
-                    for row in rows:
-                        existing_files[row[1]] = row[0]
-                        self.file_cache[row[0]] = (row[1], row[2], row[3]) # 同步缓存
-
-            # 批量建立 tag ↔ file 关系
-            for i in range(0, len(file_paths), BATCH_SIZE):
-                cur.executemany(
-                    "INSERT OR IGNORE INTO tag_file(tag_id, file_id) VALUES (?, ?)",
-                    [(tag_id, existing_files[p]) for p in file_paths[i:i+BATCH_SIZE]]
-                )
-
-            # 清理临时表
-            if len(file_paths) > THRESHOLD:
-                cur.execute("DROP TABLE temp_files")
-
-            cur.close()
-
-            # 同步缓存
+            return changes
+        paths = list(dict.fromkeys(path.replace('\\', '/') for path in file_paths))
+        changed_files = {}
+        with self._lock:
+            with self.conn:
+                cur = self.conn.cursor()
+                try:
+                    row = cur.execute("SELECT id FROM tag WHERE name=?", (tag,)).fetchone()
+                    if row is None:
+                        tag_id = self._create_tag(tag, cur)
+                        changes.tag_events.append(("created", {"tag": tag}))
+                    else:
+                        tag_id = row[0]
+                    for start in range(0, len(paths), 500):
+                        batch = paths[start:start + 500]
+                        placeholders = ','.join('?' for _ in batch)
+                        sql = ("SELECT f.id, f.name, f.size_bytes, f.mtime, tf.file_id FROM file f "
+                               "LEFT JOIN tag_file tf ON tf.file_id=f.id AND tf.tag_id=? "
+                               f"WHERE f.name IN ({placeholders})")
+                        rows = cur.execute(sql, [tag_id, *batch]).fetchall()
+                        existing = {row[1] for row in rows}
+                        new_files = []
+                        for path in batch:
+                            if path in existing:
+                                continue
+                            try:
+                                stat = os.stat(path)
+                                new_files.append((path, stat.st_size, stat.st_mtime))
+                            except OSError:
+                                new_files.append((path, 0, 0))
+                        if new_files:
+                            cur.executemany("INSERT INTO file(name, size_bytes, mtime) VALUES (?, ?, ?)", new_files)
+                            changes.added_file_paths.extend(path for path, _, _ in new_files)
+                            rows = cur.execute(sql, [tag_id, *batch]).fetchall()
+                        additions = [row for row in rows if row[4] is None]
+                        cur.executemany("INSERT INTO tag_file(tag_id, file_id) VALUES (?, ?)",
+                                        [(tag_id, row[0]) for row in additions])
+                        changed_files.update({fid: (path, size, mtime) for fid, path, size, mtime, _ in additions})
+                finally:
+                    cur.close()
+            # 事务成功后才更新内存缓存；失败时不会留下半完成的标签或通知。
+            self.file_cache.update(changed_files)
             if tag in self.tag2file_cache:
-                self.tag2file_cache[tag] |= set(existing_files.values())
+                self.tag2file_cache[tag].update(changed_files)
+            if changed_files:
+                changes.added_relations[tag] = [row[0] for row in changed_files.values()]
+        return changes
 
     # ========== 通用 extra_data 管理方法 ==========
 
@@ -1050,9 +1063,13 @@ class DataAPI():
 
 
 class DictManage(QObject):
+    # 标签元数据 / 分类 / 文件自身信息 / 标签与文件关联各自独立通知。
+    # 同一操作可以产生多个事件，UI 在当前事件循环结束时合并刷新。
     tagChanged = pyqtSignal(str, object)
     categoryChanged = pyqtSignal(str, object)
     fileChanged = pyqtSignal(str, object)
+    tagFileRelationChanged = pyqtSignal(str, object)
+    _changesCommitted = pyqtSignal(object)
     audioMarkersChanged = pyqtSignal(str)
     markerPresetsChanged = pyqtSignal()
     tagbaseChanged = pyqtSignal(str)
@@ -1069,6 +1086,7 @@ class DictManage(QObject):
         if not self._initialized:
             super().__init__()
             self._initialized = True
+            self._changesCommitted.connect(self._deliver_changes, Qt.QueuedConnection)
 
             self.default_folder = config.get('DictManage', 'default_folder', fallback='default_folder')
             if self.default_folder == 'default_folder':
@@ -1080,6 +1098,26 @@ class DictManage(QObject):
             tagbase_name = config.get('DictManage', 'tagbase_name', fallback='tagbase')
             self.db_path = os.path.join(floder_path, f"{tagbase_name}.db").replace('\\', '/')
             self.dataAPI = DataAPI(self.db_path)
+            self.db_path = self.dataAPI.db_path
+
+    def publish_changes(self, changes: TagbaseChanges) -> None:
+        """Web 工作线程只投递结果，界面通知统一在 QObject 所在线程发出。"""
+        if QThread.currentThread() == self.thread():
+            self._deliver_changes(changes)
+        else:
+            self._changesCommitted.emit(changes)
+
+    @pyqtSlot(object)
+    def _deliver_changes(self, changes: TagbaseChanges) -> None:
+        if changes.db_path != self.dataAPI.db_path:
+            return
+        for action, payload in changes.tag_events:
+            self.tagChanged.emit(action, {**payload, "db_path": changes.db_path})
+        relation = changes.relation_notification()
+        if relation is not None:
+            self.tagFileRelationChanged.emit(*relation)
+        for action, payload in changes.file_events:
+            self.fileChanged.emit(action, {**payload, "db_path": changes.db_path})
 
     # DataAPI 方法封装
     def query(self, src_group: str, src_entity: str, dst_group: str):
@@ -1087,6 +1125,9 @@ class DictManage(QObject):
     
     def query_tag_file_count(self, tag: str) -> int:
         return self.dataAPI.query_tag_file_count(tag)
+
+    def get_file_tag_details(self, file_path: str):
+        return self.dataAPI.get_file_tag_details(file_path)
 
     def get_all_files(self):
         return self.dataAPI.get_all_files()
@@ -1106,23 +1147,14 @@ class DictManage(QObject):
 
     def create_tagbase(self, db_path: str) -> None:
         self.dataAPI.create_tagbase(db_path)
-        self.tagbaseChanged.emit(db_path)
-        self.categoryChanged.emit("reloaded", {"db_path": db_path})
-        self.tagChanged.emit("reloaded", {"db_path": db_path})
-        self.fileChanged.emit("reloaded", {"db_path": db_path})
 
     def load_tagbase(self, db_path: str) -> None:
         self.dataAPI = DataAPI(db_path)
-        self.tagbaseChanged.emit(db_path)
-        self.categoryChanged.emit("reloaded", {"db_path": db_path})
-        self.tagChanged.emit("reloaded", {"db_path": db_path})
-        self.fileChanged.emit("reloaded", {"db_path": db_path})
+        self.db_path = self.dataAPI.db_path
+        self.tagbaseChanged.emit(self.db_path)
 
     def rename_tag(self, old_name: str, new_name: str) -> None:
-        self.dataAPI.rename_tag(old_name, new_name)
-        payload = {"old_name": old_name, "new_name": new_name}
-        self.tagChanged.emit("renamed", payload)
-        self.fileChanged.emit("tag_renamed", payload)
+        self.publish_changes(self.dataAPI.rename_tag(old_name, new_name))
 
     def rename_file(self, old_name: str, new_name: str) -> None:
         self.dataAPI.rename_file(old_name, new_name)
@@ -1132,7 +1164,6 @@ class DictManage(QObject):
         self.dataAPI.rename_category(old_name, new_name)
         payload = {"old_name": old_name, "new_name": new_name}
         self.categoryChanged.emit("renamed", payload)
-        self.tagChanged.emit("category_renamed", payload)
 
 
     def create_category(self, category: str) -> None:
@@ -1143,7 +1174,6 @@ class DictManage(QObject):
         self.dataAPI.delete_category(category)
         payload = {"category": category}
         self.categoryChanged.emit("deleted", payload)
-        self.tagChanged.emit("category_deleted", payload)
 
     def set_category_color(self, category: str, color: str) -> None:
         self.dataAPI.set_category_color(category, color)
@@ -1163,42 +1193,33 @@ class DictManage(QObject):
         self.tagChanged.emit("created", {"tag": tag})
 
     def delete_tag(self, tag: str, file_paths: list[str]) -> None:
-        self.dataAPI.delete_tag(tag, file_paths)
-        payload = {"tag": tag, "file_paths": list(file_paths)}
-        self.tagChanged.emit("membership_changed", payload)
-        self.fileChanged.emit("tags_removed", payload)
+        self.publish_changes(self.dataAPI.delete_tag(tag, file_paths))
 
     def destroy_tag(self, tag: str) -> None:
-        self.dataAPI.destroy_tag(tag)
-        payload = {"tag": tag}
-        self.tagChanged.emit("deleted", payload)
-        self.fileChanged.emit("tag_deleted", payload)
+        self.publish_changes(self.dataAPI.destroy_tag(tag))
 
     def change_special_tags_status(self, tag: str, status: bool) -> None:
-        self.dataAPI.change_special_tags_status(tag, status)
-        self.tagChanged.emit("special_status_changed", {"tag": tag, "status": bool(status)})
+        if self.dataAPI.change_special_tags_status(tag, status):
+            self.tagChanged.emit("special_status_changed", {"tag": tag, "status": bool(status)})
 
     def change_tag_category(self, tag: str, category: str) -> None:
         self.dataAPI.change_tag_category(tag, category)
         payload = {"tag": tag, "category": category}
         self.tagChanged.emit("category_changed", payload)
-        self.categoryChanged.emit("tag_moved", payload)
 
     def reorder_tags(self, new_order: list[str]) -> None:
         self.dataAPI.reorder_tags(new_order)
         self.tagChanged.emit("reordered", {"tags": list(new_order)})
 
 
-    def delete_file(self, file_path: str, notify = True) -> None:
-        self.dataAPI.delete_file(file_path)
+    def delete_file(self, file_path: str, notify = True) -> TagbaseChanges:
+        changes = self.dataAPI.delete_file(file_path)
         if notify:
-            self.fileChanged.emit("deleted", {"file_paths": [file_path]})
+            self.publish_changes(changes)
+        return changes
 
     def add_tag(self, tag: str, file_paths: list[str]) -> None:
-        self.dataAPI.add_tag(tag, file_paths)
-        payload = {"tag": tag, "file_paths": list(file_paths)}
-        self.tagChanged.emit("membership_changed", payload)
-        self.fileChanged.emit("tags_added", payload)
+        self.publish_changes(self.dataAPI.add_tag(tag, file_paths))
 
     def get_audio_markers(self, file_path: str) -> list[dict]:
         return self.dataAPI.get_audio_markers(file_path)

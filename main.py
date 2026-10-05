@@ -40,6 +40,7 @@ if __name__ == '__main__':
     set_application_font()
     install_application_style(app)
     viewer = Tag2File()
+    flask_app.config['PUBLISH_TAGBASE_CHANGES'] = viewer.DictManage.publish_changes
     start_task_processing()
     start_flask_server_thread()
     sys.exit(app.exec_())

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from PyQt5.QtCore import QPoint, QRect, QSize, Qt
+from PyQt5.QtCore import QPoint, QRect, QSize, Qt, QTimer
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (
     QFrame,
@@ -31,6 +31,13 @@ class SingleFileTagView(QScrollArea):
         self.DictManage.tagChanged.connect(self._on_data_changed)
         self.DictManage.categoryChanged.connect(self._on_data_changed)
         self.DictManage.fileChanged.connect(self._on_file_changed)
+        self.DictManage.tagFileRelationChanged.connect(self._on_relation_changed)
+        self.DictManage.tagbaseChanged.connect(self._on_tagbase_changed)
+        self._tags_dirty = True
+        self._preview_dirty = True
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self._flush_refresh)
         self.TagFileShowArea = TagFileShowArea
         self.TagFileShowArea.thumbnailReady.connect(self._on_thumbnail_ready)
         self.file_paths = file_paths
@@ -150,16 +157,45 @@ class SingleFileTagView(QScrollArea):
         self.show_current_file()
 
     def closeEvent(self, event):
+        self._refresh_timer.stop()
         super().closeEvent(event)
 
     def observer_update(self):
-        self.update_tags()
+        self._request_refresh()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._tags_dirty or self._preview_dirty:
+            self._refresh_timer.start(0)
+
+    def _request_refresh(self, preview=False):
+        self._tags_dirty = True
+        self._preview_dirty |= preview
+        if self.isVisible() and not self._refresh_timer.isActive():
+            self._refresh_timer.start(0)
+
+    def _flush_refresh(self):
+        if not self.isVisible():
+            return
+        if self._preview_dirty:
+            self.update_index(self.current_file_path)
+        elif self._tags_dirty:
+            self.update_tags()
 
     def _on_data_changed(self, action, payload):
-        self.observer_update()
+        if action != "special_status_changed":
+            self._request_refresh()
+
+    def _on_relation_changed(self, action, payload):
+        if self.current_file_path in payload["file_paths"]:
+            self._request_refresh()
+
+    def _on_tagbase_changed(self, db_path):
+        self._refresh_timer.stop()
+        self._request_refresh()
 
     def _on_file_changed(self, action, payload):
-        if self.current_file_path is None:
+        if self.current_file_path is None or action == "audio_markers_changed":
             return
         changed_paths = set(payload.get("file_paths", [])) if isinstance(payload, dict) else set()
         path_mapping = payload.get("path_mapping", {}) if isinstance(payload, dict) else {}
@@ -168,17 +204,21 @@ class SingleFileTagView(QScrollArea):
 
         if old_path and self.current_file_path == old_path:
             self.current_file_path = new_path
-            self.update_index(new_path)
+            self._request_refresh(preview=True)
             return
         if self.current_file_path in path_mapping:
             mapped_path = path_mapping[self.current_file_path]
             self.current_file_path = mapped_path
-            self.update_index(mapped_path)
+            self._request_refresh(preview=True)
             return
         if not changed_paths or self.current_file_path in changed_paths:
-            self.update_index(self.current_file_path)
+            self._request_refresh(preview=True)
 
     def show_current_file(self):
+        if not self.isVisible():
+            self._request_refresh(preview=True)
+            return
+        self._preview_dirty = False
         # 单文件视图不再直接摸 FileShowArea 的内部 FileItem，
         # 统一通过只读视图对象拿当前文件的展示元数据。
         view = self.TagFileShowArea.get_file_view(self.current_file_path)
@@ -205,6 +245,9 @@ class SingleFileTagView(QScrollArea):
 
     def _on_thumbnail_ready(self, file_path):
         if file_path != self.current_file_path:
+            return
+        if not self.isVisible():
+            self._preview_dirty = True
             return
         view = self.TagFileShowArea.get_file_view(file_path)
         if view is None or view.icon_source is None:
@@ -266,28 +309,25 @@ class SingleFileTagView(QScrollArea):
         super().resizeEvent(event)
 
     def update_tags(self):
-        # 标签区每次全量重建，逻辑简单且和 DictManage 的最新状态保持一致。
-        for i in reversed(range(self.tag_layout.count())):
-            self.tag_layout.itemAt(i).widget().setParent(None)
+        self._tags_dirty = False
+        while self.tag_layout.count():
+            item = self.tag_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.hide()
+                widget.deleteLater()
 
         if self.current_file_path is None:
             return
 
-        file_tags = self.DictManage.query("file", self.current_file_path, "tag")
-        for item in self.DictManage.query_category():
-            category = item[0]
-            color = item[1]
-            tags = self.DictManage.query("category", category, "tag")
-            for tag in tags:
-                if tag in file_tags:
-                    label = create_colored_label(tag, color, self)
-                    label.setCursor(Qt.PointingHandCursor)
-                    label.mousePressEvent = (
-                        lambda event, tag=tag: self.delete_tag_current_file(tag)
-                        if event.button() == Qt.LeftButton
-                        else None
-                    )
-                    self.tag_layout.addWidget(label)
+        for tag, color in self.DictManage.get_file_tag_details(self.current_file_path):
+            label = create_colored_label(tag, color, self)
+            label.setCursor(Qt.PointingHandCursor)
+            label.mousePressEvent = (
+                lambda event, tag=tag: self.delete_tag_current_file(tag)
+                if event.button() == Qt.LeftButton else None
+            )
+            self.tag_layout.addWidget(label)
 
     def show_previous(self):
         # 上一张 / 下一张始终按 FileShowArea 当前公开的文件顺序导航。
