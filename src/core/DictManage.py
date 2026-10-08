@@ -246,7 +246,7 @@ class DataAPI():
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_file_manual_order "
                               "ON file(manual_order COLLATE fraction_order DESC, id ASC)")
 
-    def _manual_file_rows(self, paths: list[str]):
+    def _manual_file_rows(self, paths: list[str], *, strict: bool = True):
         """Read only requested records; the caller owns the lock and transaction."""
         by_path = {}
         for start in range(0, len(paths), 500):
@@ -254,20 +254,21 @@ class DataAPI():
             placeholders = ','.join('?' for _ in batch)
             by_path.update((row[1], row) for row in self.conn.execute(
                 f"SELECT id, name, manual_order FROM file WHERE name IN ({placeholders})", batch))
-        if any(path not in by_path for path in paths):
+        if strict and any(path not in by_path for path in paths):
             raise ManualOrderFileNotFoundError("文件已不在当前标签库中")
-        return [by_path[path] for path in paths]
+        return [by_path[path] for path in paths if path in by_path]
 
-    def get_manual_file_order(self, paths: list[str], *, strict: bool = False) -> list[str]:
+    def get_manual_file_order(self, paths: list[str], *, strict: bool = False,
+                              use_cache: bool = True) -> list[str]:
         paths = list(dict.fromkeys(path.replace('\\', '/') for path in paths))
         if not paths:
             return []
         with self._lock:
-            if strict:
+            if strict or not use_cache:
                 # External queries use a single read snapshot and never warm the full-library cache.
                 with self.conn:
                     self.conn.execute("BEGIN")
-                    rows = self._manual_file_rows(paths)
+                    rows = self._manual_file_rows(paths, strict=strict)
                     rows.sort(key=lambda row: (-self._decode_manual_order(row[2]), row[0]))
                     return [row[1] for row in rows]
             stamp = self._check_manual_cache()
@@ -370,7 +371,7 @@ class DataAPI():
             self._manual_cache_stamp = (self.conn.total_changes, stamp[1])
         return changes
 
-    def set_manual_file_order(self, paths: list[str]) -> TagbaseChanges:
+    def set_manual_file_order(self, paths: list[str], *, strict: bool = True) -> TagbaseChanges:
         """Replace the requested files in their existing global slots, in input order."""
         if not isinstance(paths, list) or any(not isinstance(path, str) or not path for path in paths):
             raise ValueError("文件列表中的路径必须是非空字符串")
@@ -384,7 +385,10 @@ class DataAPI():
             with self.conn:
                 self.conn.execute("BEGIN IMMEDIATE")
                 stamp = self._check_manual_cache()
-                requested = self._manual_file_rows(paths)
+                requested = self._manual_file_rows(paths, strict=strict)
+                known = {row[1] for row in requested}
+                changes.missing_file_paths = [path for path in paths if path not in known]
+                paths = [row[1] for row in requested]
                 original = sorted(requested, key=lambda row: (-self._decode_manual_order(row[2]), row[0]))
                 if [row[1] for row in original] == paths:
                     return changes

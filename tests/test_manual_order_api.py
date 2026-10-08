@@ -43,7 +43,7 @@ class ManualOrderAPITests(TagbaseTestSupport, unittest.TestCase):
         rows = self.api.conn.execute('SELECT id, name, manual_order FROM file').fetchall()
         return [row[1] for row in sorted(rows, key=lambda row: (-Fraction(row[2]), row[0]))]
 
-    def test_query_is_strict_normalizes_paths_and_reads_only_requested_records(self):
+    def test_query_ignores_missing_paths_and_reads_only_requested_records(self):
         a, b, c = self.seed()
         statements = []
         self.api.conn.set_trace_callback(statements.append)
@@ -52,16 +52,73 @@ class ManualOrderAPITests(TagbaseTestSupport, unittest.TestCase):
         finally:
             self.api.conn.set_trace_callback(None)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {'success': True, 'file_paths': [a, c]})
+        self.assertEqual(response.get_json(), {'success': True, 'file_paths': [a, c], 'missing_file_paths': []})
         self.assertIsNone(self.api._manual_order_cache)
         selects = [sql.upper() for sql in statements if sql.lstrip().upper().startswith('SELECT')]
         self.assertTrue(selects)
         self.assertTrue(all('WHERE' in sql for sql in selects), selects)
         self.assertFalse(self.api.conn.in_transaction)
-        response = self.post('query', [b, 'missing'])
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.get_json()['error'], 'file_not_found')
+        response = self.post('query', ['D:\\missing\\first.jpg', c, b, 'D:/missing/last.jpg'])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {
+            'success': True, 'file_paths': [b, c],
+            'missing_file_paths': ['D:/missing/first.jpg', 'D:/missing/last.jpg'],
+        })
+        self.assertIsNone(self.api._manual_order_cache)
         self.assertFalse(self.api.conn.in_transaction)
+
+    def test_query_all_missing_returns_empty_result_without_writes_or_notifications(self):
+        # Files exist on disk, but none have been added to this tagbase.
+        events = QSignalSpy(self.manager.fileChanged)
+        before = self.api.conn.total_changes
+        response = self.post('query', self.paths)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {
+            'success': True, 'file_paths': [], 'missing_file_paths': self.paths,
+        })
+        self.assertEqual(self.api.conn.total_changes, before)
+        self.assertEqual(len(events), 0)
+        self.assertFalse(self.api.conn.in_transaction)
+
+    def test_data_layer_strict_query_still_rejects_missing_files(self):
+        a, b, c = self.seed()
+        self.assertEqual(self.api.get_manual_file_order([c, a], strict=True), [a, c])
+        with self.assertRaises(ValueError):
+            self.api.get_manual_file_order([b, 'missing'], strict=True)
+        self.assertFalse(self.api.conn.in_transaction)
+
+    def test_data_layer_strict_set_still_rejects_missing_files(self):
+        a, b, c = self.seed()
+        with self.assertRaises(ValueError):
+            self.api.set_manual_file_order([c, 'missing', a, b])
+        self.assertEqual(self.database_order(), [a, b, c])
+        self.assertFalse(self.api.conn.in_transaction)
+
+    def test_set_all_missing_does_not_add_records_write_or_notify(self):
+        # The requested files exist on disk; a loose set must not enroll them.
+        events = QSignalSpy(self.manager.fileChanged)
+        before = self.api.conn.total_changes
+        response = self.post('set', self.paths)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {
+            'success': True, 'changed': False, 'affected_count': 0, 'missing_file_paths': self.paths,
+        })
+        self.assertEqual(self.api.conn.total_changes, before)
+        self.assertEqual(self.database_order(), [])
+        self.assertEqual(len(events), 0)
+        self.assertFalse(self.api.conn.in_transaction)
+
+    def test_set_one_existing_file_with_missing_paths_is_noop(self):
+        a, b, c = self.seed()
+        events = QSignalSpy(self.manager.fileChanged)
+        response = self.post('set', ['missing-first', c, 'missing-last'])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {
+            'success': True, 'changed': False, 'affected_count': 0,
+            'missing_file_paths': ['missing-first', 'missing-last'],
+        })
+        self.assertEqual(self.database_order(), [a, b, c])
+        self.assertEqual(len(events), 0)
 
     def test_move_uses_global_neighbors_keeps_group_order_and_publishes_once(self):
         a, b, c = self.seed()
@@ -96,9 +153,12 @@ class ManualOrderAPITests(TagbaseTestSupport, unittest.TestCase):
         self.assertEqual(self.api.get_manual_file_order(all_paths), [a, hidden[0], b, hidden[1], c])
         before = {p: (Path(p).read_bytes(), os.stat(p).st_mtime_ns) for p in self.paths}
         events = QSignalSpy(self.manager.fileChanged)
-        response = self.post('set', [c, a, b])
+        response = self.post('set', [c, 'D:\\missing\\first.jpg', a, 'D:/missing/last.jpg', b])
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {'success': True, 'changed': True, 'affected_count': 3})
+        self.assertEqual(response.get_json(), {
+            'success': True, 'changed': True, 'affected_count': 3,
+            'missing_file_paths': ['D:/missing/first.jpg', 'D:/missing/last.jpg'],
+        })
         expected = [c, hidden[0], a, hidden[1], b]
         self.assertEqual(self.database_order(), expected)
         self.assertEqual(self.api.get_manual_file_order(all_paths), expected)
@@ -126,8 +186,9 @@ class ManualOrderAPITests(TagbaseTestSupport, unittest.TestCase):
             if warm:
                 self.api.get_manual_file_order(all_paths)
             desired = [y, a, c] if not warm else [a, c, y]
-            response = self.post('set', desired)
+            response = self.post('set', ['missing-first', desired[0], 'missing-middle', *desired[1:]])
             self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.get_json()['missing_file_paths'], ['missing-first', 'missing-middle'])
             expected = [desired[0], b, desired[1], x, desired[2]]
             self.assertEqual(self.database_order(), expected)
             self.assertEqual(self.api.get_manual_file_order(all_paths), expected)
@@ -162,9 +223,14 @@ class ManualOrderAPITests(TagbaseTestSupport, unittest.TestCase):
             self.api.conn.executemany('UPDATE file SET manual_order=? WHERE name=?', [
                 (f'{1000 - i}/1', path) for i, path in enumerate(all_paths)])
         desired = all_paths[::-1]
-        self.assertEqual(self.post('set', desired).status_code, 200)
+        response = self.post('set', ['missing-first', *desired, 'missing-last'])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['missing_file_paths'], ['missing-first', 'missing-last'])
         self.assertEqual(self.database_order(), desired)
-        self.assertEqual(self.post('query', all_paths).get_json()['file_paths'], desired)
+        response = self.post('query', ['missing-first', *all_paths, 'missing-last'])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['file_paths'], desired)
+        self.assertEqual(response.get_json()['missing_file_paths'], ['missing-first', 'missing-last'])
 
     def test_set_and_query_never_scan_unrelated_files(self):
         a, b, c = self.seed()
@@ -200,7 +266,12 @@ class ManualOrderAPITests(TagbaseTestSupport, unittest.TestCase):
             response = client.post('/api/manual_order/' + operation, data='{', content_type='application/json')
             self.assertEqual(response.status_code, 400)
             body = {**base, 'target': b, 'placement': 'before', 'file_paths': [a, 'missing']}
-            self.assertEqual(client.post('/api/manual_order/' + operation, json=body).status_code, 404)
+            response = client.post('/api/manual_order/' + operation, json=body)
+            self.assertEqual(response.status_code, 404 if operation == 'move' else 200)
+            if operation != 'move':
+                self.assertEqual(response.get_json()['missing_file_paths'], ['missing'])
+            else:
+                self.assertEqual(response.get_json()['error'], 'file_not_found')
             missing_db = (self.folder / 'does-not-exist.db').as_posix()
             body = {**base, 'db_path': missing_db, 'target': b, 'placement': 'before'}
             response = client.post('/api/manual_order/' + operation, json=body)
@@ -230,7 +301,10 @@ class ManualOrderAPITests(TagbaseTestSupport, unittest.TestCase):
             for operation, paths, fields in [('set', [a, b, c], {}), ('set', [b], {}),
                                              ('move', [a, b], {'target': a, 'placement': 'after'})]:
                 response = self.post(operation, paths, **fields)
-                self.assertEqual(response.get_json(), {'success': True, 'changed': False, 'affected_count': 0})
+                expected = {'success': True, 'changed': False, 'affected_count': 0}
+                if operation == 'set':
+                    expected['missing_file_paths'] = []
+                self.assertEqual(response.get_json(), expected)
         self.assertEqual(self.database_order(), [a, b, c])
 
     def test_transaction_failure_rolls_back_values_cache_and_notifications(self):
@@ -245,7 +319,7 @@ class ManualOrderAPITests(TagbaseTestSupport, unittest.TestCase):
         cache = self.api._manual_order_cache
         events = QSignalSpy(self.manager.fileChanged)
         with self.assertLogs(self.web.app.logger.name, level='ERROR'):
-            response = self.post('set', [c, a, b])
+            response = self.post('set', [c, 'missing', a, b])
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.get_json()['error'], 'database_error')
         self.assertEqual(self.ranks(), saved)

@@ -15,6 +15,7 @@ class TagbaseChanges:
     added/removed_relations 按标签记录实际增删的路径。
     added/removed_file_paths 表示标签库中的文件记录增删（影响补集查询），
     不表示磁盘文件增删；文件本身的操作另由 file_events 描述。
+    missing_file_paths 记录宽松请求中忽略的未入库路径，不产生通知。
     """
 
     db_path: str
@@ -24,6 +25,7 @@ class TagbaseChanges:
     removed_relations: dict[str, list[str]] = field(default_factory=dict)
     added_file_paths: list[str] = field(default_factory=list)
     removed_file_paths: list[str] = field(default_factory=list)
+    missing_file_paths: list[str] = field(default_factory=list)
 
     def merge(self, other: "TagbaseChanges") -> None:
         if self.db_path != other.db_path:
@@ -38,6 +40,7 @@ class TagbaseChanges:
                 target.setdefault(tag, []).extend(paths)
         self.added_file_paths.extend(other.added_file_paths)
         self.removed_file_paths.extend(other.removed_file_paths)
+        self.missing_file_paths.extend(other.missing_file_paths)
 
     def relation_notification(self):
         """关系通知包含库路径、受影响标签/文件及精确的增删映射。"""

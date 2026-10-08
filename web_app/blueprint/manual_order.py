@@ -34,14 +34,17 @@ def _data_api(db_path):
     return current_app.config['MANUAL_ORDER_TAGBASE_DATA_DICT'][db_path]
 
 
-def _committed_response(changes):
+def _committed_response(changes, *, missing_file_paths=None):
     affected = [path for action, payload in changes.file_events if action == 'manual_order_changed'
                 for path in payload['file_paths']]
     if affected:
         publish = current_app.config.get('PUBLISH_TAGBASE_CHANGES')
         if publish is not None:
             publish(changes)
-    return jsonify(success=True, changed=bool(affected), affected_count=len(affected))
+    result = dict(success=True, changed=bool(affected), affected_count=len(affected))
+    if missing_file_paths is not None:
+        result['missing_file_paths'] = missing_file_paths
+    return jsonify(result)
 
 
 @manual_order_api_bp.errorhandler(ValueError)
@@ -69,8 +72,10 @@ def database_error(error):
 @api_login_required
 def query_manual_order():
     _data, db_path, paths = _request_data()
-    ordered = _data_api(db_path).get_manual_file_order(paths, strict=True)
-    return jsonify(success=True, file_paths=ordered)
+    ordered = _data_api(db_path).get_manual_file_order(paths, use_cache=False)
+    known = set(ordered)
+    missing = [path for path in paths if path not in known]
+    return jsonify(success=True, file_paths=ordered, missing_file_paths=missing)
 
 
 @manual_order_api_bp.route('/move', methods=['POST'])
@@ -91,5 +96,5 @@ def move_manual_order():
 @api_login_required
 def set_manual_order():
     _data, db_path, paths = _request_data()
-    changes = _data_api(db_path).set_manual_file_order(paths)
-    return _committed_response(changes)
+    changes = _data_api(db_path).set_manual_file_order(paths, strict=False)
+    return _committed_response(changes, missing_file_paths=changes.missing_file_paths)
