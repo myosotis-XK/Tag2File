@@ -139,6 +139,18 @@ export function apiOpenFile(path) {
   return `/open_file?path=${encodeURIComponent(path)}`;
 }
 
+// 上传单个文件；批量上传由界面逐个提交，避免大文件触发普通接口超时。
+export function apiUploadFile({ folderPath, file, onUploadProgress }) {
+  const data = new FormData();
+  data.append('folder_path', folderPath);
+  data.append('file', file);
+  return api.post('/upload_file', data, {
+    timeout: 0,
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    onUploadProgress,
+  });
+}
+
 // 获取文件夹内容
 export function apiGetFolderContents({ folderPath, sort_key, sort_order }) {
   return api.post('/get_folder_contents', {

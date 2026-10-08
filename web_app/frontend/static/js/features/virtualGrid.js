@@ -180,6 +180,7 @@ export async function loadFolderContents(folderPath, options = {}) {
             sort_key: globalState.currentSortKey,
             sort_order: globalState.currentSortOrder,
         });
+        if (options.onlyIfCurrentFolder && (!isBrowsingFolder() || globalState.currentFolder !== folderPath)) return;
         const files = normalizeFolderItems(response.data.files || []);
 
         if (!preserveRoot || !globalState.browseRoot) {
@@ -198,6 +199,7 @@ export async function loadFolderContents(folderPath, options = {}) {
         setupVirtualGrid();
         persistMainViewState();
     } catch (error) {
+        if (options.onlyIfCurrentFolder && (!isBrowsingFolder() || globalState.currentFolder !== folderPath)) return;
         console.error('加载文件夹内容失败:', error);
         getResultsContainer().innerHTML = `
             <div class="text-center text-danger py-5">

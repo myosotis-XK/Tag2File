@@ -138,8 +138,11 @@
                     <div id="folder-browse-nav" class="folder-browse-nav d-none">
                         <button id="restore-search-btn" class="btn btn-outline-secondary btn-sm" type="button">返回搜索结果</button>
                         <button id="go-parent-btn" class="btn btn-outline-secondary btn-sm" type="button">上一级</button>
+                        <button id="upload-files-btn" class="btn btn-primary btn-sm" type="button"><i class="fa fa-upload" aria-hidden="true"></i> 上传文件</button>
+                        <input id="upload-files-input" type="file" multiple hidden aria-label="选择要上传的文件">
                         <div id="current-folder-path" class="current-folder-path"></div>
                     </div>
+                    <div id="upload-status" class="alert d-none" role="status" aria-live="polite"></div>
                     <div id="results-container">
                         <div class="text-center text-muted py-5">
                             <i class="fa fa-search fa-3x mb-3"></i>

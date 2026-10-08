@@ -15,6 +15,7 @@ from src.utils import get_cache_path, root, config, thumbnailExtractor
 from src.models import get_file_init_icon
 from src.core.DictManage import DataAPI
 from web_app.blueprint.audio import audio_api_bp, audio_page_bp
+from web_app.blueprint.upload import upload_api_bp
 from web_app.decorators import login_required
 
 warnings.filterwarnings('ignore')
@@ -379,6 +380,7 @@ app.config['AUDIO_GET_USER_SETTING'] = get_user_setting
 app.config['AUDIO_TAGBASE_DATA_DICT'] = tagbase_data_dict
 app.register_blueprint(audio_page_bp, url_prefix='/audio')
 app.register_blueprint(audio_api_bp, url_prefix='/api/audio')
+app.register_blueprint(upload_api_bp)
 
 # ---------------- 登录页 ----------------
 @app.route('/login', methods=['GET', 'POST'])

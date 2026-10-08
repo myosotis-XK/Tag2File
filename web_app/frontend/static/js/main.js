@@ -3,6 +3,7 @@ import { insertAtCursor, debounce } from './utils.js';
 import { searchFiles, clearSearch } from './features/search.js';
 import { goParentOrRestore, loadFolderContents, persistMainViewState, renderBrowseNav, restorePersistedMainViewState, restoreSearchSnapshot, setupVirtualGrid } from './features/virtualGrid.js';
 import { loadDatabaseList } from './features/database.js';
+import { setupFileUpload } from './features/fileUpload.js';
 
 // 更新按钮样式以反映当前设置
 function updateButtonStyles() {
@@ -175,6 +176,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // 初始化事件监听
 function initEventListeners() {
+    setupFileUpload();
     // 搜索按钮点击事件
     document.getElementById('search-btn').addEventListener('click', searchFiles);
     document.getElementById('restore-search-btn').addEventListener('click', restoreSearchSnapshot);

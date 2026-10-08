@@ -223,6 +223,7 @@ body {
 }
 .folder-browse-nav {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     min-height: 42px;
@@ -240,6 +241,11 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+#upload-status {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 .file-item {
     padding: 0px;
