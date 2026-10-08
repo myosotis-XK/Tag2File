@@ -7,6 +7,7 @@ from .image import (
     NavButton,
 )
 from .audio import AudioPlayer
+from .video import VideoPlayer
 
 __all__ = [
     'ZoomIndicator',
@@ -16,4 +17,5 @@ __all__ = [
     'MultiImageViewer',
     'ImageBrowser',
     'AudioPlayer',
+    'VideoPlayer',
 ]

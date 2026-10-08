@@ -34,7 +34,7 @@ from .file_grid import (
     ThumbnailController,
     build_file_item,
 )
-from .media_viewers import AudioPlayer, MultiImageViewer
+from .media_viewers import AudioPlayer, MultiImageViewer, VideoPlayer
 
 default_value = {
     "SMALL_SIZE": 50,
@@ -820,6 +820,11 @@ class FileShowArea(QWidget):
             image_viewer.destroyed.connect(lambda: self.image_viewers.remove(image_viewer))
             image_viewer.load_image_files(self.get_files(), file_path)
             image_viewer.show()
+        elif not default and ext == '.mp4':
+            video_player = VideoPlayer(file_path, self.get_files())
+            self.image_viewers.append(video_player)
+            video_player.destroyed.connect(lambda: self.image_viewers.remove(video_player))
+            video_player.show()
         elif not default and ext in supported_audio_formats:
             audio_player = AudioPlayer(file_path, self.get_files())
             self.image_viewers.append(audio_player)

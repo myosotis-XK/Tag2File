@@ -1,5 +1,6 @@
 """仅在本次运行中分别记住各类弹窗的位置。"""
 
+from PyQt5 import sip
 from PyQt5.QtCore import QEvent, QObject, QPoint
 from PyQt5.QtWidgets import QApplication
 
@@ -12,9 +13,12 @@ class WindowPositionKeeper(QObject):
         self.window = window
         self.key = key
         self.normal_position = None
+        self._normal_position_frozen = False
         window.installEventFilter(self)
 
     def eventFilter(self, watched, event):
+        if sip.isdeleted(self.window):
+            return False
         # 多图片查看器也可嵌入图片浏览器；只记录独立窗口的位置。
         if not self.window.isWindow():
             return super().eventFilter(watched, event)
@@ -28,8 +32,19 @@ class WindowPositionKeeper(QObject):
         return super().eventFilter(watched, event)
 
     def remember_normal_position(self):
-        if not (self.window.isMaximized() or self.window.isMinimized() or self.window.isFullScreen()):
+        if not self._normal_position_frozen and not (
+            self.window.isMaximized() or self.window.isMinimized() or self.window.isFullScreen()
+        ):
             self.normal_position = self.window.pos()
+
+    def freeze_normal_position(self):
+        """Keep the windowed position during a transition into full screen."""
+        self.remember_normal_position()
+        self._normal_position_frozen = True
+
+    def unfreeze_normal_position(self):
+        self._normal_position_frozen = False
+        self.remember_normal_position()
 
     def restore_position(self):
         position = self._positions.get(self.key)
