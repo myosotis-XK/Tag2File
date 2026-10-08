@@ -25,6 +25,7 @@ from src.utils import config, init_config_section, save_config
 from src.utils.window_position import WindowPositionKeeper
 
 from .FileSelectionComponent import FileSelectionComponent
+from .file_grid_manual_sort import ManualSortController
 from .file_grid import (
     ActionResult,
     FileActionService,
@@ -724,12 +725,7 @@ class FileShowArea(QWidget):
     def addSortMenu(self, context_menu: QMenu):
         sort_menu = context_menu.addMenu(self.tr(FileShowAreaText.SORT))
 
-        for key, text in [
-            ("name", FileShowAreaText.SORT_BY_NAME),
-            ("size", FileShowAreaText.SORT_BY_SIZE),
-            ("date", FileShowAreaText.SORT_BY_DATE),
-            ("random", FileShowAreaText.SORT_RANDOM),
-        ]:
+        for key, text in self._sort_options():
             action = QAction(self.tr(text), self)
             action.setCheckable(True)
             action.triggered.connect(lambda _, sort_key=key: self.set_sort(sort_key, self.current_sort_order))
@@ -740,18 +736,28 @@ class FileShowArea(QWidget):
         sort_menu.addSeparator()
         asc_action = QAction(self.tr(FileShowAreaText.ASCENDING), self)
         asc_action.setCheckable(True)
+        asc_action.setEnabled(self.current_sort_key != "manual")
         asc_action.triggered.connect(lambda: self.set_sort(self.current_sort_key, "asc"))
         if self.current_sort_order == "asc":
             asc_action.setChecked(True)
 
         desc_action = QAction(self.tr(FileShowAreaText.DESCENDING), self)
         desc_action.setCheckable(True)
+        desc_action.setEnabled(self.current_sort_key != "manual")
         desc_action.triggered.connect(lambda: self.set_sort(self.current_sort_key, "desc"))
         if self.current_sort_order == "desc":
             desc_action.setChecked(True)
 
         sort_menu.addAction(asc_action)
         sort_menu.addAction(desc_action)
+
+    def _sort_options(self):
+        return [
+            ("name", FileShowAreaText.SORT_BY_NAME),
+            ("size", FileShowAreaText.SORT_BY_SIZE),
+            ("date", FileShowAreaText.SORT_BY_DATE),
+            ("random", FileShowAreaText.SORT_RANDOM),
+        ]
 
     def select_all_file(self):
         changed = self.state.select_all()
@@ -1084,8 +1090,8 @@ class FileShowArea(QWidget):
     def isMouseOnThumbnail(self, mouse_pos: QPoint, label: QLabel):
         icon_label = label.findChild(QLabel, "icon_label")
         pixmap = icon_label.pixmap()
-        if pixmap is None:
-            return True
+        if pixmap is None or pixmap.isNull():
+            return False
         pixmap_size = pixmap.size()
         offset_x = (self.image_size - pixmap_size.width()) // 2
         offset_y = self.image_size - pixmap_size.height()
@@ -1271,8 +1277,109 @@ class FileShowArea(QWidget):
 
 class MainFileShowArea(FileShowArea):
     def __init__(self, main_window, file_paths: list | None = None):
-        super().__init__(file_paths)
         self.main_window = main_window
+        self._browse_context = "search"
+        legacy_key = config.get("FileShowArea", "current_sort_key", fallback="date")
+        legacy_order = config.get("FileShowArea", "current_sort_order", fallback="desc")
+        init_config_section("MainFileShowArea", {
+            "search_sort_key": legacy_key,
+            "search_sort_order": legacy_order,
+            "folder_sort_key": legacy_key,
+            "folder_sort_order": legacy_order,
+        })
+        super().__init__(file_paths)
+        self.manual_sort_controller = ManualSortController(self)
+        self.setAcceptDrops(True)
+
+    def _load_scene_sort(self):
+        scene = self._browse_context
+        key = config.get("MainFileShowArea", f"{scene}_sort_key", fallback="date")
+        allowed = {key for key, _ in self._sort_options()}
+        self.current_sort_key = key if key in allowed else "date"
+        order = config.get("MainFileShowArea", f"{scene}_sort_order", fallback="desc")
+        self.current_sort_order = "desc" if self.current_sort_key == "manual" or order != "asc" else "asc"
+
+    def set_browse_context(self, scene: str):
+        if scene not in {"search", "folder"}:
+            raise ValueError("Invalid file grid scene")
+        self.manual_sort_controller.cancel()
+        self._browse_context = scene
+        self._load_scene_sort()
+
+    def is_manual_sort(self) -> bool:
+        return self._browse_context == "search" and self.current_sort_key == "manual"
+
+    def _sort_options(self):
+        options = super()._sort_options()
+        if self._browse_context == "search":
+            options.append(("manual", FileShowAreaText.SORT_MANUAL))
+        return options
+
+    def _sort_files(self):
+        self._load_scene_sort()
+        if self.is_manual_sort():
+            files = self.get_files()
+            ordered = self.dict_manage.get_manual_file_order(files)
+            known = set(ordered)
+            # A pending file-deletion notification may briefly leave stale paths visible.
+            self.state.reorder_files(ordered + [path for path in files if path not in known])
+        else:
+            super()._sort_files()
+
+    def set_sort(self, sort_key: str, sort_order: str) -> None:
+        if sort_key not in {key for key, _ in self._sort_options()} or sort_order not in {"asc", "desc"}:
+            return
+        self.manual_sort_controller.cancel()
+        scene = self._browse_context
+        if self.current_sort_key == "manual":
+            sort_order = config.get("MainFileShowArea", f"{scene}_sort_order", fallback="desc")
+        config.set("MainFileShowArea", f"{scene}_sort_key", sort_key)
+        config.set("MainFileShowArea", f"{scene}_sort_order", sort_order)
+        save_config()
+        self.resort_files()
+
+    def resort_files(self):
+        offset = self.get_scroll_offset()
+        self._sort_files()
+        self.updateLayout(recover_scroll=False)
+        self.set_scroll_offset(offset)
+        self.filesChanged.emit(self.get_files())
+
+    def createFileLabel(self):
+        label = super().createFileLabel()
+        if hasattr(self, "manual_sort_controller"):
+            self.manual_sort_controller.install(label)
+        return label
+
+    def set_files(self, file_meta_datas=None, recover_scroll=False):
+        if hasattr(self, "manual_sort_controller"):
+            self.manual_sort_controller.cancel()
+        super().set_files(file_meta_datas, recover_scroll)
+
+    def append_files(self, file_meta_datas):
+        self.manual_sort_controller.cancel()
+        super().append_files(file_meta_datas)
+
+    def remove_files(self, file_paths):
+        self.manual_sort_controller.cancel()
+        super().remove_files(file_paths)
+
+    def closeEvent(self, event):
+        self.manual_sort_controller.cancel()
+        super().closeEvent(event)
+
+    def dragEnterEvent(self, event):
+        self.manual_sort_controller.move(event)
+
+    def dragMoveEvent(self, event):
+        self.manual_sort_controller.move(event)
+
+    def dragLeaveEvent(self, event):
+        self.manual_sort_controller.leave()
+        event.accept()
+
+    def dropEvent(self, event):
+        self.manual_sort_controller.drop(event)
 
     def _handle_directory_activation(self, file_path: str) -> bool:
         self.folderActivated.emit(file_path)

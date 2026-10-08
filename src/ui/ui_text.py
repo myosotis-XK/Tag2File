@@ -42,6 +42,7 @@ class FileShowAreaText:
     SORT_BY_SIZE = "按文件大小"
     SORT_BY_DATE = "按修改日期"
     SORT_RANDOM = "随机排序"
+    SORT_MANUAL = "手工排序"
     ASCENDING = "升序"
     DESCENDING = "降序"
     PROPERTIES = "属性"

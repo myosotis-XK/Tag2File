@@ -43,9 +43,96 @@ Tag2File 最强大的功能是支持复杂的标签表达式搜索，让你能�
 ### 4. 文件相关功能
 
 * **显示** 支持**缩略图**浏览模式，可以在**小**、**中**、**大**三种缩略图尺寸切换之间切换
-* **排序** 支持按**文件名**、**文件大小**、**创建时间**、**随机**排序
+* **排序** 支持按**文件名**、**文件大小**、**修改时间**、**随机**排序。主窗口的标签搜索结果支持**手工排序**：在空白处右键选择“排序 → 手工排序”，拖动文件或多组选中项调整位置。每个标签库共用一份排列，重启后仍保留；新文件以入库时的修改时间作为初始排序值，插入对应位置。
 * **文件操作** 支持**打开**、**复制**、**剪切**、**重命名**、**删除**文件
 >     注意：标签是通过文件路径来指向文件的，只有通过应用内的文件操作才能保证标签的正确更新。
+
+---
+
+## 手工排序 HTTP 接口
+
+桌面程序启动后，Web 服务提供以下三个接口。先通过 `POST /login` 提交表单字段 `username`、`password`，后续请求沿用登录会话的 Cookie。接口使用 JSON 请求体，并显式指定标签库 `db_path`，不会切换桌面或 Web 当前选中的标签库。
+
+| 接口（均为 POST） | 用途 | 请求字段 |
+| --- | --- | --- |
+| `/api/manual_order/query` | 查询给定文件的手工顺序 | `db_path`、`file_paths` |
+| `/api/manual_order/move` | 将一组文件移到目标前面或后面 | `db_path`、`file_paths`、`target`、`placement` |
+| `/api/manual_order/set` | 将 N 个文件按数组顺序放回它们原来占用的位置 | `db_path`、`file_paths` |
+
+文件列表必须是非空数组，路径必须属于指定标签库，不能重复；路径支持 `/` 和 `\`，返回路径使用 `/`。排序在整个标签库中生效，真实文件内容和修改时间保持不变。
+
+### 查询顺序
+
+发送到 `/api/manual_order/query`：
+
+```json
+{
+  "db_path": "D:/data/photos.db",
+  "file_paths": ["D:/photos/C.jpg", "D:/photos/A.jpg", "D:/photos/B.jpg"]
+}
+```
+
+返回给定文件按手工排序排列后的列表：
+
+```json
+{
+  "success": true,
+  "file_paths": ["D:/photos/A.jpg", "D:/photos/B.jpg", "D:/photos/C.jpg"]
+}
+```
+
+### 移动一组文件
+
+发送到 `/api/manual_order/move`：
+
+```json
+{
+  "db_path": "D:/data/photos.db",
+  "file_paths": ["D:/photos/C.jpg", "D:/photos/D.jpg"],
+  "target": "D:/photos/B.jpg",
+  "placement": "before"
+}
+```
+
+`placement` 为 `before` 或 `after`，组内顺序采用 `file_paths` 的顺序。目标位置根据完整标签库中的相邻文件计算，包括当前筛选隐藏的文件。目标属于移动组，或该组已经位于目标指定的一侧且顺序一致时，返回无操作结果。
+
+### 设置 N 个文件的顺序
+
+发送到 `/api/manual_order/set`：
+
+```json
+{
+  "db_path": "D:/data/photos.db",
+  "file_paths": ["D:/photos/C.jpg", "D:/photos/A.jpg", "D:/photos/B.jpg"]
+}
+```
+
+例如全库原顺序为 `A → X → B → Y → C`，提交 `[C, A, B]` 后为 `C → X → A → Y → B`。未提交文件保持原来的全库位置。传入全库文件时，数组就是全库的最终顺序。
+
+通常复用所选文件的原排序值；排序值相同且需要调整次序时，只调整涉及的等值段。其他文件的位置保持不变，新文件仍以入库时的修改时间参与排序。
+
+### 保存结果和错误
+
+移动和设置接口使用同样的响应：
+
+```json
+{"success": true, "changed": true, "affected_count": 3}
+```
+
+`affected_count` 是实际修改排序值的文件数量，等值段调整可能涉及未提交的文件。无操作时 `changed` 为 `false`，数量为 `0`。有效写入使用单次事务，提交后发布一次通知；桌面主窗口处于手工模式时原地重排，保留选区、当前文件和滚动位置。
+
+错误也返回 JSON，例如：
+
+```json
+{"success": false, "error": "file_not_found", "message": "文件已不在当前标签库中"}
+```
+
+| HTTP 状态 | `error` | 含义 |
+| --- | --- | --- |
+| 400 | `invalid_request` | 请求格式、参数或重复路径有误 |
+| 401 | `unauthorized` | 尚未登录 |
+| 404 | `tagbase_not_found` / `file_not_found` | 标签库或文件记录不存在 |
+| 500 | `database_error` | 数据库操作失败；写事务会回滚 |
 
 ---
 

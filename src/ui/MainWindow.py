@@ -415,6 +415,10 @@ class Tag2File(QMainWindow):
     def _on_file_changed(self, action, payload):
         if action == "audio_markers_changed":
             return
+        if action == "manual_order_changed":
+            if self.MainFileShowArea.is_manual_sort():
+                self.MainFileShowArea.resort_files()
+            return
         self._schedule_refresh(search=True, files=True)
 
     def _on_tagbase_changed(self, db_path):
@@ -534,6 +538,7 @@ class Tag2File(QMainWindow):
             return False
 
         self.current_folder = folder_path
+        self.MainFileShowArea.set_browse_context("folder")
         self.MainFileShowArea.set_files(file_meta_datas)
         self._update_folder_nav()
         return True
@@ -567,14 +572,15 @@ class Tag2File(QMainWindow):
             return
 
         snapshot = self.search_snapshot
+        self._clear_folder_browse()
         self.MainFileShowArea.set_files([(file_path, 0, 0) for file_path in snapshot.file_paths], recover_scroll=False)
         self.MainFileShowArea.set_selected_files(snapshot.selected_files, snapshot.current_file)
         self.MainFileShowArea.set_scroll_offset(snapshot.scroll_offset)
         self.tag_expression = snapshot.tag_expression
-        self._clear_folder_browse()
 
     def _clear_folder_browse(self) -> None:
         self.browse_mode = "search"
+        self.MainFileShowArea.set_browse_context("search")
         self.search_snapshot = None
         self.browse_root = None
         self.current_folder = None

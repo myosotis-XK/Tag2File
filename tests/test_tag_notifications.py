@@ -18,7 +18,7 @@ from PyQt5.QtTest import QSignalSpy
 from PyQt5.QtWidgets import QApplication
 
 
-class TagNotificationTests(unittest.TestCase):
+class TagbaseTestSupport:
     @classmethod
     def setUpClass(cls):
         cls.workspace = tempfile.TemporaryDirectory(prefix="tag2file-notifications-")
@@ -111,6 +111,8 @@ class TagNotificationTests(unittest.TestCase):
         self.drain()
         return view
 
+
+class TagNotificationTests(TagbaseTestSupport, unittest.TestCase):
     def test_existing_tag_emits_only_actual_relationships(self):
         self.api.create_tag("A")
         self.api.add_tag("A", [self.paths[0]])

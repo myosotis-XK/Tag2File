@@ -195,7 +195,7 @@ class SingleFileTagView(QScrollArea):
         self._request_refresh()
 
     def _on_file_changed(self, action, payload):
-        if self.current_file_path is None or action == "audio_markers_changed":
+        if self.current_file_path is None or action in {"audio_markers_changed", "manual_order_changed"}:
             return
         changed_paths = set(payload.get("file_paths", [])) if isinstance(payload, dict) else set()
         path_mapping = payload.get("path_mapping", {}) if isinstance(payload, dict) else {}

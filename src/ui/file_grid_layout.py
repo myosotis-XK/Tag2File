@@ -1,4 +1,4 @@
-from PyQt5.QtCore import QRect, QSize
+from PyQt5.QtCore import QPoint, QRect, QSize
 
 from src.models import FileItem
 
@@ -8,6 +8,24 @@ from .file_grid_models import LayoutSnapshot
 # ---------------- 布局层 ----------------
 
 class FileGridLayoutEngine:
+    def get_insertion_index(self, position: QPoint, labels_rect: list) -> int:
+        """Hit test all layout rows, including labels outside the virtualized viewport."""
+        rows = [[item for item in row if item is not None] for row in labels_rect]
+        rows = [row for row in rows if row]
+        if not rows:
+            return 0
+        offset = 0
+        for index, row in enumerate(rows):
+            bottom = max(item[0][1] + item[1][1] for item in row)
+            boundary = (bottom + rows[index + 1][0][0][1]) / 2 if index + 1 < len(rows) else bottom
+            if position.y() <= boundary:
+                for col, item in enumerate(row):
+                    if position.x() < item[0][0] + item[1][0] / 2:
+                        return offset + col
+                return offset + len(row)
+            offset += len(row)
+        return offset
+
     def compute_layout(
         self,
         file_paths: list[str],

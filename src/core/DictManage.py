@@ -3,6 +3,8 @@ import threading
 import sqlite3
 import time
 import json
+from fractions import Fraction
+from functools import lru_cache
 from PyQt5.QtCore import QObject, QThread, Qt, pyqtSignal, pyqtSlot
 from src.utils import *
 from .changes import TagbaseChanges, normalize_db_path
@@ -15,6 +17,10 @@ default_value = {
 }
 init_config_section('DictManage', default_value)
 save_config()
+
+class ManualOrderFileNotFoundError(ValueError):
+    """手工排序请求引用了已不在标签库中的文件。"""
+
 
 class DataAPI():
     # 类型注解
@@ -45,6 +51,9 @@ class DataAPI():
 
                 inst.tag2file_cache = {}
                 inst.file_cache = {}
+                inst._manual_order_cache = None
+                inst._manual_positions_cache = {}
+                inst._manual_cache_stamp = None
 
                 # 加载数据库
                 # 如果数据库不存在，创建
@@ -57,6 +66,13 @@ class DataAPI():
                 )
                 inst.conn.execute("PRAGMA journal_mode=WAL;")
                 inst.conn.execute("PRAGMA foreign_keys=ON;")
+                inst.conn.create_collation("fraction_order", inst._compare_manual_order)
+                try:
+                    inst._ensure_manual_order_schema()
+                except Exception:
+                    inst.conn.close()
+                    del cls._instances[db_path]
+                    raise
 
                 # 缓存「未分类」ID
                 cur = inst.conn.cursor()
@@ -115,7 +131,8 @@ class DataAPI():
                         name TEXT UNIQUE NOT NULL,
                         size_bytes INTEGER DEFAULT 0,
                         mtime REAL DEFAULT 0,
-                        extra_data TEXT
+                        extra_data TEXT,
+                        manual_order TEXT
                     );
                 """)
 
@@ -188,6 +205,234 @@ class DataAPI():
         if self.conn:
             self.conn.close()
             self.conn = None
+
+    @staticmethod
+    def _encode_manual_order(value: Fraction) -> str:
+        return f"{value.numerator}/{value.denominator}"
+
+    @staticmethod
+    @lru_cache(maxsize=8192)
+    def _decode_manual_order(value: str) -> Fraction:
+        return Fraction(value)
+
+    @staticmethod
+    def _compare_manual_order(left: str, right: str) -> int:
+        left_value = DataAPI._decode_manual_order(left)
+        right_value = DataAPI._decode_manual_order(right)
+        return (left_value > right_value) - (left_value < right_value)
+
+    def _manual_change_stamp(self):
+        # total_changes covers our connection; data_version covers other SQLite connections.
+        return self.conn.total_changes, self.conn.execute("PRAGMA data_version").fetchone()[0]
+
+    def _check_manual_cache(self):
+        stamp = self._manual_change_stamp()
+        if stamp != self._manual_cache_stamp:
+            self._manual_order_cache = None
+            self._manual_positions_cache = {}
+        return stamp
+
+    def _ensure_manual_order_schema(self) -> None:
+        # BEGIN IMMEDIATE keeps schema inspection and backfill in one write transaction.
+        with self._lock, self.conn:
+            self.conn.execute("BEGIN IMMEDIATE")
+            columns = {row[1] for row in self.conn.execute("PRAGMA table_info(file)")}
+            if "manual_order" not in columns:
+                self.conn.execute("ALTER TABLE file ADD COLUMN manual_order TEXT")
+            rows = self.conn.execute("SELECT id, mtime FROM file WHERE manual_order IS NULL").fetchall()
+            self.conn.executemany("UPDATE file SET manual_order=? WHERE id=?", [
+                (self._encode_manual_order(Fraction(str(mtime or 0))), fid) for fid, mtime in rows
+            ])
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_file_manual_order "
+                              "ON file(manual_order COLLATE fraction_order DESC, id ASC)")
+
+    def _manual_file_rows(self, paths: list[str]):
+        """Read only requested records; the caller owns the lock and transaction."""
+        by_path = {}
+        for start in range(0, len(paths), 500):
+            batch = paths[start:start + 500]
+            placeholders = ','.join('?' for _ in batch)
+            by_path.update((row[1], row) for row in self.conn.execute(
+                f"SELECT id, name, manual_order FROM file WHERE name IN ({placeholders})", batch))
+        if any(path not in by_path for path in paths):
+            raise ManualOrderFileNotFoundError("文件已不在当前标签库中")
+        return [by_path[path] for path in paths]
+
+    def get_manual_file_order(self, paths: list[str], *, strict: bool = False) -> list[str]:
+        paths = list(dict.fromkeys(path.replace('\\', '/') for path in paths))
+        if not paths:
+            return []
+        with self._lock:
+            if strict:
+                # External queries use a single read snapshot and never warm the full-library cache.
+                with self.conn:
+                    self.conn.execute("BEGIN")
+                    rows = self._manual_file_rows(paths)
+                    rows.sort(key=lambda row: (-self._decode_manual_order(row[2]), row[0]))
+                    return [row[1] for row in rows]
+            stamp = self._check_manual_cache()
+            if self._manual_order_cache is None:
+                self._manual_order_cache = [row[0] for row in self.conn.execute(
+                    "SELECT name FROM file ORDER BY manual_order COLLATE fraction_order DESC, id ASC")]
+                self._manual_positions_cache = {path: i for i, path in enumerate(self._manual_order_cache)}
+                self._manual_cache_stamp = stamp
+            positions = self._manual_positions_cache
+            result = [path for path in paths if path in positions]
+            result.sort(key=positions.__getitem__)
+            return result
+
+    def _manual_range_rows(self, value: str, before: bool, limit: int):
+        comparison = ">" if before else "<"
+        order = "ASC, id DESC" if before else "DESC, id ASC"
+        return self.conn.execute(
+            "SELECT id, name, manual_order FROM file INDEXED BY idx_file_manual_order "
+            f"WHERE manual_order COLLATE fraction_order {comparison} ? "
+            f"ORDER BY manual_order COLLATE fraction_order {order} LIMIT ?", (value, limit),
+        ).fetchall()
+
+    def _manual_adjacent_rows(self, target_row, before: bool, limit: int):
+        comparison = "<" if before else ">"
+        order = "DESC" if before else "ASC"
+        rows = self.conn.execute(
+            "SELECT id, name, manual_order FROM file INDEXED BY idx_file_manual_order "
+            f"WHERE manual_order COLLATE fraction_order = ? AND id {comparison} ? "
+            f"ORDER BY id {order} LIMIT ?", (target_row[2], target_row[0], limit),
+        ).fetchall()
+        if len(rows) < limit:
+            rows.extend(self._manual_range_rows(target_row[2], before, limit - len(rows)))
+        return rows
+
+    def move_files_manually(self, paths: list[str], target: str, placement: str) -> TagbaseChanges:
+        if placement not in {"before", "after"}:
+            raise ValueError("手工排序位置无效")
+        paths = list(dict.fromkeys(path.replace('\\', '/') for path in paths))
+        target = target.replace('\\', '/')
+        with self._lock:
+            return self._move_files_manually(paths, target, placement)
+
+    def _move_files_manually(self, paths: list[str], target: str, placement: str) -> TagbaseChanges:
+        changes = TagbaseChanges(self.db_path)
+        if not paths:
+            return changes
+        with self.conn:
+            self.conn.execute("BEGIN IMMEDIATE")
+            stamp = self._check_manual_cache()
+            target_row = self.conn.execute("SELECT id, name, manual_order FROM file WHERE name=?", (target,)).fetchone()
+            moving = self._manual_file_rows(paths)
+            if target_row is None:
+                raise ManualOrderFileNotFoundError("文件已不在当前标签库中")
+            if target in paths:
+                return changes
+            moving_ids = {row[0] for row in moving}
+            before = placement == "before"
+            adjacent = self._manual_adjacent_rows(target_row, before, len(moving) + 1)
+            expected = list(reversed(paths)) if before else paths
+            if [row[1] for row in adjacent[:len(moving)]] == expected:
+                return changes
+
+            neighbor = next((row for row in adjacent if row[0] not in moving_ids), None)
+            target_value = self._decode_manual_order(target_row[2])
+            neighbor_value = self._decode_manual_order(neighbor[2]) if neighbor is not None else None
+            upper, lower = (neighbor_value, target_value) if before else (target_value, neighbor_value)
+            affected = moving
+            if upper is not None and upper == lower:
+                # Only this indexed equal-valued run needs redistribution.
+                tied_value = upper
+                tied = [row for row in self.conn.execute(
+                    "SELECT id, name, manual_order FROM file WHERE manual_order COLLATE fraction_order = ? "
+                    "ORDER BY id ASC", (target_row[2],)) if row[0] not in moving_ids]
+                index = next(i for i, row in enumerate(tied) if row[0] == target_row[0]) + (not before)
+                affected = tied[:index] + moving + tied[index:]
+                previous = next((row for row in self._manual_range_rows(target_row[2], True, len(moving) + 1)
+                                 if row[0] not in moving_ids), None)
+                following = next((row for row in self._manual_range_rows(target_row[2], False, len(moving) + 1)
+                                  if row[0] not in moving_ids), None)
+                upper = self._decode_manual_order(previous[2]) if previous is not None else tied_value + 1
+                lower = self._decode_manual_order(following[2]) if following is not None else tied_value - 1
+            elif upper is None:
+                upper = lower + 1
+            elif lower is None:
+                lower = upper - 1
+            step = (upper - lower) / (len(affected) + 1)
+            updates = [(self._encode_manual_order(upper - step * (i + 1)), row[0])
+                       for i, row in enumerate(affected)]
+            self.conn.executemany("UPDATE file SET manual_order=? WHERE id=?", updates)
+            changes.file_events.append(("manual_order_changed", {"file_paths": [row[1] for row in affected]}))
+            if self._manual_order_cache is not None:
+                moving_set = set(paths)
+                cached = [path for path in self._manual_order_cache if path not in moving_set]
+                index = cached.index(target) + (not before)
+                cached[index:index] = paths
+        # The caller still holds the lock; publish only after the transaction commits.
+        if self._manual_order_cache is not None:
+            self._manual_order_cache = cached
+            self._manual_positions_cache = {path: i for i, path in enumerate(cached)}
+            self._manual_cache_stamp = (self.conn.total_changes, stamp[1])
+        return changes
+
+    def set_manual_file_order(self, paths: list[str]) -> TagbaseChanges:
+        """Replace the requested files in their existing global slots, in input order."""
+        if not isinstance(paths, list) or any(not isinstance(path, str) or not path for path in paths):
+            raise ValueError("文件列表中的路径必须是非空字符串")
+        paths = [path.replace('\\', '/') for path in paths]
+        if len(set(paths)) != len(paths):
+            raise ValueError("文件列表不能包含重复路径")
+        changes = TagbaseChanges(self.db_path)
+        if not paths:
+            return changes
+        with self._lock:
+            with self.conn:
+                self.conn.execute("BEGIN IMMEDIATE")
+                stamp = self._check_manual_cache()
+                requested = self._manual_file_rows(paths)
+                original = sorted(requested, key=lambda row: (-self._decode_manual_order(row[2]), row[0]))
+                if [row[1] for row in original] == paths:
+                    return changes
+
+                updates = []
+                affected = []
+                start = 0
+                while start < len(original):
+                    value = self._decode_manual_order(original[start][2])
+                    end = start + 1
+                    while end < len(original) and self._decode_manual_order(original[end][2]) == value:
+                        end += 1
+                    old_group, new_group = original[start:end], requested[start:end]
+                    start = end
+                    if [row[0] for row in old_group] == [row[0] for row in new_group]:
+                        continue
+
+                    tied = self.conn.execute(
+                        "SELECT id, name, manual_order FROM file WHERE manual_order COLLATE fraction_order = ? "
+                        "ORDER BY id ASC", (old_group[0][2],)).fetchall()
+                    replacements = dict(zip((row[0] for row in old_group), new_group))
+                    final_group = [replacements.get(row[0], row) for row in tied]
+                    if all(left[0] < right[0] for left, right in zip(final_group, final_group[1:])):
+                        values = [value] * len(final_group)
+                    else:
+                        previous = self._manual_range_rows(old_group[0][2], True, 1)
+                        following = self._manual_range_rows(old_group[0][2], False, 1)
+                        # Disjoint bands around ORIGINAL rank values keep adjacent changed runs apart.
+                        upper = (value + self._decode_manual_order(previous[0][2])) / 2 if previous else value + 1
+                        lower = (value + self._decode_manual_order(following[0][2])) / 2 if following else value - 1
+                        step = (upper - lower) / (len(final_group) + 1)
+                        values = [upper - step * (i + 1) for i in range(len(final_group))]
+                    for row, assigned in zip(final_group, values):
+                        if assigned != self._decode_manual_order(row[2]):
+                            updates.append((self._encode_manual_order(assigned), row[0]))
+                            affected.append(row[1])
+
+                # Compute every band before writing, so neighbor reads see one consistent order.
+                self.conn.executemany("UPDATE file SET manual_order=? WHERE id=?", updates)
+                changes.file_events.append(("manual_order_changed", {"file_paths": affected}))
+                slots = ([self._manual_positions_cache[row[1]] for row in original]
+                         if self._manual_order_cache is not None else None)
+            if slots is not None:
+                for index, path in zip(slots, paths):
+                    self._manual_order_cache[index] = path
+                    self._manual_positions_cache[path] = index
+                self._manual_cache_stamp = (self.conn.total_changes, stamp[1])
+        return changes
 
     def rename_tag(self, old_name: str, new_name: str):
         changes = TagbaseChanges(self.db_path)
@@ -763,7 +1008,9 @@ class DataAPI():
                             except OSError:
                                 new_files.append((path, 0, 0))
                         if new_files:
-                            cur.executemany("INSERT INTO file(name, size_bytes, mtime) VALUES (?, ?, ?)", new_files)
+                            cur.executemany("INSERT INTO file(name, size_bytes, mtime, manual_order) VALUES (?, ?, ?, ?)",
+                                            [(path, size, mtime, self._encode_manual_order(Fraction(str(mtime))))
+                                             for path, size, mtime in new_files])
                             changes.added_file_paths.extend(path for path, _, _ in new_files)
                             rows = cur.execute(sql, [tag_id, *batch]).fetchall()
                         additions = [row for row in rows if row[4] is None]
@@ -1131,6 +1378,19 @@ class DictManage(QObject):
 
     def get_all_files(self):
         return self.dataAPI.get_all_files()
+
+    def get_manual_file_order(self, paths: list[str]) -> list[str]:
+        return self.dataAPI.get_manual_file_order(paths)
+
+    def move_files_manually(self, paths: list[str], target: str, placement: str) -> TagbaseChanges:
+        changes = self.dataAPI.move_files_manually(paths, target, placement)
+        self.publish_changes(changes)
+        return changes
+
+    def set_manual_file_order(self, paths: list[str]) -> TagbaseChanges:
+        changes = self.dataAPI.set_manual_file_order(paths)
+        self.publish_changes(changes)
+        return changes
     
     def get_all_tags(self):
         return self.dataAPI.get_all_tags()
