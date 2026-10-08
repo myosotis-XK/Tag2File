@@ -537,7 +537,6 @@ class VideoPlayer(QWidget):
         else:
             self._was_maximized = self.isMaximized()
             self._window_playlist_visible = self.playlist_button.isChecked()
-            self.position_keeper.freeze_normal_position()
             self.set_playlist_visible(False)
             self.content_layout.removeWidget(self.control_bar)
             self.fullscreen_button.setIcon(player_icon('restore'))
@@ -556,7 +555,6 @@ class VideoPlayer(QWidget):
             self.set_playlist_visible(self._window_playlist_visible)
             self.fullscreen_button.setIcon(player_icon('fullscreen'))
             self.fullscreen_button.setToolTip(self.tr('全屏 (F11)'))
-            self.position_keeper.unfreeze_normal_position()
 
     def _layout_fullscreen_controls(self):
         if self.isFullScreen():
@@ -623,7 +621,6 @@ class VideoPlayer(QWidget):
         self._closing = True
         self.controls_timer.stop()
         self.video.set_subtitle('')
-        self.position_keeper.save_position()
         self.player.stop()
         self.player.setMedia(QMediaContent())
         super().closeEvent(event)
