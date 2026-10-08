@@ -130,6 +130,7 @@ class VideoPlayer(QWidget):
         self.slider.setRange(0, 10000)
         self.slider.setFixedHeight(18)
         self.slider.setAccessibleName(self.tr('播放进度'))
+        self.slider.setToolTip(self.tr('播放进度（← 后退 5 秒 / → 前进 5 秒）'))
         self.slider.setEnabled(False)
         self.slider.sliderMoved.connect(self._preview_seek)
         self.slider.sliderReleased.connect(self._seek)
@@ -418,6 +419,13 @@ class VideoPlayer(QWidget):
         if self.player.isSeekable() and not self._failed:
             self.player.setPosition(round(self.slider.value() * self.player.duration() / 10000))
 
+    def _seek_by(self, milliseconds):
+        duration = self.player.duration()
+        if self.current_index < 0 or self._failed or not self.player.isSeekable() or duration <= 0:
+            return
+        self.player.setPosition(min(duration, max(0, self.player.position() + milliseconds)))
+        self._show_controls()
+
     def _media_status_changed(self, status):
         if self._closing or self.current_index < 0:
             return
@@ -582,6 +590,15 @@ class VideoPlayer(QWidget):
         self.video.set_bottom_inset(0)
 
     def eventFilter(self, watched, event):
+        # Handle the focused progress slider as well as the video and playlist.
+        # The volume slider and open menus/dialogs keep their own arrow controls.
+        if (event.type() == QEvent.KeyPress and event.modifiers() == Qt.NoModifier
+                and event.key() in (Qt.Key_Left, Qt.Key_Right)
+                and watched is not self.volume and not isinstance(watched, QMenu)
+                and not QApplication.activePopupWidget() and not QApplication.activeModalWidget()):
+            self._seek_by(-5000 if event.key() == Qt.Key_Left else 5000)
+            event.accept()
+            return True
         if event.type() in (QEvent.MouseMove, QEvent.MouseButtonPress, QEvent.KeyPress):
             self._show_controls()
         elif event.type() == QEvent.Resize and watched is getattr(self, 'video', None):

@@ -303,6 +303,45 @@ class VideoPlayerTests(unittest.TestCase):
         self.assertFalse(self.window.isFullScreen())
         self.assertFalse(self.window.sidebar.isHidden())
 
+    def test_arrow_keys_seek_five_seconds_with_focused_progress_and_keep_pause(self):
+        self.window.show()
+        self.window.activateWindow()
+        self.app.processEvents()
+        self.window.toggle_play()
+        self.window._duration_changed(120000)
+        for target in (self.window.video.viewport(), self.window.slider, self.window.playlist):
+            self.window.player.setPosition(12000)
+            QTest.keyClick(target, Qt.Key_Left)
+            self.assertEqual(self.window.player.position(), 7000)
+            QTest.keyClick(target, Qt.Key_Right)
+            self.assertEqual(self.window.player.position(), 12000)
+        self.window.player.setPosition(2000)
+        QTest.keyClick(self.window.slider, Qt.Key_Left)
+        self.assertEqual(self.window.player.position(), 0)
+        self.window.player.setPosition(118000)
+        QTest.keyClick(self.window.slider, Qt.Key_Right)
+        self.assertEqual(self.window.player.position(), 120000)
+        self.assertEqual(self.window.player.state(), QMediaPlayer.PausedState)
+        self.assertEqual(self.window.current_index, 1)
+        volume = self.window.volume.value()
+        QTest.keyClick(self.window.volume, Qt.Key_Right)
+        self.assertGreater(self.window.volume.value(), volume)
+        self.assertEqual(self.window.player.position(), 120000)
+        QTest.keyClick(self.window, Qt.Key_Right, Qt.ControlModifier)
+        self.assertEqual(self.window.current_index, 2)
+
+    def test_step_ignores_unavailable_or_failed_video(self):
+        self.window.player.setPosition(12000)
+        self.window._failed = True
+        self.window._seek_by(5000)
+        self.assertEqual(self.window.player.position(), 12000)
+        self.window._failed = False
+        with patch.object(self.window.player, 'isSeekable', return_value=False):
+            self.window._seek_by(-5000)
+        with patch.object(self.window.player, 'duration', return_value=0):
+            self.window._seek_by(-5000)
+        self.assertEqual(self.window.player.position(), 12000)
+
     def test_playlist_starts_collapsed_and_stays_collapsed_after_fullscreen(self):
         self.window.show()
         self.window.toggle_fullscreen()

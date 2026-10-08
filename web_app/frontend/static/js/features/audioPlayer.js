@@ -1085,6 +1085,6 @@ export class AudioPlayerController {
   }
 
   goBack() {
-    window.history.back();
+    window.location.href = '/';
   }
 }

@@ -18,14 +18,18 @@ function normalizePlaylistContext(context) {
   return { playlist, currentIndex };
 }
 
-export function saveAudioPlayerContext(context) {
+export function saveAudioPlayerContext(context, storage = sessionStorage) {
   const normalized = normalizePlaylistContext(context);
   if (!normalized) {
     return false;
   }
 
-  sessionStorage.setItem(AUDIO_PLAYER_CONTEXT_KEY, JSON.stringify(normalized));
-  return true;
+  try {
+    storage.setItem(AUDIO_PLAYER_CONTEXT_KEY, JSON.stringify(normalized));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function loadAudioPlayerContext() {

@@ -2,6 +2,7 @@ import { buildVirtualFile, clearBrowseState, globalState, loadMainViewState, sav
 import { apiGetFolderContents, apiGetThumbnail, apiOpenFile, apiSearchFiles } from '../api.js';
 import { throttle } from '../utils.js';
 import { saveAudioPlayerContext } from './audioPlayerContext.js';
+import { isVideoFile, saveVideoPlayerContext } from './videoPlayerContext.js';
 import { attachFileTaggingGesture } from './fileTagging.js';
 
 // 检测是否为音频文件
@@ -585,32 +586,42 @@ function renderVisibleItems(forceRefresh = false) {
                         event.stopPropagation();
                         return;
                     }
-                    // 检测是否为文件夹
+                    const mediaType = file.isDirectory === true ? null
+                        : isAudioFile(file.filePath) ? 'audio'
+                        : isVideoFile(file.filePath) ? 'video' : null;
+                    // Reserve the tab during the click, before the async directory check.
+                    // Persist first so the new tab also inherits the file-list position.
+                    if (mediaType) persistMainViewState();
+                    const playerTab = mediaType ? window.open('about:blank', '_blank') : null;
                     const directory = file.isDirectory === true || await isDirectory(file.filePath);
                     if (directory) {
+                        playerTab?.close();
                         await loadFolderContents(file.filePath);
-                    } else {
-                        // 检测是否为音频文件
-                        if (isAudioFile(file.filePath)) {
-                            // 从当前文件列表中筛选出所有音频文件
-                            const audioFiles = allFiles
-                                .filter(f => isAudioFile(f.filePath))
-                                .map(f => f.filePath);
-
-                            // 找到当前文件在音频列表中的索引
-                            const currentIndex = audioFiles.indexOf(file.filePath);
-
-                            saveAudioPlayerContext({
-                                playlist: audioFiles,
-                                currentIndex
-                            });
-                            persistMainViewState();
-                            window.location.href = '/audio/player';
-                        } else {
-                            // 非音频文件，使用原有逻辑直接打开
-                            const targetUrl = apiOpenFile(file.filePath);
-                            window.open(targetUrl);
+                    } else if (mediaType) {
+                        if (!playerTab) {
+                            alert('浏览器阻止了播放器新标签页，请允许本站弹出窗口后重试。');
+                            return;
                         }
+                        if (playerTab.closed) return;
+                        try {
+                            const isMediaFile = mediaType === 'audio' ? isAudioFile : isVideoFile;
+                            const playlist = allFiles
+                                .filter(f => !f.isDirectory && isMediaFile(f.filePath))
+                                .map(f => f.filePath);
+                            const saveContext = mediaType === 'audio' ? saveAudioPlayerContext : saveVideoPlayerContext;
+                            // Write into the child tab explicitly; every player owns its queue.
+                            const saved = saveContext({ playlist, currentIndex: playlist.indexOf(file.filePath) }, playerTab.sessionStorage);
+                            if (!saved) throw new Error('Player context storage unavailable');
+                            playerTab.opener = null;
+                            playerTab.location.replace(`/${mediaType}/player`);
+                        } catch (error) {
+                            playerTab.close();
+                            console.error('打开播放器失败:', error);
+                            alert('无法在新标签页加载播放列表，请允许本站使用浏览器存储后重试。');
+                        }
+                    } else {
+                        const targetUrl = apiOpenFile(file.filePath);
+                        window.open(targetUrl);
                     }
                 });
                 

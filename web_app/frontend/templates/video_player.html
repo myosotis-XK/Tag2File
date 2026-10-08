@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>视频播放器 - Tag2File</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/static/css/video_player.css">
+</head>
+<body>
+<main id="video-player" class="player-shell">
+    <header class="titlebar">
+        <a href="/" class="icon-button" title="返回文件列表" aria-label="返回文件列表" data-icon="back">←</a>
+        <h1 id="video-title">视频播放器</h1>
+        <span id="video-counter"></span>
+    </header>
+    <div class="player-body">
+        <section class="screen" aria-label="视频播放区">
+            <div class="video-stage" id="video-stage">
+                <video id="video" controls playsinline preload="metadata"></video>
+                <div id="captions" class="captions" aria-hidden="true" hidden></div>
+                <div class="empty-state" id="empty-state"><span data-icon="video"></span><p>从文件列表中选择 MP4 开始播放</p><a href="/">返回文件列表</a></div>
+            </div>
+            <p id="playback-status" class="playback-status" role="status" hidden></p>
+            <div id="controls" class="transport">
+                <input id="progress" type="range" min="0" max="1000" step="0.1" value="0" aria-label="播放进度" title="播放进度（← 后退 5 秒 / → 前进 5 秒）" disabled>
+                <div class="controls-row">
+                    <button id="mode" class="icon-button" aria-label="顺序播放（点击切换）" title="顺序播放（点击切换）" data-icon="repeat"></button>
+                    <button id="previous" class="icon-button" aria-label="上一部" title="上一部 (Ctrl+←)" data-icon="previous"></button>
+                    <button id="play" class="icon-button primary" aria-label="播放" title="播放（空格）" data-icon="play"></button>
+                    <button id="next" class="icon-button" aria-label="下一部" title="下一部 (Ctrl+→)" data-icon="next"></button>
+                    <span id="time" class="time">00:00 / 00:00</span>
+                    <div class="controls-spacer"></div>
+                    <button id="mute" class="icon-button" aria-label="静音" title="静音" data-icon="volume"></button>
+                    <input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" aria-label="音量" title="音量">
+                    <div class="menu-anchor">
+                        <button id="subtitles-button" class="icon-button" aria-label="字幕" title="字幕" aria-expanded="false" aria-controls="subtitles-menu" data-icon="subtitles"></button>
+                        <div id="subtitles-menu" class="popup-menu" hidden>
+                            <p id="subtitle-status">未加载字幕</p>
+                            <button id="load-subtitle">加载 SRT 字幕…</button>
+                            <label><input id="show-subtitles" type="checkbox" checked disabled> 显示字幕</label>
+                        </div>
+                    </div>
+                    <button id="playlist-toggle" class="icon-button" aria-label="播放列表" title="播放列表 (Ctrl+L)" aria-expanded="false" aria-controls="playlist-sidebar" data-icon="playlist"></button>
+                    <div class="menu-anchor">
+                        <button id="more-button" class="icon-button" aria-label="更多" title="更多" aria-expanded="false" aria-controls="more-menu" data-icon="more"></button>
+                        <div id="more-menu" class="popup-menu" hidden>
+                            <button id="add-videos">添加视频…</button>
+                            <a id="open-original" target="_blank" rel="noopener">在浏览器中单独打开</a>
+                        </div>
+                    </div>
+                    <button id="fullscreen" class="icon-button" aria-label="全屏" title="全屏 (F)" data-icon="fullscreen"></button>
+                </div>
+            </div>
+        </section>
+        <aside id="playlist-sidebar" class="playlist-sidebar" aria-label="播放列表" hidden>
+            <div class="sidebar-header"><h2 id="playlist-title">播放列表</h2><button id="sidebar-add" class="icon-button" title="添加视频" aria-label="添加视频" data-icon="add"></button><button id="playlist-close" class="icon-button" title="收起播放列表" aria-label="收起播放列表" data-icon="close"></button></div>
+            <p id="playlist-meta"></p>
+            <ol id="playlist"></ol>
+        </aside>
+    </div>
+    <input id="subtitle-file" type="file" accept=".srt" hidden>
+    <dialog id="add-dialog">
+        <form method="dialog"><div class="sidebar-header"><h2>添加视频</h2><button class="icon-button" aria-label="关闭" data-icon="close"></button></div></form>
+        <p>选择当前文件列表中尚未加入的视频。</p>
+        <div id="available-videos"></div>
+        <div class="dialog-actions"><a href="/">返回文件列表</a><button id="confirm-add" class="text-button">添加所选</button></div>
+    </dialog>
+    <noscript>请启用 JavaScript 后使用视频播放列表。</noscript>
+</main>
+<script type="module" src="/static/js/features/videoPlayer.js"></script>
+</body>
+</html>
