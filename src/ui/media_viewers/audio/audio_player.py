@@ -49,7 +49,10 @@ class AudioPlayer(QWidget):
         self.play_mode = 0
         self.marker_store = MarkerStore()
         self.playlist_controller = AudioPlaylistController(current_file=path)
-        self.player = QMediaPlayer()
+        # Keep the existing DirectShow audio backend on Windows. Qt 5's WMF
+        # plugin (preferred for video subtitles) does not advertise VideoSurface.
+        flags = QMediaPlayer.VideoSurface if os.name == 'nt' else QMediaPlayer.Flags()
+        self.player = QMediaPlayer(flags=flags)
         self.current_audio_path = None
 
         self.setObjectName("audio_player_root")
